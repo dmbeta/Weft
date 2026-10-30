@@ -49,11 +49,18 @@ pub fn discover(mod_dirs: &[PathBuf], cache: &Path) -> Vec<(String, PathBuf, Pat
                 continue;
             };
             let file = libloading::library_filename(&name);
-            let lib = [Some(root.join(&file)), exe_dir.as_ref().map(|d| d.join(&file))].into_iter().flatten().find(|p| p.exists());
+            let lib = [Some(root.join(&file)), exe_dir.as_ref().map(|d| d.join(&file))]
+                .into_iter()
+                .flatten()
+                .find(|p| p.exists());
             match lib {
                 Some(lib) => found.push((name, root, lib)),
                 // The library is named after the mod (its crate), and so must be the folder or zip.
-                None => log::error!("mod {}: no {} in it; a mod's folder or zip is named like its crate", root.display(), file.to_string_lossy()),
+                None => log::error!(
+                    "mod {}: no {} in it; a mod's folder or zip is named like its crate",
+                    root.display(),
+                    file.to_string_lossy()
+                ),
             }
         }
     }
@@ -67,7 +74,8 @@ pub fn discover(mod_dirs: &[PathBuf], cache: &Path) -> Vec<(String, PathBuf, Pat
 /// older unpacked versions of the mod are removed.
 fn unpack(archive: &Path, cache: &Path, name: &str) -> Result<PathBuf, String> {
     let meta = std::fs::metadata(archive).map_err(|e| e.to_string())?;
-    let stamp = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
+    let stamp =
+        meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
     let dest = cache.join(format!("{name}-{}-{stamp}", meta.len()));
     if dest.join(".done").exists() {
         return Ok(dest);
@@ -91,7 +99,12 @@ fn unpack(archive: &Path, cache: &Path, name: &str) -> Result<PathBuf, String> {
 /// system, so that one zip serves them all (`discover` picks the system's own), and this system's
 /// from next to the engine executable if the folder has none.
 fn libraries(dir: &Path, name: &str) -> Vec<(String, PathBuf)> {
-    let mut libs: Vec<(String, PathBuf)> = [format!("{name}.dll"), format!("lib{name}.so"), format!("lib{name}.dylib")].into_iter().map(|f| (dir.join(&f), f)).filter(|(p, _)| p.exists()).map(|(p, f)| (f, p)).collect();
+    let mut libs: Vec<(String, PathBuf)> = [format!("{name}.dll"), format!("lib{name}.so"), format!("lib{name}.dylib")]
+        .into_iter()
+        .map(|f| (dir.join(&f), f))
+        .filter(|(p, _)| p.exists())
+        .map(|(p, f)| (f, p))
+        .collect();
     let own = libloading::library_filename(name).to_string_lossy().into_owned();
     if !libs.iter().any(|l| l.0 == own) {
         let beside = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join(&own)));
@@ -182,7 +195,11 @@ pub fn load(mod_dirs: &[PathBuf], cache: &Path) -> Result<Vec<LoadedMod>, String
             unsafe { lib.get(abi::ENTRY_SYMBOL) }.map_err(|_| format!("{} is not a Weft mod", lib_path.display()))?;
         let decl = unsafe { &*entry() };
         if decl.abi_version != abi::ABI_VERSION {
-            return Err(format!("mod {name} was built against another mod ABI ({:016x}, this engine has {:016x}); rebuild it against the current weft_sdk", decl.abi_version, abi::ABI_VERSION));
+            return Err(format!(
+                "mod {name} was built against another mod ABI ({:016x}, this engine has {:016x}); rebuild it against the current weft_sdk",
+                decl.abi_version,
+                abi::ABI_VERSION
+            ));
         }
         let id = unsafe { decl.id.as_str() }.to_string();
         if id != name {
@@ -219,7 +236,9 @@ pub fn load(mod_dirs: &[PathBuf], cache: &Path) -> Result<Vec<LoadedMod>, String
         .map(|(i, m)| {
             let mut reg = RawRegistrar::new(ModId(i as u32));
             let t = Instant::now();
-            let r = unsafe { (m.decl.init)(&crate::host::HOST, ModId(i as u32), &mut reg as *mut _ as *mut abi::Registrar) };
+            let r = unsafe {
+                (m.decl.init)(&crate::host::HOST, ModId(i as u32), &mut reg as *mut _ as *mut abi::Registrar)
+            };
             if r != 0 {
                 reg.errors.push("init panicked".into());
             }

@@ -3,12 +3,14 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-
 use super::{add, at};
 use crate::runner::{R, T};
 
 fn counts(s: &str) -> HashMap<String, u32> {
-    s.split_whitespace().filter_map(|kv| kv.split_once('=')).map(|(k, v)| (k.to_string(), v.parse().unwrap_or(0))).collect()
+    s.split_whitespace()
+        .filter_map(|kv| kv.split_once('='))
+        .map(|(k, v)| (k.to_string(), v.parse().unwrap_or(0)))
+        .collect()
 }
 
 pub async fn events_batched(t: T) -> R {
@@ -70,7 +72,11 @@ pub async fn vetoes_and_timers(t: T) -> R {
     t.secs(0.5).await?;
     t.check_eq(t.op("rings").await?, before.to_string(), "not before it is due");
     t.secs(1.5).await?;
-    t.check_eq(t.op("rings").await?, (before + 1).to_string(), "one timer per entity and event: the second moved the first");
+    t.check_eq(
+        t.op("rings").await?,
+        (before + 1).to_string(),
+        "one timer per entity and event: the second moved the first",
+    );
     Ok(())
 }
 
@@ -101,7 +107,6 @@ pub async fn facing_placement(t: T) -> R {
     Ok(())
 }
 
-
 /// One naming rule for every kind of thing: a name without a namespace is the declaring mod's,
 /// another mod's is written in full, and both resolve the same way when read.
 pub async fn names(t: T) -> R {
@@ -129,7 +134,11 @@ pub async fn block_properties(t: T) -> R {
     t.set(p, "mossy_cobblestone").await?;
     t.frames(5).await?;
     let l: u32 = t.op(&format!("light {}", at(add(p, [0, 1, 0])))).await?.parse().map_err(|e| format!("light: {e}"))?;
-    t.check_eq([(l >> 8) & 255, (l >> 16) & 255, l >> 24], [0, 0, 8], "block light above the overridden block (r, g, b)");
+    t.check_eq(
+        [(l >> 8) & 255, (l >> 16) & 255, l >> 24],
+        [0, 0, 8],
+        "block light above the overridden block (r, g, b)",
+    );
     Ok(())
 }
 
@@ -144,7 +153,8 @@ pub async fn client_entity_tick(t: T) -> R {
     t.until("the pig's client tick", Duration::from_secs(3), |_| crate::PIG_TICKS.load(Relaxed) > before + 10).await?;
     let deaths = crate::PIG_DEATHS.load(Relaxed);
     t.cmd("/kill @e[type=base:pig]").await?;
-    t.until("the last call when the death ends", Duration::from_secs(5), |_| crate::PIG_DEATHS.load(Relaxed) > deaths).await?;
+    t.until("the last call when the death ends", Duration::from_secs(5), |_| crate::PIG_DEATHS.load(Relaxed) > deaths)
+        .await?;
     let smoke = t.state().particles;
     t.check(smoke >= 10, format!("the engine's death smoke through engine_effects: {smoke} particles"));
     Ok(())
@@ -155,7 +165,10 @@ pub async fn client_entity_tick(t: T) -> R {
 pub async fn typed_channels(t: T) -> R {
     t.flat().await?;
     t.c().send(&crate::server::ECHO, &crate::server::Echo { n: 21 });
-    t.until("the doubled echo", Duration::from_secs(5), |_| crate::ECHOED.load(std::sync::atomic::Ordering::Relaxed) == 42).await?;
+    t.until("the doubled echo", Duration::from_secs(5), |_| {
+        crate::ECHOED.load(std::sync::atomic::Ordering::Relaxed) == 42
+    })
+    .await?;
     t.c().send(&crate::server::GREET, &"Steve".to_string());
     t.until("the greeting", Duration::from_secs(5), |_| *crate::GREETED.lock().unwrap() == "hello, Steve").await?;
     Ok(())

@@ -11,7 +11,8 @@ pub fn register(r: &mut Registry) {
         let dig: Vec<&str> = dig.iter().map(String::as_str).collect();
         let step: Vec<&str> = step.iter().map(String::as_str).collect();
         // Vanilla breaks glass with its own sound and knocks on it like on stone.
-        let breaks: Vec<&str> = if g == "glass" { vec!["random/glass1", "random/glass2", "random/glass3"] } else { dig.clone() };
+        let breaks: Vec<&str> =
+            if g == "glass" { vec!["random/glass1", "random/glass2", "random/glass3"] } else { dig.clone() };
         r.sound(Sound::generated(format!("block.{g}.break"))).files(&breaks).pitch(0.75, 0.85);
         r.sound(Sound::generated(format!("block.{g}.place"))).files(&dig).pitch(0.75, 0.85);
         r.sound(Sound::generated(format!("block.{g}.step"))).files(&step).pitch(0.9, 1.1);

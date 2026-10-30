@@ -128,7 +128,9 @@ pub fn perlin3(seed: u32, x: i32, y: i32, z: i32, sx: i32, sy: i32, sz: i32) -> 
     let (yi, yf) = lattice(y, sy);
     let (zi, zf) = lattice(z, sz);
     let (u, v, w) = (fade(xf), fade(yf), fade(zf));
-    let g = |dx: i32, dy: i32, dz: i32| grad3(hash(seed, xi + dx, yi + dy, zi + dz), xf - dx * ONE, yf - dy * ONE, zf - dz * ONE);
+    let g = |dx: i32, dy: i32, dz: i32| {
+        grad3(hash(seed, xi + dx, yi + dy, zi + dz), xf - dx * ONE, yf - dy * ONE, zf - dz * ONE)
+    };
     let x00 = lerp(g(0, 0, 0), g(1, 0, 0), u);
     let x10 = lerp(g(0, 1, 0), g(1, 1, 0), u);
     let x01 = lerp(g(0, 0, 1), g(1, 0, 1), u);

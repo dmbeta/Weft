@@ -33,7 +33,14 @@ impl Look {
         let mut namespaces: Vec<String> = mods.iter().rev().cloned().collect();
         namespaces.push("core".into());
         let (colors, nones) = lang.colors();
-        Look { namespaces, textures: Default::default(), sidecars: Default::default(), colors, nones, assets: assets.clone() }
+        Look {
+            namespaces,
+            textures: Default::default(),
+            sidecars: Default::default(),
+            colors,
+            nones,
+            assets: assets.clone(),
+        }
     }
 
     /// The texture of `class` in `state` ("" for its plain look), `ns:gui/<class>[_<state>]`.
@@ -43,8 +50,14 @@ impl Look {
             return t.clone();
         }
         let found = match key.split_once(':') {
-            Some((ns, path)) => Some(format!("{ns}:gui/{path}")).filter(|n| self.assets.path(n, "textures", "png").is_some()),
-            None => self.namespaces.iter().map(|ns| format!("{ns}:gui/{key}")).find(|n| self.assets.path(n, "textures", "png").is_some()),
+            Some((ns, path)) => {
+                Some(format!("{ns}:gui/{path}")).filter(|n| self.assets.path(n, "textures", "png").is_some())
+            }
+            None => self
+                .namespaces
+                .iter()
+                .map(|ns| format!("{ns}:gui/{key}"))
+                .find(|n| self.assets.path(n, "textures", "png").is_some()),
         };
         self.textures.borrow_mut().insert(key, found.clone());
         found

@@ -131,7 +131,13 @@ pub async fn run(t: T, src: String) -> R {
             "travel" => {
                 let eye = t.c().entity(0).map_or(1.62, |e| e.size[2] as f64);
                 let s = t.state();
-                let mut pts = vec![[s.pos[0], s.pos[1] + eye, s.pos[2], (s.yaw as f64).to_degrees(), (s.pitch as f64).to_degrees()]];
+                let mut pts = vec![[
+                    s.pos[0],
+                    s.pos[1] + eye,
+                    s.pos[2],
+                    (s.yaw as f64).to_degrees(),
+                    (s.pitch as f64).to_degrees(),
+                ]];
                 pts.append(&mut via);
                 fly(&t, pts, num(0, 5.0) as f64, eye).await?;
             }
@@ -179,7 +185,11 @@ fn catmull(p: [&[f64; 5]; 4], u: f64) -> [f64; 5] {
     let mut out = [0.0; 5];
     for i in 0..5 {
         let (a, b, c, d) = (p[0][i], p[1][i], p[2][i], p[3][i]);
-        out[i] = 0.5 * (2.0 * b + (-a + c) * u + (2.0 * a - 5.0 * b + 4.0 * c - d) * u * u + (-a + 3.0 * b - 3.0 * c + d) * u * u * u);
+        out[i] = 0.5
+            * (2.0 * b
+                + (-a + c) * u
+                + (2.0 * a - 5.0 * b + 4.0 * c - d) * u * u
+                + (-a + 3.0 * b - 3.0 * c + d) * u * u * u);
     }
     out
 }
@@ -203,7 +213,10 @@ async fn fly(t: &T, mut pts: Vec<[f64; 5]>, secs: f64, eye: f64) -> R {
     let mut len = 0.0;
     for seg in 0..n.saturating_sub(1) {
         for k in 0..64 {
-            let p = catmull([at(seg as isize - 1), at(seg as isize), at(seg as isize + 1), at(seg as isize + 2)], k as f64 / 64.0);
+            let p = catmull(
+                [at(seg as isize - 1), at(seg as isize), at(seg as isize + 1), at(seg as isize + 2)],
+                k as f64 / 64.0,
+            );
             if let Some((q, _)) = dense.last() {
                 len += ((p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) + (p[2] - q[2]).powi(2)).sqrt();
             }
@@ -229,7 +242,13 @@ async fn fly(t: &T, mut pts: Vec<[f64; 5]>, secs: f64, eye: f64) -> R {
         };
         let (a, la) = dense[i.saturating_sub(1)];
         let (b, lb) = dense[i];
-        let f = if turn { 0.0 } else if lb > la { ((e * len - la) / (lb - la)).clamp(0.0, 1.0) } else { 1.0 };
+        let f = if turn {
+            0.0
+        } else if lb > la {
+            ((e * len - la) / (lb - la)).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
         let mut p = [0.0; 5];
         for k in 0..5 {
             p[k] = a[k] + (b[k] - a[k]) * f;
@@ -240,7 +259,9 @@ async fn fly(t: &T, mut pts: Vec<[f64; 5]>, secs: f64, eye: f64) -> R {
         p[4] += shake * (0.35 * (tm * 0.7 + 2.0).sin() + 0.2 * (tm * 1.9).sin());
         let c = t.c();
         c.control(&weft_sdk::abi::PlayerControl {
-            mask: weft_sdk::abi::control_mask::POS | weft_sdk::abi::control_mask::VEL | weft_sdk::abi::control_mask::LOOK,
+            mask: weft_sdk::abi::control_mask::POS
+                | weft_sdk::abi::control_mask::VEL
+                | weft_sdk::abi::control_mask::LOOK,
             pos: [p[0], p[1] - eye, p[2]],
             vel: [0.0; 3],
             yaw: p[3].to_radians() as f32,

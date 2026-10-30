@@ -69,4 +69,3 @@ impl Shader {
         Ok(Shader { module, info, hash: weft_noise::fnv(full.as_bytes()), push_constant_size, buffers })
     }
 }
-

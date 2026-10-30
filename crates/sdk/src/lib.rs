@@ -7,7 +7,6 @@ mod cache;
 pub mod client;
 mod component;
 pub use weft_noise as noise;
-pub mod terrain;
 mod command;
 mod config;
 mod content;
@@ -15,6 +14,7 @@ mod effects;
 mod extend;
 pub mod facing;
 mod game;
+pub mod terrain;
 mod ui;
 mod world;
 
@@ -22,8 +22,8 @@ pub use abi::{ItemStack, hud_anchor, tool_tier, worn_parts};
 pub use cache::ColumnCache;
 pub use client::{Channel, Client, Packet, Payload, keys, launch_option, screens};
 pub use command::{ClientCommand, Command, ServerCommand};
-pub use config::*;
 pub use component::*;
+pub use config::*;
 pub use content::*;
 pub use effects::*;
 pub use extend::*;
@@ -176,7 +176,8 @@ fn asset_check(folder: &str, ns: &str, path: &str) -> Result<(), &'static str> {
         Some("not a name inside the folder")
     } else if path.split('/').any(|p| p.is_empty() || p == "." || p == "..") {
         Some("a path leaving the folder")
-    } else if TEXTURE_FOLDERS.contains(&folder) && path.split('/').next().is_some_and(|f| TEXTURE_FOLDERS.contains(&f)) {
+    } else if TEXTURE_FOLDERS.contains(&folder) && path.split('/').next().is_some_and(|f| TEXTURE_FOLDERS.contains(&f))
+    {
         Some("names start inside the folder, without it")
     } else {
         None
@@ -230,7 +231,11 @@ pub(crate) fn full_name(name: &str) -> String {
 /// vocabulary and stay as written.
 pub(crate) fn qualify(ns: &str, name: &str) -> String {
     let base = name.split('[').next().unwrap_or(name);
-    if name.starts_with('#') || base.contains(':') || name.is_empty() { name.to_string() } else { format!("{ns}:{name}") }
+    if name.starts_with('#') || base.contains(':') || name.is_empty() {
+        name.to_string()
+    } else {
+        format!("{ns}:{name}")
+    }
 }
 
 #[cfg(test)]

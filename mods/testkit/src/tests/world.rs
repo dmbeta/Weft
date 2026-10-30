@@ -4,8 +4,8 @@ use weft_sdk::abi::entry_kind as ek;
 use weft_sdk::terrain::Column;
 use weft_sdk::*;
 
-use super::{add, at};
 use super::probe;
+use super::{add, at};
 use crate::runner::{R, T};
 
 /// A player saved in a dimension that is gone (its mod removed) keeps everything and starts at
@@ -41,7 +41,11 @@ pub async fn missing_dimension(t: T) -> R {
     t.click_ui("id:continue", 0);
     t.until("joined again", Duration::from_secs(60), |t| t.flag(client::client_flags::JOINED)).await?;
     t.loaded().await?;
-    t.check_eq(t.state().dim, Dimension::lookup("base:overworld").unwrap_or(u32::MAX), "the player is in the spawn dimension");
+    t.check_eq(
+        t.state().dim,
+        Dimension::lookup("base:overworld").unwrap_or(u32::MAX),
+        "the player is in the spawn dimension",
+    );
     t.check_eq(t.slot("me", 3).await?, ("base:diamond".into(), 5, 0), "and kept the inventory");
     Ok(())
 }
@@ -72,13 +76,18 @@ pub async fn virtual_menus(t: T) -> R {
     t.check(t.state().screen.len == 0, "a screen opened for the refused menu");
 
     // Out of reach and one after another.
-    let machines = [("base:furnace", "base:furnace", [20, 0, 0]), ("base:chest", "base:chest", [-20, 0, 5]), ("testmod:generator", "testmod:generator", [0, 0, 24])];
+    let machines = [
+        ("base:furnace", "base:furnace", [20, 0, 0]),
+        ("base:chest", "base:chest", [-20, 0, 5]),
+        ("testmod:generator", "testmod:generator", [0, 0, 24]),
+    ];
     for (block, menu, d) in machines {
         let p = add(f, d);
         t.set(p, block).await?;
         t.op(&format!("menu {menu} {} {} {}", p[0], p[1], p[2])).await?;
         let want = Menu::lookup(menu).unwrap_or(u32::MAX);
-        t.until(&format!("{menu} open"), Duration::from_secs(5), |t| t.c().menu().is_some_and(|m| m[0] == want)).await?;
+        t.until(&format!("{menu} open"), Duration::from_secs(5), |t| t.c().menu().is_some_and(|m| m[0] == want))
+            .await?;
         t.screen("core:menu").await?;
     }
     t.c().close_screen();
@@ -92,7 +101,13 @@ pub async fn load_benchmark(t: T) -> R {
     t.world(5).await?;
     t.idle().await?;
     let s = t.state();
-    t.note(format!("idle after {:.2} s with {} cubes (generated {}, {:.0} us each)", start.elapsed().as_secs_f32(), s.cubes, s.generated, s.gen_us));
+    t.note(format!(
+        "idle after {:.2} s with {} cubes (generated {}, {:.0} us each)",
+        start.elapsed().as_secs_f32(),
+        s.cubes,
+        s.generated,
+        s.gen_us
+    ));
     let b = t.bench(4.0, "idle").await?;
     t.check(b[2] < 50.0, format!("p99 frame {:.1} ms", b[2]));
     t.check(b[4] < 25.0, format!("server tick {:.1} ms", b[4]));
@@ -117,7 +132,10 @@ pub async fn crater(t: T) -> R {
         let out = t.op(&format!("crater {r}")).await?;
         let round = start.elapsed().as_secs_f64() * 1000.0;
         let v: Vec<&str> = out.split_whitespace().collect();
-        t.note(format!("r {r}: {} set, {} already air, {} not loaded; loop {} ms, command round trip {round:.0} ms", v[0], v[1], v[2], v[3]));
+        t.note(format!(
+            "r {r}: {} set, {} already air, {} not loaded; loop {} ms, command round trip {round:.0} ms",
+            v[0], v[1], v[2], v[3]
+        ));
         t.bench(3.0, &format!("after crater {r}")).await?;
     }
     // The area edit: one call, the engine's own log line says where the time went
@@ -138,9 +156,16 @@ pub async fn crater(t: T) -> R {
         // Deeper than that is beyond what is loaded below the player.
         if r <= 64 {
             let below = add(f, [0, -(r - 2), 0]);
-            t.check_eq(t.op(&format!("get {} {} {}", below[0], below[1], below[2])).await?, "core:air".to_string(), &format!("r {r}: hollow near the bottom"));
+            t.check_eq(
+                t.op(&format!("get {} {} {}", below[0], below[1], below[2])).await?,
+                "core:air".to_string(),
+                &format!("r {r}: hollow near the bottom"),
+            );
             let out = add(f, [0, -(r + 2), 0]);
-            t.check(t.op(&format!("get {} {} {}", out[0], out[1], out[2])).await? != "core:air", format!("r {r}: solid below the crater"));
+            t.check(
+                t.op(&format!("get {} {} {}", out[0], out[1], out[2])).await? != "core:air",
+                format!("r {r}: solid below the crater"),
+            );
             let light: u32 = t.op(&format!("light {} {} {}", below[0], below[1], below[2])).await?.parse().unwrap_or(0);
             t.check_eq(light & 255, 15, &format!("r {r}: full sky light near the bottom, the crater relit"));
         }
@@ -211,13 +236,21 @@ pub async fn crater_saved(t: T) -> R {
     t.c().open_world(&name, 8);
     t.until("joined again", Duration::from_secs(60), |t| t.flag(client::client_flags::JOINED)).await?;
     t.loaded().await?;
-    t.check_eq(t.block(built).await?, "base:gold_block".to_string(), "a block built in the crater stays after reopening");
+    t.check_eq(
+        t.block(built).await?,
+        "base:gold_block".to_string(),
+        "a block built in the crater stays after reopening",
+    );
     let far = [f[0] + 450, f[1] - 100, f[2]];
     t.cmd(&format!("/tp {} {} {}", far[0], far[1], far[2])).await?;
     t.secs(1.0).await?;
     t.loaded().await?;
     for p in [far, add(far, [0, -40, 0]), add(far, [0, 40, 30])] {
-        t.check_eq(t.block(p).await?, "core:air".to_string(), &format!("{p:?}, first loaded after reopening, is in the crater"));
+        t.check_eq(
+            t.block(p).await?,
+            "core:air".to_string(),
+            &format!("{p:?}, first loaded after reopening, is in the crater"),
+        );
     }
     Ok(())
 }
@@ -297,9 +330,17 @@ pub async fn foreign_terrain(t: T) -> R {
     let top = t.op(&format!("get 1000 {} 1000", needle.height)).await?;
     t.check(top != "core:air", format!("the needle is generated where the terrain says ({top})"));
 
-    let grid: Vec<(i32, i32, Column)> = (-80..80).flat_map(|i| (-80..80).map(move |j| (i * 64, j * 64))).map(|(x, z)| (x, z, OVERWORLD.column(seed, x, z))).collect();
+    let grid: Vec<(i32, i32, Column)> = (-80..80)
+        .flat_map(|i| (-80..80).map(move |j| (i * 64, j * 64)))
+        .map(|(x, z)| (x, z, OVERWORLD.column(seed, x, z)))
+        .collect();
     let count = |name: &str| grid.iter().filter(|g| name_of(ek::BIOME, g.2.biome) == name).count();
-    t.note(format!("of {} columns: desert {}, scorched {}", grid.len(), count("base:desert"), count("testmod:scorched")));
+    t.note(format!(
+        "of {} columns: desert {}, scorched {}",
+        grid.len(),
+        count("base:desert"),
+        count("testmod:scorched")
+    ));
     let scorched = grid
         .into_iter()
         .find(|&(x, z, c)| name_of(ek::BIOME, c.biome) == "testmod:scorched" && !OVERWORLD.surface_carved(seed, x, z));
@@ -309,7 +350,10 @@ pub async fn foreign_terrain(t: T) -> R {
     t.secs(0.5).await?;
     t.loaded().await?;
     let ground = t.op(&format!("get {x} {} {z}", c.height)).await?;
-    t.check(ground == "testmod:regolith" || ground == "testmod:basalt", format!("the scorched biome's surface ({ground})"));
+    t.check(
+        ground == "testmod:regolith" || ground == "testmod:basalt",
+        format!("the scorched biome's surface ({ground})"),
+    );
     let census = t.op("census 24 testmod:basalt,testmod:regolith").await?;
     t.note(census.clone());
     let n: Vec<u32> = census.split_whitespace().filter_map(|e| e.rsplit_once('=')?.1.parse().ok()).collect();
@@ -323,10 +367,19 @@ pub async fn foreign_terrain(t: T) -> R {
 pub async fn plants_on_cube_tops(t: T) -> R {
     t.world(5).await?;
     t.op("mode spectator").await?;
-    let tops = |x: i32, z: i32| (-20..=20).flat_map(|dz| (-20..=20).map(move |dx| (dx, dz))).filter(|&(dx, dz)| (dx + dz) % 3 == 0 && (OVERWORLD.column(5, x + dx, z + dz).height + 1) & 15 == 0).count();
+    let tops = |x: i32, z: i32| {
+        (-20..=20)
+            .flat_map(|dz| (-20..=20).map(move |dx| (dx, dz)))
+            .filter(|&(dx, dz)| (dx + dz) % 3 == 0 && (OVERWORLD.column(5, x + dx, z + dz).height + 1) & 15 == 0)
+            .count()
+    };
     let plains = (-40..40)
         .flat_map(|i| (-40..40).map(move |j| (i * 48, j * 48)))
-        .filter(|&(x, z)| [(0, 0), (20, 0), (-20, 0), (0, 20), (0, -20)].iter().all(|&(dx, dz)| name_of(ek::BIOME, OVERWORLD.column(5, x + dx, z + dz).biome) == "base:plains"))
+        .filter(|&(x, z)| {
+            [(0, 0), (20, 0), (-20, 0), (0, 20), (0, -20)]
+                .iter()
+                .all(|&(dx, dz)| name_of(ek::BIOME, OVERWORLD.column(5, x + dx, z + dz).biome) == "base:plains")
+        })
         .take(40)
         .max_by_key(|&(x, z)| tops(x, z));
     let (x, z) = plains.ok_or("no plains")?;
@@ -339,10 +392,21 @@ pub async fn plants_on_cube_tops(t: T) -> R {
     let [top, top_plants, other, other_plants] = n[..] else { return Err(format!("cube_top_plants: {found}")) };
     t.check(top >= 50.0, format!("too few columns to tell ({top})"));
     let (on_top, elsewhere) = (top_plants / top.max(1.0), other_plants / other.max(1.0));
-    t.probe("plants on the top layer of a cube, against the others", on_top / elsewhere.max(0.001), on_top > elsewhere * 0.4);
+    t.probe(
+        "plants on the top layer of a cube, against the others",
+        on_top / elsewhere.max(0.001),
+        on_top > elsewhere * 0.4,
+    );
 
-    let shore = |x: i32, z: i32| OVERWORLD.column(5, x, z).height == 63 && [(1, 0), (-1, 0), (0, 1), (0, -1)].iter().any(|&(dx, dz)| OVERWORLD.column(5, x + dx, z + dz).height < 63);
-    let near = |x: i32, z: i32| (-16..=16).flat_map(|dz| (-16..=16).map(move |dx| (dx, dz))).filter(|&(dx, dz)| shore(x + dx, z + dz)).count();
+    let shore = |x: i32, z: i32| {
+        OVERWORLD.column(5, x, z).height == 63
+            && [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                .iter()
+                .any(|&(dx, dz)| OVERWORLD.column(5, x + dx, z + dz).height < 63)
+    };
+    let near = |x: i32, z: i32| {
+        (-16..=16).flat_map(|dz| (-16..=16).map(move |dx| (dx, dz))).filter(|&(dx, dz)| shore(x + dx, z + dz)).count()
+    };
     let beach = (-60..60)
         .flat_map(|i| (-60..60).map(move |j| (i * 24, j * 24)))
         .filter(|&(x, z)| shore(x, z) && name_of(ek::BIOME, OVERWORLD.column(5, x, z).biome) == "base:beach")
@@ -376,7 +440,8 @@ pub async fn tick_control(t: T) -> R {
     t.cmd("/tick unfreeze").await?;
     let b = time().await?;
     t.cmd("/tick sprint 24000").await?;
-    t.until("sprint done", Duration::from_secs(60), |t| (0..20).any(|i| t.c().chat_line(i).contains("sprinted"))).await?;
+    t.until("sprint done", Duration::from_secs(60), |t| (0..20).any(|i| t.c().chat_line(i).contains("sprinted")))
+        .await?;
     t.check(time().await? >= b + 24000, "a day went by in the sprint");
     Ok(())
 }
@@ -412,7 +477,11 @@ pub async fn growth(t: T) -> R {
     t.set(cane, "sugar_cane").await?;
     t.op("time 200000").await?;
     t.secs(0.5).await?;
-    t.check_eq(t.block(add(farm, [0, 1, 0])).await?, "base:wheat[age=7]".to_string(), "wheat after a jump of 2.5 hours");
+    t.check_eq(
+        t.block(add(farm, [0, 1, 0])).await?,
+        "base:wheat[age=7]".to_string(),
+        "wheat after a jump of 2.5 hours",
+    );
     t.check_eq(t.block(add(cane, [0, 2, 0])).await?, "base:sugar_cane".to_string(), "sugar cane after the jump");
     // Far away the cane's area unloads; time passes; coming back, it has grown.
     let cane2 = add(f, [-4, 0, 0]);
@@ -461,9 +530,17 @@ pub async fn catch_up(t: T) -> R {
     t.check_eq(t.block(dirt).await?, "base:grass".to_string(), "grass took the bare dirt");
     t.check_eq(t.block(covered).await?, "base:dirt".to_string(), "grass under stone died");
     // One coal burns 1600 ticks: eight of the ten ores, no more.
-    t.check_eq(t.slot(&at(furnace), 2).await?, ("base:iron_ingot".into(), 8, 0), "furnace smelted what its coal allows");
+    t.check_eq(
+        t.slot(&at(furnace), 2).await?,
+        ("base:iron_ingot".into(), 8, 0),
+        "furnace smelted what its coal allows",
+    );
     t.check_eq(t.slot(&at(furnace), 0).await?, ("base:raw_iron".into(), 2, 0), "and left the rest");
-    t.check_eq(t.slot(&at(e), 1).await?, ("base:iron_ingot".into(), 3, 0), "the generator powered the electric furnace");
+    t.check_eq(
+        t.slot(&at(e), 1).await?,
+        ("base:iron_ingot".into(), 3, 0),
+        "the generator powered the electric furnace",
+    );
     // Unloaded the whole time: done when the area comes back.
     let far = add(f, [-6, 0, 0]);
     t.set(far, "furnace").await?;
@@ -498,7 +575,11 @@ pub async fn persistence(t: T) -> R {
     let chest = add(p, [-3, 0, 0]);
     t.set(chest, "chest").await?;
     t.op(&format!("insert {} {} {} coal 5", chest[0], chest[1], chest[2])).await?;
-    t.check_eq(t.op(&format!("spawn base:chest {} {} {}", p[0], p[1] + 2, p[2])).await?, "0".to_string(), "no chest entity without a chest");
+    t.check_eq(
+        t.op(&format!("spawn base:chest {} {} {}", p[0], p[1] + 2, p[2])).await?,
+        "0".to_string(),
+        "no chest entity without a chest",
+    );
     let said = t.cmd("/summon base:furnace").await?;
     t.check(said.contains("belongs to a block"), format!("/summon refuses a furnace: {said}"));
     t.op("secret me 0 1234").await?;
@@ -528,9 +609,17 @@ pub async fn persistence(t: T) -> R {
     t.loaded().await?;
     t.check_eq(t.block(p).await?, "base:gold_block".into(), "placed block after reload");
     t.check_eq(t.slot("me", 3).await?, ("base:diamond".into(), 5, 0), "inventory after reload");
-    t.check_eq(t.op(&format!("sblock {skiff} 0 1 0")).await?, "base:glass".to_string(), "the structure and its added block after reload");
+    t.check_eq(
+        t.op(&format!("sblock {skiff} 0 1 0")).await?,
+        "base:glass".to_string(),
+        "the structure and its added block after reload",
+    );
     t.check_eq(t.slot("me", 0).await?.0, "base:iron_sword".into(), "the sword was saved");
-    t.check_eq(t.op(&format!("inv {} {} {}", chest[0], chest[1], chest[2])).await?, "0:base:coal:5".to_string(), "the chest kept its coal");
+    t.check_eq(
+        t.op(&format!("inv {} {} {}", chest[0], chest[1], chest[2])).await?,
+        "0:base:coal:5".to_string(),
+        "the chest kept its coal",
+    );
     t.check_eq(t.op("secret me 0").await?, "none".into(), "the secret was not");
     t.check_eq(value(&t.op("attr me core:max_health").await?), 30.0, "max health modifier after reload");
     let mut now = rings;
@@ -575,7 +664,8 @@ pub async fn dimensions(t: T) -> R {
         (
             "testmod:mars",
             Some(|s| {
-                let v = s.share(0.0, 0.0, 1.0, 0.9, |c| c[0] as i32 > c[1] as i32 + 40 && c[0] as i32 > c[2] as i32 + 60);
+                let v =
+                    s.share(0.0, 0.0, 1.0, 0.9, |c| c[0] as i32 > c[1] as i32 + 40 && c[0] as i32 > c[2] as i32 + 60);
                 (v, v > 0.6)
             }),
         ),
@@ -608,7 +698,11 @@ pub async fn dimensions(t: T) -> R {
         }
         if dim == "testmod:void" {
             // testmod's island generator places a chest (`ISLAND_CHEST`) without its entity.
-            t.check_eq(t.op("insert 4 64 0 coal 3").await, Ok("3".to_string()), "a chest placed by a generator has its block entity");
+            t.check_eq(
+                t.op("insert 4 64 0 coal 3").await,
+                Ok("3".to_string()),
+                "a chest placed by a generator has its block entity",
+            );
         }
     }
 
@@ -623,7 +717,10 @@ pub async fn dimensions(t: T) -> R {
     t.check(t.block(p).await? != "base:stone", "the void stays empty");
     let y = t.state().pos[1];
     t.secs(1.0).await?;
-    t.check((t.state().pos[1] - y).abs() < 0.01, format!("no gravity in the void (y {y:.2} -> {:.2})", t.state().pos[1]));
+    t.check(
+        (t.state().pos[1] - y).abs() < 0.01,
+        format!("no gravity in the void (y {y:.2} -> {:.2})", t.state().pos[1]),
+    );
 
     t.cmd("/dim core:debug_blocks").await?;
     t.secs(0.5).await?;
@@ -649,7 +746,10 @@ pub async fn dimensions(t: T) -> R {
     let mobs = t.op(&format!("near {sx} {sy} {sz} 64")).await?;
     t.cmd("/rule core:mob_spawning 0").await?;
     // Block entities (furnaces, chests) are there; mobs must not be.
-    let spawned: Vec<&str> = mobs.split_whitespace().filter(|e| ["pig", "cow", "zombie", "spider"].iter().any(|m| e.ends_with(&format!("base:{m}")))).collect();
+    let spawned: Vec<&str> = mobs
+        .split_whitespace()
+        .filter(|e| ["pig", "cow", "zombie", "spider"].iter().any(|m| e.ends_with(&format!("base:{m}"))))
+        .collect();
     t.check(spawned.is_empty(), format!("nothing spawns among the debug blocks: {spawned:?}"));
     // Lava is drawn solid: blocks behind ice do not show through it.
     let at = t.op("find 60 base:lava").await?;
@@ -666,7 +766,10 @@ pub async fn dimensions(t: T) -> R {
     let grid = t.shot("debug_blocks").await?;
     // Many different blocks in view: no color class covers most of the grid (it floats in the
     // sky, so only the band it fills counts).
-    let biggest = [probe::grass, probe::dark, probe::light, probe::brown].map(|f| grid.share(0.3, 0.22, 0.7, 0.36, f)).into_iter().fold(0.0f32, f32::max);
+    let biggest = [probe::grass, probe::dark, probe::light, probe::brown]
+        .map(|f| grid.share(0.3, 0.22, 0.7, 0.36, f))
+        .into_iter()
+        .fold(0.0f32, f32::max);
     t.probe("debug blocks: largest share of one color class", biggest, biggest < 0.6);
     Ok(())
 }
@@ -684,7 +787,11 @@ pub async fn worldgen(t: T) -> R {
         t.loaded().await?;
         let survey = t.op("survey 12").await?;
         let (biomes, crystals) = survey.split_once(" | crystals ").ok_or(format!("survey: {survey}"))?;
-        caves += biomes.split_whitespace().filter_map(|e| e.strip_prefix("base:deep_caves=")).filter_map(|n| n.parse::<u32>().ok()).sum::<u32>();
+        caves += biomes
+            .split_whitespace()
+            .filter_map(|e| e.strip_prefix("base:deep_caves="))
+            .filter_map(|n| n.parse::<u32>().ok())
+            .sum::<u32>();
         let n: Vec<u32> = crystals.split_whitespace().filter_map(|n| n.parse().ok()).collect();
         inside += n.first().copied().unwrap_or(0);
         outside += n.get(1).copied().unwrap_or(0);
@@ -699,11 +806,20 @@ pub async fn worldgen(t: T) -> R {
     let patch = |biome: &str, skip: usize| {
         (-40..40)
             .flat_map(|i| (-40..40).map(move |j| (i * 48, j * 48)))
-            .filter(|&(x, z)| [(0, 0), (24, 0), (-24, 0), (0, 24), (0, -24)].iter().all(|&(dx, dz)| name_of(ek::BIOME, OVERWORLD.column(5, x + dx, z + dz).biome) == biome))
+            .filter(|&(x, z)| {
+                [(0, 0), (24, 0), (-24, 0), (0, 24), (0, -24)]
+                    .iter()
+                    .all(|&(dx, dz)| name_of(ek::BIOME, OVERWORLD.column(5, x + dx, z + dz).biome) == biome)
+            })
             .nth(skip)
             .map(|(x, z)| [x, OVERWORLD.column(5, x, z).height + 6, z])
     };
-    let spots = [(patch("base:birch_forest", 0), true), (patch("base:birch_forest", 3), true), (patch("base:plains", 0), false), (patch("base:plains", 3), false)];
+    let spots = [
+        (patch("base:birch_forest", 0), true),
+        (patch("base:birch_forest", 3), true),
+        (patch("base:plains", 0), false),
+        (patch("base:plains", 3), false),
+    ];
     for (spot, forest) in spots {
         let [x, y, z] = spot.ok_or(format!("no {} patch", if forest { "birch forest" } else { "plains" }))?;
         t.cmd(&format!("/tp {x} {y} {z}")).await?;
@@ -723,14 +839,20 @@ pub async fn worldgen(t: T) -> R {
     t.check(t.op("structure testmod:obelisk 3000").await? != "none", "another mod's obelisks are in the world too");
     // The same template placed by code.
     let f = t.feet();
-    t.check_eq(t.op(&format!("place testmod:obelisk {} {} {}", f[0] + 4, f[1] + 10, f[2])).await?, "1".to_string(), "w.place puts a template");
+    t.check_eq(
+        t.op(&format!("place testmod:obelisk {} {} {}", f[0] + 4, f[1] + 10, f[2])).await?,
+        "1".to_string(),
+        "w.place puts a template",
+    );
     t.check_eq(t.block([f[0] + 5, f[1] + 11, f[2] + 1]).await?, "testmod:glow_crystal".to_string(), "its glowing core");
 
     // Testmod puts base's forest on Mars; the engine scatters its trees there like at home.
     static MARS: Dimension = Dimension::named("testmod:mars");
     let seed = 5;
     let forest = |x: i32, z: i32| name_of(ek::BIOME, MARS.column(seed, x, z).biome) == "base:forest";
-    let spot = (-60..60).flat_map(|i| (-60..60).map(move |j| (i * 32, j * 32))).find(|&(x, z)| [(0, 0), (20, 0), (-20, 0), (0, 20), (0, -20)].iter().all(|&(dx, dz)| forest(x + dx, z + dz)));
+    let spot = (-60..60)
+        .flat_map(|i| (-60..60).map(move |j| (i * 32, j * 32)))
+        .find(|&(x, z)| [(0, 0), (20, 0), (-20, 0), (0, 20), (0, -20)].iter().all(|&(dx, dz)| forest(x + dx, z + dz)));
     let (x, z) = spot.ok_or("no forest on Mars")?;
     let h = MARS.column(seed, x, z).height;
     t.cmd("/dim testmod:mars").await?;
@@ -745,7 +867,6 @@ pub async fn worldgen(t: T) -> R {
     t.check(n[2] > 0, "the forest brings its grass to Mars");
     Ok(())
 }
-
 
 /// A block placed while the whole view waits to be meshed again (as after a big crater or a
 /// resource reload) shows at once: the cubes next to the player are meshed first, past the
@@ -814,7 +935,10 @@ async fn distant_terrain_at(t: &T) -> R {
     t.op("mode spectator").await?;
     t.cmd("/tp ~ ~100 ~").await?;
     t.c().look(0.0, -8.0);
-    t.until("distant terrain made", Duration::from_secs(20), |t| t.state().lod_tiles > 50 && t.state().lod_pending == 0).await?;
+    t.until("distant terrain made", Duration::from_secs(20), |t| {
+        t.state().lod_tiles > 50 && t.state().lod_pending == 0
+    })
+    .await?;
     t.frames(5).await?;
     let tiles = t.state().lod_tiles;
     t.note(format!("{tiles} distant terrain tiles shown"));

@@ -30,7 +30,12 @@ fn armor_points(w: &World, entity: u64) -> u32 {
 
 pub fn register(r: &mut Registry) {
     r.player_inventory().group("hotbar", Slots::row(9).hotbar()).group("main", Slots::grid(9, 3));
-    for (slot, parts, piece) in [(&HEAD, worn_parts::HEAD, "helmet"), (&base_api::CHEST, worn_parts::BODY | worn_parts::ARMS, "chestplate"), (&LEGS, worn_parts::BODY | worn_parts::LEGS, "leggings"), (&FEET, worn_parts::LEGS, "boots")] {
+    for (slot, parts, piece) in [
+        (&HEAD, worn_parts::HEAD, "helmet"),
+        (&base_api::CHEST, worn_parts::BODY | worn_parts::ARMS, "chestplate"),
+        (&LEGS, worn_parts::BODY | worn_parts::LEGS, "leggings"),
+        (&FEET, worn_parts::LEGS, "boots"),
+    ] {
         r.equipment_slot(slot, parts, &format!("slot_{piece}"));
     }
     r.entity_component(
@@ -82,7 +87,10 @@ pub fn register(r: &mut Registry) {
                 if ARMOR.on_item(s.item).is_some() {
                     let durability = DURABILITY.on_item(s.item).unwrap_or(0);
                     let damage = s.damage() + wear;
-                    worn.set(slot, if durability > 0 && damage >= durability { ItemStack::EMPTY } else { s.with_damage(damage) });
+                    worn.set(
+                        slot,
+                        if durability > 0 && damage >= durability { ItemStack::EMPTY } else { s.with_damage(damage) },
+                    );
                 }
             }
         }
@@ -114,15 +122,23 @@ pub fn register(r: &mut Registry) {
     r.hud_element(&HUD_ARMOR, hud_anchor::HOTBAR_LEFT, 1, |ui| {
         ui.icons("armor", 10, |c| {
             // From what the client knows of its own inventory, like the server's damage chain.
-            let points: u32 = c.inventory_group(EQUIPMENT_GROUP).iter().filter_map(|s| ARMOR.on_item(s.item)).map(|a| a.points).sum();
+            let points: u32 =
+                c.inventory_group(EQUIPMENT_GROUP).iter().filter_map(|s| ARMOR.on_item(s.item)).map(|a| a.points).sum();
             if points > 0 && !c.creative() { points as f32 } else { -1.0 }
         })
     });
     r.hud_element(&HUD_FOOD, hud_anchor::HOTBAR_RIGHT, 0, |ui| {
-        ui.icons_rtl("food", 10, |c| if c.creative() { -1.0 } else { c.component(&HUNGER).map_or(20.0, |h| h.food.ceil()) })
+        ui.icons_rtl(
+            "food",
+            10,
+            |c| if c.creative() { -1.0 } else { c.component(&HUNGER).map_or(20.0, |h| h.food.ceil()) },
+        )
     });
     r.hud_element(&HUD_AIR, hud_anchor::HOTBAR_RIGHT, 1, |ui| {
-        ui.icons_rtl("air", 10, |c| c.component(&HUNGER).map_or(-1.0, |h| if h.air < MAX_AIR { (h.air.max(0.0) / MAX_AIR * 20.0).ceil() } else { -1.0 }))
+        ui.icons_rtl("air", 10, |c| {
+            c.component(&HUNGER)
+                .map_or(-1.0, |h| if h.air < MAX_AIR { (h.air.max(0.0) / MAX_AIR * 20.0).ceil() } else { -1.0 })
+        })
     });
 
     // The equipment slots take what is worn there and show its silhouette while empty.
@@ -228,7 +244,6 @@ fn tick_players(w: &World) {
         }
     }
 }
-
 
 /// Eating: instant, consumes one item.
 pub fn eat(u: &mut ItemUse) -> bool {

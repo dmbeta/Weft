@@ -70,15 +70,18 @@ impl MenuCall {
     pub fn set(&mut self, slot: u32, stack: ItemStack) {
         set(self.m(), self.d(), self.player, slot, stack)
     }
-
 }
 
 fn get(m: &OpenMenu, dim: &Dim, player: u64, slot: u32) -> ItemStack {
     let Some(r) = m.slots.get(slot as usize) else { return ItemStack::EMPTY };
     match r.owner {
         Owner::Temp => m.temp.get(r.index as usize).copied().unwrap_or_default(),
-        Owner::Player => dim.entities.inventories.get(&player).and_then(|i| i.get(r.index as usize)).copied().unwrap_or_default(),
-        Owner::Entity(id) => dim.entities.inventories.get(&id).and_then(|i| i.get(r.index as usize)).copied().unwrap_or_default(),
+        Owner::Player => {
+            dim.entities.inventories.get(&player).and_then(|i| i.get(r.index as usize)).copied().unwrap_or_default()
+        }
+        Owner::Entity(id) => {
+            dim.entities.inventories.get(&id).and_then(|i| i.get(r.index as usize)).copied().unwrap_or_default()
+        }
     }
 }
 
@@ -96,13 +99,21 @@ fn set(m: &mut OpenMenu, dim: &mut Dim, player: u64, slot: u32, stack: ItemStack
     }
 }
 
-fn call(m: &mut OpenMenu, dim: &mut Dim, c: &Content, player: u64, slot: u32, pick: impl Fn(&crate::registry::MenuDef) -> Option<abi::Callback>) {
+fn call(
+    m: &mut OpenMenu,
+    dim: &mut Dim,
+    c: &Content,
+    player: u64,
+    slot: u32,
+    pick: impl Fn(&crate::registry::MenuDef) -> Option<abi::Callback>,
+) {
     let def = &c.game.menus[m.kind as usize];
     let Some(cb) = pick(def) else { return };
     let owner = m.owner;
     let mut call = MenuCall { menu: m as *mut OpenMenu, dim: dim as *mut Dim, player };
     let mut ctx = host::CallCtx { dim: dim as *mut Dim };
-    let mut args = abi::MenuArgs { world: ctx.raw(), menu: &mut call as *mut MenuCall as *mut abi::MenuCtx, player, owner, slot };
+    let mut args =
+        abi::MenuArgs { world: ctx.raw(), menu: &mut call as *mut MenuCall as *mut abi::MenuCtx, player, owner, slot };
     host::invoke(def.owner, cb, &mut args);
 }
 
@@ -126,7 +137,14 @@ pub fn slots(c: &Content, kind: u32, owner: u64) -> Vec<SlotRef> {
             _ => Owner::Player,
         };
         for i in 0..n {
-            out.push(SlotRef { owner: o, index: g.index(layout, i), flags: g.flags, accepts, limit: g.limit, priority: g.priority });
+            out.push(SlotRef {
+                owner: o,
+                index: g.index(layout, i),
+                flags: g.flags,
+                accepts,
+                limit: g.limit,
+                priority: g.priority,
+            });
         }
     }
     out
@@ -155,9 +173,15 @@ pub fn tick(m: &mut OpenMenu, dim: &mut Dim, c: &Content, player: u64) {
 /// Returns temp slots and the cursor to the player (dropping what does not fit). Output slots are
 /// previews, not real items, and are discarded.
 pub fn close(m: OpenMenu, dim: &mut Dim, c: &Content, player: u64) {
-    let outputs: Vec<u32> = m.slots.iter().filter(|s| s.owner == Owner::Temp && s.flags & sf::OUTPUT != 0).map(|s| s.index).collect();
-    let mut back: Vec<ItemStack> =
-        m.temp.iter().enumerate().filter(|(i, s)| !s.is_empty() && !outputs.contains(&(*i as u32))).map(|(_, s)| *s).collect();
+    let outputs: Vec<u32> =
+        m.slots.iter().filter(|s| s.owner == Owner::Temp && s.flags & sf::OUTPUT != 0).map(|s| s.index).collect();
+    let mut back: Vec<ItemStack> = m
+        .temp
+        .iter()
+        .enumerate()
+        .filter(|(i, s)| !s.is_empty() && !outputs.contains(&(*i as u32)))
+        .map(|(_, s)| *s)
+        .collect();
     back.push(m.cursor);
     for s in back.into_iter().filter(|s| !s.is_empty()) {
         let rest = dim.entities.insert_item(c, player, s);
@@ -197,8 +221,12 @@ pub fn click(m: &mut OpenMenu, dim: &mut Dim, c: &'static Content, player: u64, 
         if hot >= c.game.player_layout.hotbar {
             return;
         }
-        let Some(h) = m.slots.iter().position(|s| s.owner == Owner::Player && s.index == hot).map(|i| i as u32) else { return };
-        let (Some(a), Some(b)) = (m.slots.get(slot as usize).copied(), m.slots.get(h as usize).copied()) else { return };
+        let Some(h) = m.slots.iter().position(|s| s.owner == Owner::Player && s.index == hot).map(|i| i as u32) else {
+            return;
+        };
+        let (Some(a), Some(b)) = (m.slots.get(slot as usize).copied(), m.slots.get(h as usize).copied()) else {
+            return;
+        };
         if h == slot || !m.cursor.is_empty() {
             return;
         }
@@ -206,7 +234,12 @@ pub fn click(m: &mut OpenMenu, dim: &mut Dim, c: &'static Content, player: u64, 
         // Results only come out (into an empty hotbar slot), inputs only take in, and fitted
         // slots take what fits.
         let output = a.flags & sf::OUTPUT != 0;
-        if (output && !sb.is_empty()) || (!takeable(&a) && !sa.is_empty()) || !fits(c, &a, sb.item) || !fits(c, &b, sa.item) || sb.count > cap(c, &a, sb.item) {
+        if (output && !sb.is_empty())
+            || (!takeable(&a) && !sa.is_empty())
+            || !fits(c, &a, sb.item)
+            || !fits(c, &b, sa.item)
+            || sb.count > cap(c, &a, sb.item)
+        {
             return;
         }
         set(m, dim, player, slot, sb);
@@ -231,12 +264,24 @@ pub fn click(m: &mut OpenMenu, dim: &mut Dim, c: &'static Content, player: u64, 
                     break;
                 }
                 let s = get(m, dim, player, i);
-                if m.slots[i as usize].flags & sf::OUTPUT != 0 || !takeable(&m.slots[i as usize]) || s.is_empty() || s.item != want.item || s.data != want.data || (s.count >= max) != full {
+                if m.slots[i as usize].flags & sf::OUTPUT != 0
+                    || !takeable(&m.slots[i as usize])
+                    || s.is_empty()
+                    || s.item != want.item
+                    || s.data != want.data
+                    || (s.count >= max) != full
+                {
                     continue;
                 }
                 let n = s.count.min(max - m.cursor.count);
                 m.cursor.count += n;
-                set(m, dim, player, i, if n == s.count { ItemStack::EMPTY } else { ItemStack { count: s.count - n, ..s } });
+                set(
+                    m,
+                    dim,
+                    player,
+                    i,
+                    if n == s.count { ItemStack::EMPTY } else { ItemStack { count: s.count - n, ..s } },
+                );
                 call(m, dim, c, player, i, |d| d.on_change);
             }
         }
@@ -287,7 +332,8 @@ pub fn click(m: &mut OpenMenu, dim: &mut Dim, c: &'static Content, player: u64, 
             return;
         } else if m.cursor.is_empty() {
             m.cursor = cur;
-        } else if m.cursor.item == cur.item && m.cursor.data == cur.data && m.cursor.count + cur.count <= max(cur.item) {
+        } else if m.cursor.item == cur.item && m.cursor.data == cur.data && m.cursor.count + cur.count <= max(cur.item)
+        {
             m.cursor.count += cur.count;
         } else {
             return;
@@ -309,7 +355,10 @@ pub fn click(m: &mut OpenMenu, dim: &mut Dim, c: &'static Content, player: u64, 
         let mut targets: Vec<u32> = (0..m.slots.len() as u32)
             .filter(|&i| {
                 let s = m.slots[i as usize];
-                i != slot && s.flags & sf::OUTPUT == 0 && (s.owner == Owner::Player) != from_player && fits(c, &s, cur.item)
+                i != slot
+                    && s.flags & sf::OUTPUT == 0
+                    && (s.owner == Owner::Player) != from_player
+                    && fits(c, &s, cur.item)
             })
             .collect();
         targets.sort_by_key(|&i| -m.slots[i as usize].priority);
@@ -329,7 +378,10 @@ pub fn click(m: &mut OpenMenu, dim: &mut Dim, c: &'static Content, player: u64, 
             (0..m.slots.len() as u32)
                 .filter(|&i| {
                     let s = m.slots[i as usize];
-                    s.owner == Owner::Player && s.index < layout.slots && !layout.worn.contains(&s.index) && (s.index < layout.hotbar) != hotbar
+                    s.owner == Owner::Player
+                        && s.index < layout.slots
+                        && !layout.worn.contains(&s.index)
+                        && (s.index < layout.hotbar) != hotbar
                 })
                 .collect()
         } else {
@@ -363,7 +415,10 @@ pub fn click(m: &mut OpenMenu, dim: &mut Dim, c: &'static Content, player: u64, 
     }
     let mut cursor = m.cursor;
     let mut slot_stack = cur;
-    let same = !cursor.is_empty() && !slot_stack.is_empty() && cursor.item == slot_stack.item && cursor.data == slot_stack.data;
+    let same = !cursor.is_empty()
+        && !slot_stack.is_empty()
+        && cursor.item == slot_stack.item
+        && cursor.data == slot_stack.data;
     let room = cap(c, &r, cursor.item);
     // An input slot only takes: anything that would hand items back is refused.
     if !takeable(&r) && !slot_stack.is_empty() && (cursor.is_empty() || !same) {
@@ -426,7 +481,9 @@ pub fn drag(m: &mut OpenMenu, dim: &mut Dim, c: &'static Content, player: u64, s
         .filter(|&s| {
             let Some(r) = m.slots.get(s as usize) else { return false };
             let t = get(m, dim, player, s);
-            r.flags & sf::OUTPUT == 0 && fits(c, r, cur.item) && (t.is_empty() || (t.item == cur.item && t.data == cur.data && t.count < cap(c, r, cur.item)))
+            r.flags & sf::OUTPUT == 0
+                && fits(c, r, cur.item)
+                && (t.is_empty() || (t.item == cur.item && t.data == cur.data && t.count < cap(c, r, cur.item)))
         })
         .take(cur.count as usize)
         .collect();

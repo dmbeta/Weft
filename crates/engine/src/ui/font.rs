@@ -58,15 +58,21 @@ impl Font {
                 64 => 2,
                 _ => continue,
             };
-            let bytes: Vec<u8> = (0..hex.len() / 2).filter_map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()).collect();
+            let bytes: Vec<u8> =
+                (0..hex.len() / 2).filter_map(|i| u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).ok()).collect();
             if bytes.len() != 16 * bpr {
                 continue;
             }
             let mut rows = [0u16; 16];
             for (y, row) in rows.iter_mut().enumerate() {
-                *row = if bpr == 1 { (bytes[y] as u16) << 8 } else { (bytes[y * 2] as u16) << 8 | bytes[y * 2 + 1] as u16 };
+                *row = if bpr == 1 {
+                    (bytes[y] as u16) << 8
+                } else {
+                    (bytes[y * 2] as u16) << 8 | bytes[y * 2 + 1] as u16
+                };
             }
-            let metrics = (ch == ' ').then_some((0, 4)).or_else(|| rows.iter().all(|&r| r == 0).then_some((0, bpr as u8 * 4)));
+            let metrics =
+                (ch == ' ').then_some((0, 4)).or_else(|| rows.iter().all(|&r| r == 0).then_some((0, bpr as u8 * 4)));
             bitmaps.push((ch, rows, metrics));
         }
 
@@ -109,7 +115,10 @@ impl Font {
                         for y in 0..cell.1 {
                             for x in 0..cell.0 {
                                 let (px, py) = (gx as u32 * cell.0 + x, gy as u32 * cell.1 + y);
-                                if px >= img.width || py >= img.height || img.rgba[((py * img.width + px) * 4 + 3) as usize] < 128 {
+                                if px >= img.width
+                                    || py >= img.height
+                                    || img.rgba[((py * img.width + px) * 4 + 3) as usize] < 128
+                                {
                                     continue;
                                 }
                                 min_x = min_x.min(x);
@@ -147,7 +156,8 @@ impl Font {
                     }
                 }
             }
-            let (left, advance) = metrics.unwrap_or((min_x.min(255) as u8, (max_x + 2).saturating_sub(min_x).min(255) as u8));
+            let (left, advance) =
+                metrics.unwrap_or((min_x.min(255) as u8, (max_x + 2).saturating_sub(min_x).min(255) as u8));
             glyphs.insert(*ch, Glyph { cell, left, advance });
         }
         // Cell 0 stays empty and is used for a visible box when a glyph is missing.
@@ -159,8 +169,18 @@ impl Font {
             }
         }
         // Cell width for fixed-width text: the widest digit.
-        let mono = ('0'..='9').filter_map(|c| glyphs.get(&c)).map(|g: &Glyph| g.advance as f32).fold(0.0, f32::max).max(1.0);
-        Font { glyphs, atlas_width, atlas_height, atlas, line_height, pixel, mono, fallback: Glyph { cell: 0, left: 2, advance: 13 } }
+        let mono =
+            ('0'..='9').filter_map(|c| glyphs.get(&c)).map(|g: &Glyph| g.advance as f32).fold(0.0, f32::max).max(1.0);
+        Font {
+            glyphs,
+            atlas_width,
+            atlas_height,
+            atlas,
+            line_height,
+            pixel,
+            mono,
+            fallback: Glyph { cell: 0, left: 2, advance: 13 },
+        }
     }
 
     #[inline]

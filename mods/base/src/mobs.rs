@@ -17,7 +17,6 @@ pub static SPIDER: Entity = Entity::named("spider");
 pub static PIG: Entity = Entity::named("pig");
 pub static COW: Entity = Entity::named("cow");
 
-
 pub fn register(r: &mut Registry) {
     // The engine's player kind, drawn as the same humanoid as the zombie.
     r.entity_model(&Entity::named("core:player"), biped(false));
@@ -31,7 +30,9 @@ pub fn register(r: &mut Registry) {
         }
     });
     r.entity(&ZOMBIE)
-        .sound("ambient").sound("hurt").sound("death")
+        .sound("ambient")
+        .sound("hurt")
+        .sound("death")
         .size(0.6, 1.95)
         .health(20.0)
         .speed(2.6)
@@ -42,7 +43,9 @@ pub fn register(r: &mut Registry) {
         .attack_damage(3.0)
         .goals(hostile(false));
     r.entity(&SPIDER)
-        .sound("ambient").sound("hurt").sound("death")
+        .sound("ambient")
+        .sound("hurt")
+        .sound("death")
         .size(1.3, 0.9)
         .health(16.0)
         .speed(3.6)
@@ -52,7 +55,9 @@ pub fn register(r: &mut Registry) {
         .attack_damage(2.0)
         .goals(hostile(true));
     r.entity(&PIG)
-        .sound("ambient").sound("hurt").sound("death")
+        .sound("ambient")
+        .sound("hurt")
+        .sound("death")
         .size(0.9, 0.9)
         .health(10.0)
         .speed(2.5)
@@ -62,7 +67,9 @@ pub fn register(r: &mut Registry) {
         .goals(passive())
         .on_hurt(panic);
     r.entity(&COW)
-        .sound("ambient").sound("hurt").sound("death")
+        .sound("ambient")
+        .sound("hurt")
+        .sound("death")
         .size(0.9, 1.3)
         .health(10.0)
         .speed(2.2)
@@ -75,7 +82,9 @@ pub fn register(r: &mut Registry) {
     r.loot(&ZOMBIE).pool(Pool::new().items("rotten_flesh", 0, 2));
     r.loot(&SPIDER).pool(Pool::new().items("string", 0, 2));
     r.loot(&PIG).pool(Pool::new().entry(Entry::item("porkchop").count(1, 3).smelted(&crate::recipes::SMELTING)));
-    r.loot(&COW).pool(Pool::new().entry(Entry::item("beef").count(1, 3).smelted(&crate::recipes::SMELTING))).pool(Pool::new().items("leather", 0, 2));
+    r.loot(&COW)
+        .pool(Pool::new().entry(Entry::item("beef").count(1, 3).smelted(&crate::recipes::SMELTING)))
+        .pool(Pool::new().items("leather", 0, 2));
     // Natural spawning, as rules the engine runs: monsters in the dark (spiders more in deep
     // caves), animals in small herds on grass by day, rarely once the world is loaded.
     r.spawn(&ZOMBIE).light(0, 6).weight(2);
@@ -85,7 +94,6 @@ pub fn register(r: &mut Registry) {
         r.spawn(animal).biome("#animals").ground("#animal_spawn").light(7, 15).group(2, 3).chance(0.05);
     }
 }
-
 
 fn panic(w: &World, h: &Hurt) {
     if let Some(b) = w.component_mut(h.entity, &BRAIN) {

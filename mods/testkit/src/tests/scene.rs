@@ -70,7 +70,10 @@ async fn count_at(t: &T, kind: &str, p: [i32; 3], r: f64) -> Result<usize, Strin
 }
 
 fn counts(s: &str) -> HashMap<String, u32> {
-    s.split_whitespace().filter_map(|kv| kv.split_once('=')).map(|(k, v)| (k.to_string(), v.parse().unwrap_or(0))).collect()
+    s.split_whitespace()
+        .filter_map(|kv| kv.split_once('='))
+        .map(|(k, v)| (k.to_string(), v.parse().unwrap_or(0)))
+        .collect()
 }
 
 /// First number of an `attr`/`damage` answer ("6.08 | damage: 8, ...").
@@ -158,7 +161,14 @@ async fn water_flow(t: T, s: [i32; 3]) -> R {
     t.check_eq(t.block(add(s, [3, 0, 0])).await?, "base:water[level=3]".into(), "three blocks out after a second");
     t.check_eq(t.block(add(s, [6, 0, 0])).await?, "core:air".into(), "six blocks out after a second");
     t.secs(2.5).await?;
-    for (d, want) in [([7, 0, 0], "base:water[level=7]"), ([0, 0, -7], "base:water[level=7]"), ([4, 0, 3], "base:water[level=7]"), ([8, 0, 0], "core:air"), ([4, 0, 4], "core:air"), ([1, 0, 0], "base:water[level=1]")] {
+    for (d, want) in [
+        ([7, 0, 0], "base:water[level=7]"),
+        ([0, 0, -7], "base:water[level=7]"),
+        ([4, 0, 3], "base:water[level=7]"),
+        ([8, 0, 0], "core:air"),
+        ([4, 0, 4], "core:air"),
+        ([1, 0, 0], "base:water[level=1]"),
+    ] {
         t.check_eq(t.block(add(s, d)).await?, want.into(), &format!("water at {d:?}"));
     }
     Ok(())
@@ -269,7 +279,10 @@ async fn crate_and_crowd(t: T, o: [i32; 3]) -> R {
     let c = pos_of(&t, id).await?;
     t.check((c[1] - o[1] as f64).abs() < 0.01, format!("the crate landed (y {:.2})", c[1]));
     let (pa, pb) = (pos_of(&t, a).await?, pos_of(&t, b).await?);
-    t.check(((pa[0] - pb[0]).powi(2) + (pa[2] - pb[2]).powi(2)).sqrt() > 0.4, "two idols in one spot pushed each other apart");
+    t.check(
+        ((pa[0] - pb[0]).powi(2) + (pa[2] - pb[2]).powi(2)).sqrt() > 0.4,
+        "two idols in one spot pushed each other apart",
+    );
     Ok(())
 }
 
@@ -304,7 +317,10 @@ async fn damage_chain(t: &T) -> R {
     let both = t.op("damage 8 0").await?;
     t.cmd("/rule testkit:half_damage 0").await?;
     t.check((value(&both) - 3.04).abs() < 1e-4, format!("armor then halved: {both}"));
-    t.check(both.contains("base at stage 200") && both.contains("testkit at stage 300"), format!("explanation names both steps: {both}"));
+    t.check(
+        both.contains("base at stage 200") && both.contains("testkit at stage 300"),
+        format!("explanation names both steps: {both}"),
+    );
     Ok(())
 }
 
@@ -323,7 +339,10 @@ async fn loot_tables(t: &T) -> R {
     let tin = zombie.get("testmod:tin_ingot").copied().unwrap_or(0);
     t.check((50..=160).contains(&tin), format!("tin from 2000 zombies through testmod's modifier: {tin} (5%: 100)"));
     let pig = counts(&t.op("loot base:pig 200 fire").await?);
-    t.check(pig.contains_key("base:cooked_porkchop") && !pig.contains_key("base:porkchop"), format!("burning pigs drop cooked meat: {pig:?}"));
+    t.check(
+        pig.contains_key("base:cooked_porkchop") && !pig.contains_key("base:porkchop"),
+        format!("burning pigs drop cooked meat: {pig:?}"),
+    );
     let grass = counts(&t.op("loot base:tall_grass 4000").await?);
     let seeds = grass.get("base:wheat_seeds").copied().unwrap_or(0);
     t.check((380..=620).contains(&seeds), format!("seeds from 4000 tall grass: {seeds} (vanilla 12.5%: 500)"));
@@ -362,7 +381,11 @@ async fn tool_tiers(t: &T, o: [i32; 3]) -> R {
         t.op(&format!("break {} {tool}", at(p))).await?;
         t.frames(5).await?;
         drops += gets as usize;
-        t.check_eq(count_at(t, "core:item", o, 10.0).await?, drops, &format!("{tool} on {block}: {}", if gets { "drops" } else { "nothing" }));
+        t.check_eq(
+            count_at(t, "core:item", o, 10.0).await?,
+            drops,
+            &format!("{tool} on {block}: {}", if gets { "drops" } else { "nothing" }),
+        );
     }
     Ok(())
 }
@@ -385,9 +408,13 @@ async fn watcher_sync(t: &T, o: [i32; 3]) -> R {
     let pig = spawn(t, "pig", o).await?;
     t.until("pig known", Duration::from_secs(5), |t| t.c().entities().contains(&pig)).await?;
     t.op(&format!("mark {pig} 77")).await?;
-    t.until("mark on the client", Duration::from_secs(5), |t| t.c().view().component_of(pig, &MARK) == Some(77)).await?;
+    t.until("mark on the client", Duration::from_secs(5), |t| t.c().view().component_of(pig, &MARK) == Some(77))
+        .await?;
     t.op(&format!("mark {pig} 78")).await?;
-    t.until("changed mark on the client", Duration::from_secs(5), |t| t.c().view().component_of(pig, &MARK) == Some(78)).await?;
+    t.until("changed mark on the client", Duration::from_secs(5), |t| {
+        t.c().view().component_of(pig, &MARK) == Some(78)
+    })
+    .await?;
     // The test kit's system counts marks up once a tick while the rule is on.
     t.cmd("/rule testkit:count_marks 1").await?;
     t.secs(1.5).await?;
@@ -409,7 +436,11 @@ async fn facing_states(t: &T) -> R {
     t.check_eq(TORCH.with(&[("facing", "down")]), u32::MAX, "the torch never faces down");
     let lit = FURNACE.with(&[("facing", "east"), ("lit", "true")]);
     t.check_eq(state_prop(lit, "facing"), Some("east"), "facing of a lit furnace");
-    t.check_eq(state_with(lit, "lit", "false").and_then(|s| state_prop(s, "facing")), Some("east"), "putting it out keeps its facing");
+    t.check_eq(
+        state_with(lit, "lit", "false").and_then(|s| state_prop(s, "facing")),
+        Some("east"),
+        "putting it out keeps its facing",
+    );
     t.check_eq(block_name(lit).to_string(), "base:furnace[facing=east,lit=true]".to_string(), "the state's name");
     Ok(())
 }

@@ -32,11 +32,11 @@ use weft_abi::{self as abi, ItemStack, component_flags as cf, damage};
 
 pub use dim::{Dim, DimEvent, break_time};
 
+use crate::commands::{Origin, Selector};
 use crate::content::{Content, content};
-use crate::ui::text::{Arg, Msg};
 use crate::net::{EntityView, ServerConn, ToClient, ToServer};
 use crate::saves::Storage;
-use crate::commands::{Origin, Selector};
+use crate::ui::text::{Arg, Msg};
 use crate::world::{Cube, GameMode, View, cube_of};
 use entity::Entity;
 use menu::OpenMenu;
@@ -277,7 +277,14 @@ pub fn spawn(cfg: ServerConfig, storage: Option<Storage>) -> ServerHandle {
 /// The cubes in a player's view that differ from generation: told about first (the client
 /// does not generate them), then sent, loaded ones as they are and the rest from storage with
 /// the area edits made since they were saved.
-fn send_far(c: &'static Content, p: &mut Player, dim: &mut DimSet, storage: Option<&Arc<Mutex<Storage>>>, view: View, tick: u64) {
+fn send_far(
+    c: &'static Content,
+    p: &mut Player,
+    dim: &mut DimSet,
+    storage: Option<&Arc<Mutex<Storage>>>,
+    view: View,
+    tick: u64,
+) {
     // What the client generates: the view and the sky column above it.
     let def = &c.dims[p.dim as usize];
     let center = view.center;
@@ -317,10 +324,16 @@ fn send_far(c: &'static Content, p: &mut Player, dim: &mut DimSet, storage: Opti
 }
 
 impl Server {
-    pub fn new(cfg: ServerConfig, incoming: Receiver<ServerConn>, storage: Option<Storage>, shared: Arc<Shared>) -> Server {
+    pub fn new(
+        cfg: ServerConfig,
+        incoming: Receiver<ServerConn>,
+        storage: Option<Storage>,
+        shared: Arc<Shared>,
+    ) -> Server {
         let c = content();
         let next_id = Arc::new(AtomicU64::new(storage.as_ref().map_or(1, |s| s.meta.next_entity.max(1))));
-        let mut dims: Vec<DimSet> = (0..c.dims.len() as u32).map(|i| DimSet::new(i, cfg.seed, next_id.clone())).collect();
+        let mut dims: Vec<DimSet> =
+            (0..c.dims.len() as u32).map(|i| DimSet::new(i, cfg.seed, next_id.clone())).collect();
         if let Some(s) = &storage {
             for (name, t) in &s.meta.times {
                 if let Some(&i) = c.dim_names.get(name) {
@@ -397,7 +410,8 @@ impl Server {
             }
             if self.backlog.len() == before {
                 // Nothing could be inserted: wait for the next cube from the workers.
-                match self.gen_rx.recv_timeout((deadline - Instant::now().min(deadline)).min(Duration::from_millis(2))) {
+                match self.gen_rx.recv_timeout((deadline - Instant::now().min(deadline)).min(Duration::from_millis(2)))
+                {
                     Ok(g) => self.backlog.push_back(g),
                     Err(_) => continue,
                 }
@@ -474,7 +488,8 @@ impl Server {
         let runs = !self.frozen || self.steps > 0 || self.sprint.is_some();
         self.steps -= (self.frozen && self.steps > 0) as u32;
         for d in self.dims.iter_mut().filter(|_| runs) {
-            let mut groups: Vec<String> = self.players.iter().filter(|p| p.dim == d.id).flat_map(|p| p.gizmos.iter().cloned()).collect();
+            let mut groups: Vec<String> =
+                self.players.iter().filter(|p| p.dim == d.id).flat_map(|p| p.gizmos.iter().cloned()).collect();
             groups.sort();
             groups.dedup();
             let groups: Arc<[String]> = groups.into();
@@ -492,7 +507,10 @@ impl Server {
         if let Some((left, all, start)) = &mut self.sprint {
             *left -= 1;
             if *left == 0 {
-                let note = Msg::new("command.tick.sprinted", vec![Arg::Int(*all as i64), Arg::Int(start.elapsed().as_millis() as i64)]);
+                let note = Msg::new(
+                    "command.tick.sprinted",
+                    vec![Arg::Int(*all as i64), Arg::Int(start.elapsed().as_millis() as i64)],
+                );
                 for p in &mut self.players {
                     p.conn.send(ToClient::Chat(note.clone()));
                 }
@@ -530,7 +548,10 @@ impl Server {
             self.shared.regions.store(n as u64, Ordering::Relaxed);
             let regions = || self.dims.iter().flat_map(|d| d.regions.iter());
             self.shared.cubes.store(regions().map(|r| r.cubes.len() as u64).sum(), Ordering::Relaxed);
-            self.shared.entities.store(regions().map(|r| r.entities.list.iter().filter(|e| !e.removed).count() as u64).sum(), Ordering::Relaxed);
+            self.shared.entities.store(
+                regions().map(|r| r.entities.list.iter().filter(|e| !e.removed).count() as u64).sum(),
+                Ordering::Relaxed,
+            );
         }
         if self.tick % TPS as u64 == 0 && crate::log::on(crate::log::Channel::Load, log::Level::Debug) {
             self.report_load();
@@ -622,8 +643,14 @@ impl Server {
                 DimEvent::Sound { dim, sound, pos: at, volume, pitch } => {
                     let range = c.game.sounds.get(sound as usize).map_or(16.0, |d| d.range * volume.max(1.0)) as f64;
                     for (pi, p) in self.players.iter().enumerate() {
-                        let pos = self.dims[p.dim as usize].entity_region_ref(p.entity).and_then(|r| r.entities.get(p.entity)).map(|e| e.pos);
-                        if p.joined && p.dim == dim && pos.is_some_and(|pos| (pos - at).length_squared() < range * range) {
+                        let pos = self.dims[p.dim as usize]
+                            .entity_region_ref(p.entity)
+                            .and_then(|r| r.entities.get(p.entity))
+                            .map(|e| e.pos);
+                        if p.joined
+                            && p.dim == dim
+                            && pos.is_some_and(|pos| (pos - at).length_squared() < range * range)
+                        {
                             sounds[pi].push((sound, at, volume, pitch));
                         }
                     }
@@ -631,8 +658,14 @@ impl Server {
                 DimEvent::Particles { dim, burst } => {
                     let at = DVec3::from_array(burst.pos);
                     for (pi, p) in self.players.iter().enumerate() {
-                        let pos = self.dims[p.dim as usize].entity_region_ref(p.entity).and_then(|r| r.entities.get(p.entity)).map(|e| e.pos);
-                        if p.joined && p.dim == dim && pos.is_some_and(|pos| (pos - at).length_squared() < PARTICLE_RANGE * PARTICLE_RANGE) {
+                        let pos = self.dims[p.dim as usize]
+                            .entity_region_ref(p.entity)
+                            .and_then(|r| r.entities.get(p.entity))
+                            .map(|e| e.pos);
+                        if p.joined
+                            && p.dim == dim
+                            && pos.is_some_and(|pos| (pos - at).length_squared() < PARTICLE_RANGE * PARTICLE_RANGE)
+                        {
                             bursts[pi].push(burst);
                         }
                     }
@@ -697,8 +730,17 @@ impl Server {
         p.window += 1;
         let m = menu::open(r, c, p.entity, kind, owner);
         // The title: the owner's own name, else the block it stands on.
-        let name = r.entities.comps.get(&(owner, c.game.name_comp)).map(|b| String::from_utf8_lossy(b).into_owned()).unwrap_or_default();
-        let block = if block != 0 { block } else { r.entities.get(owner).and_then(|e| e.anchor).and_then(|a| r.get(a)).unwrap_or(0) };
+        let name = r
+            .entities
+            .comps
+            .get(&(owner, c.game.name_comp))
+            .map(|b| String::from_utf8_lossy(b).into_owned())
+            .unwrap_or_default();
+        let block = if block != 0 {
+            block
+        } else {
+            r.entities.get(owner).and_then(|e| e.anchor).and_then(|a| r.get(a)).unwrap_or(0)
+        };
         p.conn.send(ToClient::OpenMenu { kind, window: p.window, slots: m.slots.len() as u32, owner, block, name });
         p.menu = Some(m);
     }
@@ -714,7 +756,13 @@ impl Server {
                 // Cubes where something happened, and the ones entities are in (they move and
                 // spawn in untouched cubes too).
                 let mut cubes: Vec<IVec3> = std::mem::take(&mut r.modified).into_iter().collect();
-                cubes.extend(r.entities.list.iter().filter(|e| !e.removed && !e.player && e.kind != c.game.virtual_kind).map(|e| cube_of(e.pos.floor().as_ivec3())));
+                cubes.extend(
+                    r.entities
+                        .list
+                        .iter()
+                        .filter(|e| !e.removed && !e.player && e.kind != c.game.virtual_kind)
+                        .map(|e| cube_of(e.pos.floor().as_ivec3())),
+                );
                 cubes.sort_unstable_by_key(|p| (p.x, p.y, p.z));
                 cubes.dedup();
                 for pos in cubes {
@@ -727,7 +775,11 @@ impl Server {
             }
         }
         s.meta.times = self.dims.iter().map(|d| (c.dims[d.id as usize].name.clone(), d.time)).collect();
-        s.meta.edits = self.dims.iter().flat_map(|d| d.edits.iter().map(|e| (c.dims[d.id as usize].name.clone(), e.spec(c)))).collect();
+        s.meta.edits = self
+            .dims
+            .iter()
+            .flat_map(|d| d.edits.iter().map(|e| (c.dims[d.id as usize].name.clone(), e.spec(c))))
+            .collect();
         s.meta.configs = crate::config::world_values();
         s.meta.next_entity = self.next_id.load(Ordering::Relaxed);
         for p in &mut self.players {
@@ -758,7 +810,9 @@ impl Server {
             }
             let above = (g.dim, g.pos + IVec3::Y);
             let late = Instant::now() >= deadline;
-            let above_coming = pending.contains(&above) || self.dims[g.dim as usize].generating.contains(&above.1) || self.wanted.contains(&above);
+            let above_coming = pending.contains(&above)
+                || self.dims[g.dim as usize].generating.contains(&above.1)
+                || self.wanted.contains(&above);
             if late || above_coming {
                 self.backlog.push_back(g);
                 continue;
@@ -797,7 +851,9 @@ impl Server {
                 }
                 // On a body: where the client has the player on it, on the body as it is here.
                 let dim = &self.dims[self.players[pi].dim as usize];
-                let on = frame.filter(|f| f.1.is_finite()).and_then(|(b, rel)| dim.entity_region_ref(b).and_then(|r| r.entities.get(b)).map(|e| (b, e.pos + rel)));
+                let on = frame.filter(|f| f.1.is_finite()).and_then(|(b, rel)| {
+                    dim.entity_region_ref(b).and_then(|r| r.entities.get(b)).map(|e| (b, e.pos + rel))
+                });
                 let pos = on.map_or(pos, |o| o.1);
                 let p = &mut self.players[pi];
                 if let Some(t) = p.teleported {
@@ -845,7 +901,8 @@ impl Server {
                 let Some((r, entity)) = self.region(pi) else { return };
                 let Some(e) = r.entities.get(entity) else { return };
                 let (eye, sel, creative) = (e.pos + DVec3::Y * e.eye(c), e.selected, e.mode == GameMode::Creative);
-                let held = r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
+                let held =
+                    r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
                 let worn = r.with_space(c, frame, |d, o| {
                     if !within(eye - o, pos) {
                         return false;
@@ -872,8 +929,10 @@ impl Server {
                 }
                 let Some((r, entity)) = self.region(pi) else { return };
                 let Some(e) = r.entities.get(entity) else { return };
-                let (eye, sel, player_box, creative) = (e.pos + DVec3::Y * e.eye(c), e.selected, e.aabb(c), e.mode == GameMode::Creative);
-                let held = r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
+                let (eye, sel, player_box, creative) =
+                    (e.pos + DVec3::Y * e.eye(c), e.selected, e.aabb(c), e.mode == GameMode::Creative);
+                let held =
+                    r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
                 let did = r.with_space(c, frame, |d, o| {
                     if !within(eye - o, pos) {
                         return Did::Nothing;
@@ -881,15 +940,25 @@ impl Server {
                     if !sneak && d.player_use(c, pos, face, entity) {
                         return Did::Used;
                     }
-                    let Some(state) = c.items.get(held.item as usize).and_then(|i| i.block).filter(|_| !held.is_empty()) else { return Did::NoBlock };
-                    let target = if d.get(pos).is_some_and(|s| c.states[s as usize].flags & abi::block_flags::REPLACEABLE != 0) {
+                    let Some(state) =
+                        c.items.get(held.item as usize).and_then(|i| i.block).filter(|_| !held.is_empty())
+                    else {
+                        return Did::NoBlock;
+                    };
+                    let target = if d
+                        .get(pos)
+                        .is_some_and(|s| c.states[s as usize].flags & abi::block_flags::REPLACEABLE != 0)
+                    {
                         pos
                     } else {
                         pos + crate::world::DIRS[face as usize]
                     };
-                    let block_box = crate::physics::Aabb { min: target.as_dvec3(), max: target.as_dvec3() + DVec3::ONE };
+                    let block_box =
+                        crate::physics::Aabb { min: target.as_dvec3(), max: target.as_dvec3() + DVec3::ONE };
                     let solid = c.states[state as usize].flags & abi::block_flags::SOLID != 0;
-                    if (!solid || !player_box.shifted(-o).intersects(&block_box)) && d.place(c, target, face, state, look, entity, held.item) {
+                    if (!solid || !player_box.shifted(-o).intersects(&block_box))
+                        && d.place(c, target, face, state, look, entity, held.item)
+                    {
                         // A named stack names the block entity it becomes (a renamed chest).
                         if let (Some(name), Some(&id)) = (crate::stack::name(&held), d.entities.anchors.get(&target)) {
                             d.entities.comps.insert((id, c.game.name_comp), name.into_bytes().into_boxed_slice());
@@ -908,7 +977,9 @@ impl Server {
                         self.players[pi].conn.send(ToClient::Swing);
                     }
                     // Items used on a block (buckets) work on the world's blocks only, so far.
-                    Some(Did::NoBlock) => self.handle(c, pi, ToServer::UseItem { target: (frame == 0).then_some((pos, face)) }),
+                    Some(Did::NoBlock) => {
+                        self.handle(c, pi, ToServer::UseItem { target: (frame == 0).then_some((pos, face)) })
+                    }
                     _ => {}
                 }
             }
@@ -916,7 +987,8 @@ impl Server {
             ToServer::UseItem { target } => {
                 let Some((r, entity)) = self.region(pi) else { return };
                 let Some(sel) = r.entities.get(entity).map(|e| e.selected) else { return };
-                let held = r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
+                let held =
+                    r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
                 let Some(def) = c.items.get(held.item as usize) else { return };
                 let (pos, face) = target.unwrap_or((IVec3::ZERO, 0));
                 let state = target.and_then(|_| r.get(pos)).unwrap_or(0);
@@ -948,7 +1020,16 @@ impl Server {
                     used = a.handled != 0;
                 }
                 if used {
-                    r.emit_engine(c, abi::event::ITEM_USED, &abi::ItemUsed { player: entity, stack: held, pos: pos.to_array(), has_target: target.is_some() as u32 });
+                    r.emit_engine(
+                        c,
+                        abi::event::ITEM_USED,
+                        &abi::ItemUsed {
+                            player: entity,
+                            stack: held,
+                            pos: pos.to_array(),
+                            has_target: target.is_some() as u32,
+                        },
+                    );
                 }
                 if used {
                     self.players[pi].conn.send(ToClient::Swing);
@@ -960,7 +1041,13 @@ impl Server {
                 let (sel, creative) = (e.selected, e.mode == GameMode::Creative);
                 let Some(inv) = r.entities.inventories.get(&entity) else { return };
                 let current = inv.get(sel as usize).copied().unwrap_or_default();
-                if let Some(j) = c.game.player_layout.main().map(|j| j as usize).find(|&j| inv.get(j).is_some_and(|s| s.item == item && !s.is_empty())) {
+                if let Some(j) = c
+                    .game
+                    .player_layout
+                    .main()
+                    .map(|j| j as usize)
+                    .find(|&j| inv.get(j).is_some_and(|s| s.item == item && !s.is_empty()))
+                {
                     let found = inv[j];
                     r.entities.set_slot(entity, j as u32, current);
                     r.entities.set_slot(entity, sel, found);
@@ -985,7 +1072,8 @@ impl Server {
                     return;
                 }
                 let sel = me.selected;
-                let held = r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
+                let held =
+                    r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
                 if r.attack(c, entity, target, held) {
                     wear(c, r, entity, sel, c.item_value::<u32>(held.item, c.ids.wear_per_hit).unwrap_or(2));
                 }
@@ -995,14 +1083,25 @@ impl Server {
                 let Some((r, entity)) = self.region(pi) else { return };
                 let Some(kind) = r.entities.get(target).map(|e| e.kind) else { return };
                 let sel = r.entities.get(entity).map_or(0, |e| e.selected);
-                let held = r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
+                let held =
+                    r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
                 let mut q = abi::Query { entity: target, other: entity, item: held.item, ..abi::Query::DEFAULT };
                 if !r.ask(c, abi::question::INTERACT_ENTITY, &mut q) {
                     return;
                 }
                 let mut handled = false;
                 for &(owner, cb) in &c.game.entities[kind as usize].on_interact {
-                    handled |= r.call(owner, cb, |w| abi::EntityEventArgs { world: w, entity: target, other: entity, amount: 0.0, cause: 0, handled: 0 }).handled != 0;
+                    handled |= r
+                        .call(owner, cb, |w| abi::EntityEventArgs {
+                            world: w,
+                            entity: target,
+                            other: entity,
+                            amount: 0.0,
+                            cause: 0,
+                            handled: 0,
+                        })
+                        .handled
+                        != 0;
                 }
                 if handled {
                     self.players[pi].conn.send(ToClient::Swing);
@@ -1023,7 +1122,10 @@ impl Server {
             ToServer::CreativeTake { item, button } => {
                 let Server { players, dims, .. } = self;
                 let p = &mut players[pi];
-                let creative = dims[p.dim as usize].entity_region_ref(p.entity).and_then(|r| r.entities.get(p.entity)).is_some_and(|e| e.mode == GameMode::Creative);
+                let creative = dims[p.dim as usize]
+                    .entity_region_ref(p.entity)
+                    .and_then(|r| r.entities.get(p.entity))
+                    .is_some_and(|e| e.mode == GameMode::Creative);
                 if let (true, Some(m), true) = (creative, &mut p.menu, item != 0 && (item as usize) < c.items.len()) {
                     // Like vanilla: the same item adds one, anything else held is thrown away
                     // first, an empty hand takes a stack (left) or one (right).
@@ -1056,7 +1158,8 @@ impl Server {
                 let Some((r, entity)) = self.region(pi) else { return };
                 let Some(e) = r.entities.get(entity) else { return };
                 let (sel, from, yaw, pitch) = (e.selected, e.drop_point(c), e.yaw, e.pitch);
-                let held = r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
+                let held =
+                    r.entities.inventories.get(&entity).and_then(|i| i.get(sel as usize)).copied().unwrap_or_default();
                 if held.is_empty() {
                     return;
                 }
@@ -1216,7 +1319,11 @@ impl Server {
         p.first_sync = true;
         log::info!("{} joined", p.name);
         p.conn.send(ToClient::Welcome { player: id, dim, pos, seed: self.cfg.seed });
-        p.conn.send(ToClient::Edits { dim, specs: self.dims[dim as usize].edits.iter().map(|e| e.spec(c)).collect(), all: true });
+        p.conn.send(ToClient::Edits {
+            dim,
+            specs: self.dims[dim as usize].edits.iter().map(|e| e.spec(c)).collect(),
+            all: true,
+        });
         p.conn.send(ToClient::Configs(crate::config::synced()));
         p.conn.send(ToClient::Time { dim, time });
         p.conn.send(ToClient::GameMode(mode));
@@ -1224,7 +1331,12 @@ impl Server {
             p.conn.send(ToClient::Chat(void_note(c)));
         }
         // The skins of who is here already.
-        let skins: Vec<(u64, Arc<Vec<u8>>)> = self.players.iter().filter(|o| o.joined && o.entity != id).filter_map(|o| o.skin.clone().map(|s| (o.entity, s))).collect();
+        let skins: Vec<(u64, Arc<Vec<u8>>)> = self
+            .players
+            .iter()
+            .filter(|o| o.joined && o.entity != id)
+            .filter_map(|o| o.skin.clone().map(|s| (o.entity, s)))
+            .collect();
         for (entity, png) in skins {
             self.players[pi].conn.send(ToClient::Skin { entity, png: png.to_vec() });
         }
@@ -1243,7 +1355,10 @@ impl Server {
 
     fn mode(&self, pi: usize) -> GameMode {
         let p = &self.players[pi];
-        self.dims[p.dim as usize].entity_region_ref(p.entity).and_then(|r| r.entities.get(p.entity)).map_or(GameMode::Survival, |e| e.mode)
+        self.dims[p.dim as usize]
+            .entity_region_ref(p.entity)
+            .and_then(|r| r.entities.get(p.entity))
+            .map_or(GameMode::Survival, |e| e.mode)
     }
 
     /// Moves a player (with inventory and components) to a position, possibly in another
@@ -1286,7 +1401,11 @@ impl Server {
         p.fall = 0.0;
         p.teleported = Some(pos);
         p.conn.send(ToClient::Teleport { dim: to, pos, frame });
-        p.conn.send(ToClient::Edits { dim: to, specs: dims[to as usize].edits.iter().map(|e| e.spec(c)).collect(), all: true });
+        p.conn.send(ToClient::Edits {
+            dim: to,
+            specs: dims[to as usize].edits.iter().map(|e| e.spec(c)).collect(),
+            all: true,
+        });
         p.conn.send(ToClient::Time { dim: to, time: dims[to as usize].time });
         if to == c.void_dim && from != to as usize {
             p.conn.send(ToClient::Chat(void_note(c)));
@@ -1296,7 +1415,9 @@ impl Server {
     fn command(&mut self, c: &'static Content, pi: usize, line: &str) -> Vec<Msg> {
         let tokens: Vec<&str> = line.split_whitespace().collect();
         let Some(&name) = tokens.first() else { return Vec::new() };
-        let Some(def) = c.commands.iter().find(|d| d.name == name) else { return vec![Msg::new("command.unknown", vec![Arg::Text(name.to_string())])] };
+        let Some(def) = c.commands.iter().find(|d| d.name == name) else {
+            return vec![Msg::new("command.unknown", vec![Arg::Text(name.to_string())])];
+        };
         if def.client {
             return vec![Msg::new("command.client_only", vec![Arg::Text(name.to_string())])];
         }
@@ -1308,14 +1429,21 @@ impl Server {
         let players: Vec<String> = self.players.iter().filter(|p| p.joined).map(|p| p.name.clone()).collect();
         let (args, handler) = match def.parse(c, &tokens[1..], here, &players) {
             Ok(a) => a,
-            Err(e) => return vec![Msg::new("command.error_usage", vec![Arg::Msg(e), Arg::Text(def.name.clone()), Arg::Text(def.usage.clone())])],
+            Err(e) => {
+                return vec![Msg::new(
+                    "command.error_usage",
+                    vec![Arg::Msg(e), Arg::Text(def.name.clone()), Arg::Text(def.usage.clone())],
+                )];
+            }
         };
         // Selectors become entity ids before mods see them.
         let selected: Vec<Option<String>> = args
             .values
             .iter()
             .map(|v| match v {
-                Some(crate::commands::Value::Targets(s)) => Some(self.select(pi, s, here.pos).iter().map(|t| t.1.to_string()).collect::<Vec<_>>().join(" ")),
+                Some(crate::commands::Value::Targets(s)) => {
+                    Some(self.select(pi, s, here.pos).iter().map(|t| t.1.to_string()).collect::<Vec<_>>().join(" "))
+                }
                 _ => None,
             })
             .collect();
@@ -1326,7 +1454,14 @@ impl Server {
                 let values = crate::commands::abi_values(&args, &selected);
                 let mut reply: Vec<Msg> = Vec::new();
                 let reply_ptr = &mut reply as *mut Vec<Msg> as *mut core::ffi::c_void;
-                r.call(owner, cb, |w| abi::CommandArgs { world: w, player, values: values.as_ptr(), count: values.len() as u32, reply: reply_ptr, client: std::ptr::null_mut() });
+                r.call(owner, cb, |w| abi::CommandArgs {
+                    world: w,
+                    player,
+                    values: values.as_ptr(),
+                    count: values.len() as u32,
+                    reply: reply_ptr,
+                    client: std::ptr::null_mut(),
+                });
                 reply
             }
         };
@@ -1355,7 +1490,10 @@ impl Server {
         if s.base == 'e' {
             for r in &self.dims[me.dim as usize].regions {
                 for e in r.entities.list.iter().filter(|e| !e.removed) {
-                    if s.name.as_ref().is_none_or(|n| self.players.iter().any(|p| p.joined && p.entity == e.id && &p.name == n)) {
+                    if s.name
+                        .as_ref()
+                        .is_none_or(|n| self.players.iter().any(|p| p.joined && p.entity == e.id && &p.name == n))
+                    {
                         consider(me.dim, e);
                     }
                 }
@@ -1366,7 +1504,9 @@ impl Server {
                 if (s.base == 's' && !mine) || s.name.as_ref().is_some_and(|n| &p.name != n) {
                     continue;
                 }
-                if let Some(e) = self.dims[p.dim as usize].entity_region_ref(p.entity).and_then(|r| r.entities.get(p.entity)) {
+                if let Some(e) =
+                    self.dims[p.dim as usize].entity_region_ref(p.entity).and_then(|r| r.entities.get(p.entity))
+                {
                     consider(p.dim, e);
                 }
             }
@@ -1409,7 +1549,10 @@ impl Server {
             self.change_dim(c, pi, to_dim, pos);
             return;
         }
-        let Some((mut e, inv, comps)) = self.dims[dim as usize].entity_region(id).and_then(|r| r.entities.take(id)) else { return };
+        let Some((mut e, inv, comps)) = self.dims[dim as usize].entity_region(id).and_then(|r| r.entities.take(id))
+        else {
+            return;
+        };
         e.pos = pos;
         let r = self.dims[to_dim as usize].ensure_region(c, pos);
         r.entities.insert_with(c, e, inv, comps);
@@ -1419,7 +1562,14 @@ impl Server {
         self.dims[dim as usize].entity_region_ref(id).and_then(|r| r.entities.get(id)).map(|e| e.pos)
     }
 
-    fn builtin(&mut self, c: &'static Content, pi: usize, name: &str, a: &crate::commands::Args, here: DVec3) -> Vec<Msg> {
+    fn builtin(
+        &mut self,
+        c: &'static Content,
+        pi: usize,
+        name: &str,
+        a: &crate::commands::Args,
+        here: DVec3,
+    ) -> Vec<Msg> {
         let me = (self.players[pi].dim, self.players[pi].entity);
         match builtin::COMMANDS.iter().find(|b| b.0 == name) {
             Some(b) => (b.2)(self, &builtin::Ctx { c, pi, a, here, me }),
@@ -1490,7 +1640,12 @@ impl Server {
         for (pos, cube, entities, conn) in made {
             self.dims[dim as usize].insert(c, pos, cube, &entities, conn, true);
         }
-        log::info!("area fill r {:.0}: loaded {loaded} cubes it opens up, made {} it fills whole, {:.0} ms", fill.radius, whole.len(), start.elapsed().as_secs_f64() * 1000.0);
+        log::info!(
+            "area fill r {:.0}: loaded {loaded} cubes it opens up, made {} it fills whole, {:.0} ms",
+            fill.radius,
+            whole.len(),
+            start.elapsed().as_secs_f64() * 1000.0
+        );
         self.dims[dim as usize].area_fill(c, fill, &whole);
         if let Some(e) = self.dims[dim as usize].edits.last() {
             let spec = e.spec(c);
@@ -1513,7 +1668,11 @@ impl Server {
             .backlog
             .iter()
             .map(|g| (g.dim, g.pos + IVec3::Y))
-            .filter(|&(d, p)| self.wanted.contains(&(d, p)) && !self.dims[d as usize].generating.contains(&p) && !queued.contains(&(d, p)))
+            .filter(|&(d, p)| {
+                self.wanted.contains(&(d, p))
+                    && !self.dims[d as usize].generating.contains(&p)
+                    && !queued.contains(&(d, p))
+            })
             .collect();
         blockers.sort_unstable_by_key(|&(d, p)| (d, p.x, p.y, p.z));
         blockers.dedup();
@@ -1570,7 +1729,13 @@ impl Server {
                 .iter()
                 .copied()
                 .chain(left.iter().map(|&q| q - IVec3::Y))
-                .filter(|&q| dim.has(q) && !dim.settled(q) && !dim.has(q + IVec3::Y) && !vis.seen.contains(&(q + IVec3::Y)) && !sky_column(q + IVec3::Y))
+                .filter(|&q| {
+                    dim.has(q)
+                        && !dim.settled(q)
+                        && !dim.has(q + IVec3::Y)
+                        && !vis.seen.contains(&(q + IVec3::Y))
+                        && !sky_column(q + IVec3::Y)
+                })
                 .collect();
             for t in tops {
                 dim.settle_down(t);
@@ -1659,7 +1824,14 @@ impl Server {
                     // Solid bodies every tick: clients show them between server positions, and a
                     // body that stops must say so (two equal positions).
                     let solid = c.game.entities[e.kind as usize].is(abi::entity_flags::SOLID);
-                    if solid || e.sent.is_none_or(|s| (s.0 - now.0).length_squared() > 1e-6 || (s.1 - now.1).abs() > 0.01 || (s.2 - now.2).abs() > 0.01 || s.3 != now.3) {
+                    if solid
+                        || e.sent.is_none_or(|s| {
+                            (s.0 - now.0).length_squared() > 1e-6
+                                || (s.1 - now.1).abs() > 0.01
+                                || (s.2 - now.2).abs() > 0.01
+                                || s.3 != now.3
+                        })
+                    {
                         if e.sent.is_some() {
                             m.push((e.id, e.pos, e.yaw, e.pitch, e.crouched, e.support.unwrap_or(0)));
                         }
@@ -1691,7 +1863,8 @@ impl Server {
                     }
                 }
                 if !reg.changes.is_empty() {
-                    let changes: Vec<(IVec3, u32)> = reg.changes.iter().filter(|(b, _)| p.sent.contains(&(*b >> 4))).copied().collect();
+                    let changes: Vec<(IVec3, u32)> =
+                        reg.changes.iter().filter(|(b, _)| p.sent.contains(&(*b >> 4))).copied().collect();
                     if !changes.is_empty() {
                         p.conn.send(ToClient::Blocks { dim: p.dim, changes });
                     }
@@ -1702,30 +1875,53 @@ impl Server {
             }
 
             // Entities in range: spawn new ones, despawn gone ones, stream movement.
-            let (me, me_mode) = dim.entity_region_ref(p.entity).and_then(|r| r.entities.get(p.entity)).map_or((DVec3::ZERO, GameMode::Survival), |e| (e.pos, e.mode));
+            let (me, me_mode) = dim
+                .entity_region_ref(p.entity)
+                .and_then(|r| r.entities.get(p.entity))
+                .map_or((DVec3::ZERO, GameMode::Survival), |e| (e.pos, e.mode));
             let range2 = ((r * 16) as f64).powi(2);
             let mut spawn = Vec::new();
             let mut visible = FxHashSet::default();
             for reg in &dim.regions {
                 // Spectators are seen only by other spectators.
                 let shown = |e: &&Entity| e.mode != GameMode::Spectator || me_mode == GameMode::Spectator;
-                for e in reg.entities.list.iter().filter(|e| !e.removed && e.id != p.entity && e.anchor.is_none() && e.kind != c.game.virtual_kind).filter(shown) {
+                for e in reg
+                    .entities
+                    .list
+                    .iter()
+                    .filter(|e| !e.removed && e.id != p.entity && e.anchor.is_none() && e.kind != c.game.virtual_kind)
+                    .filter(shown)
+                {
                     if (e.pos - me).length_squared() > range2 {
                         continue;
                     }
                     visible.insert(e.id);
                     if !p.known.contains(&e.id) {
-                        spawn.push(EntityView { id: e.id, kind: e.kind, pos: e.pos, yaw: e.yaw, pitch: e.pitch, item: crate::stack::for_client(e.item) });
+                        spawn.push(EntityView {
+                            id: e.id,
+                            kind: e.kind,
+                            pos: e.pos,
+                            yaw: e.yaw,
+                            pitch: e.pitch,
+                            item: crate::stack::for_client(e.item),
+                        });
                     }
                 }
             }
-            let taken: Vec<(u64, u64)> = dim.regions.iter().flat_map(|r| r.entities.taken.iter()).filter(|t| p.known.contains(&t.0)).copied().collect();
+            let taken: Vec<(u64, u64)> = dim
+                .regions
+                .iter()
+                .flat_map(|r| r.entities.taken.iter())
+                .filter(|t| p.known.contains(&t.0))
+                .copied()
+                .collect();
             if !taken.is_empty() {
                 p.conn.send(ToClient::Taken(taken));
             }
             // A mob killed this tick is gone already: the flag starts its death animation.
             let killed = |id: &u64| dim.regions.iter().any(|r| r.entities.killed.contains(id));
-            let gone: Vec<(u64, bool)> = p.known.iter().copied().filter(|id| !visible.contains(id)).map(|id| (id, killed(&id))).collect();
+            let gone: Vec<(u64, bool)> =
+                p.known.iter().copied().filter(|id| !visible.contains(id)).map(|id| (id, killed(&id))).collect();
             if !gone.is_empty() {
                 p.conn.send(ToClient::Despawn(gone));
             }
@@ -1733,7 +1929,11 @@ impl Server {
             let mut shared: Vec<(u64, u32, Vec<u8>)> = Vec::new();
             for reg in &dim.regions {
                 for &(id, comp) in &reg.entities.dirty_comp {
-                    if id != p.entity && p.known.contains(&id) && visible.contains(&id) && c.game.components[comp as usize].flags & cf::SYNC_WATCHERS != 0 {
+                    if id != p.entity
+                        && p.known.contains(&id)
+                        && visible.contains(&id)
+                        && c.game.components[comp as usize].flags & cf::SYNC_WATCHERS != 0
+                    {
                         shared.extend(reg.entities.comps.get(&(id, comp)).map(|b| (id, comp, b.to_vec())));
                     }
                 }
@@ -1748,7 +1948,11 @@ impl Server {
             for reg in &dim.regions {
                 for (&id, st) in &reg.structures {
                     if spawn.iter().any(|v| v.id == id) {
-                        structures.push(ToClient::Structure { id, cubes: st.cubes.iter().map(|(p, c)| (*p, c.clone())).collect(), full: true });
+                        structures.push(ToClient::Structure {
+                            id,
+                            cubes: st.cubes.iter().map(|(p, c)| (*p, c.clone())).collect(),
+                            full: true,
+                        });
                     } else if !st.resend.is_empty() && p.known.contains(&id) && visible.contains(&id) {
                         structures.push(ToClient::Structure { id, cubes: st.resend.clone(), full: false });
                     }
@@ -1763,7 +1967,11 @@ impl Server {
             if !shared.is_empty() {
                 p.conn.send(ToClient::EntityComponents(shared));
             }
-            let moves: Vec<crate::net::Move> = moved[p.dim as usize].iter().filter(|m| p.known.contains(&m.0) && visible.contains(&m.0)).copied().collect();
+            let moves: Vec<crate::net::Move> = moved[p.dim as usize]
+                .iter()
+                .filter(|m| p.known.contains(&m.0) && visible.contains(&m.0))
+                .copied()
+                .collect();
             if !moves.is_empty() {
                 p.conn.send(ToClient::Moves { tick: server_tick, moves });
             }
@@ -1774,7 +1982,10 @@ impl Server {
                     p.conn.send(ToClient::Push(push));
                 }
                 // The client moves its player: speed and jump from the attributes go there.
-                let movement = (reg.attribute(c, p.entity, MOVEMENT_SPEED, false) as f32, reg.attribute(c, p.entity, JUMP_STRENGTH, false) as f32);
+                let movement = (
+                    reg.attribute(c, p.entity, MOVEMENT_SPEED, false) as f32,
+                    reg.attribute(c, p.entity, JUMP_STRENGTH, false) as f32,
+                );
                 if movement != p.sent_movement {
                     p.sent_movement = movement;
                     p.conn.send(ToClient::Movement { speed: movement.0, jump: movement.1 });
@@ -1782,7 +1993,9 @@ impl Server {
                 // Own inventory and synced components.
                 if p.first_sync || reg.entities.dirty_inv.contains(&p.entity) {
                     if let Some(inv) = reg.entities.inventories.get(&p.entity) {
-                        p.conn.send(ToClient::Inventory(inv.iter().enumerate().map(|(i, s)| (i as u32, crate::stack::for_client(*s))).collect()));
+                        p.conn.send(ToClient::Inventory(
+                            inv.iter().enumerate().map(|(i, s)| (i as u32, crate::stack::for_client(*s))).collect(),
+                        ));
                     }
                 }
                 let comps: Vec<(u32, Vec<u8>)> = reg
@@ -1841,7 +2054,11 @@ impl Server {
                     for dz in -r..=r {
                         for dx in -r..=r {
                             let pos = center + IVec3::new(dx, dy, dz);
-                            if in_range(pos) && !was.is_some_and(|w| w.contains(pos)) && !p.sent.contains(&pos) && dim.settled(pos) {
+                            if in_range(pos)
+                                && !was.is_some_and(|w| w.contains(pos))
+                                && !p.sent.contains(&pos)
+                                && dim.settled(pos)
+                            {
                                 p.unsent.insert(pos);
                             }
                         }
@@ -1995,11 +2212,23 @@ fn gizmos_for(p: &Player, dim: &DimSet, tick: u64, me: DVec3) -> Vec<crate::net:
         return out;
     }
     let on = |g: &str| p.gizmos.iter().any(|x| x == g);
-    let shape = |group: &str, kind: u8, a: DVec3, b: DVec3, color: u32| GizmoShape { group: group.into(), kind, a, b, color, ticks: TPS + 2, text: Msg::default() };
+    let shape = |group: &str, kind: u8, a: DVec3, b: DVec3, color: u32| GizmoShape {
+        group: group.into(),
+        kind,
+        a,
+        b,
+        color,
+        ticks: TPS + 2,
+        text: Msg::default(),
+    };
     if on("regions") {
         const COLORS: [u32; 6] = [0xFF4040FF, 0x40FF40FF, 0x4080FFFF, 0xFFFF40FF, 0xFF40FFFF, 0x40FFFFFF];
         for (i, r) in dim.regions.iter().enumerate() {
-            let (Some(lo), Some(hi)) = (r.cubes.keys().copied().reduce(IVec3::min), r.cubes.keys().copied().reduce(IVec3::max)) else { continue };
+            let (Some(lo), Some(hi)) =
+                (r.cubes.keys().copied().reduce(IVec3::min), r.cubes.keys().copied().reduce(IVec3::max))
+            else {
+                continue;
+            };
             let (a, b) = ((lo * 16).as_dvec3() + 0.05, ((hi + 1) * 16).as_dvec3() - 0.05);
             out.push(shape("regions", 1, a, b, COLORS[i % COLORS.len()]));
         }
@@ -2033,7 +2262,9 @@ fn mode_modifiers(c: &Content, r: &mut Dim, id: u64, mode: GameMode) {
 /// Items in a player's equipment slots that show on the model.
 fn worn_of(c: &Content, ents: &entity::Entities, id: u64) -> Vec<u32> {
     let worn = &c.game.player_layout.worn;
-    let Some(inv) = ents.inventories.get(&id).and_then(|i| i.get(worn.start as usize..worn.end as usize)) else { return Vec::new() };
+    let Some(inv) = ents.inventories.get(&id).and_then(|i| i.get(worn.start as usize..worn.end as usize)) else {
+        return Vec::new();
+    };
     inv.iter().filter(|s| !s.is_empty() && c.worn(s.item).is_some()).map(|s| s.item).collect()
 }
 
@@ -2063,7 +2294,8 @@ fn serialize(c: &Content, d: &Dim, ids: &[u64]) -> Vec<u8> {
         .filter_map(|&id| {
             // Virtual inventories are never saved.
             let e = d.entities.get(id).filter(|e| e.kind != c.game.virtual_kind)?;
-            let comps = d.entities.comps.iter().filter(|((eid, _), _)| *eid == id).map(|((_, k), v)| (*k, &v[..])).collect();
+            let comps =
+                d.entities.comps.iter().filter(|((eid, _), _)| *eid == id).map(|((_, k), v)| (*k, &v[..])).collect();
             Some((e, d.entities.inventories.get(&id), comps, d.structures.get(&id).map(|s| s.structure_blocks(c))))
         })
         .collect();
@@ -2073,7 +2305,15 @@ fn serialize(c: &Content, d: &Dim, ids: &[u64]) -> Vec<u8> {
 }
 
 fn entities_in(c: &Content, d: &Dim, cube: IVec3) -> Vec<u8> {
-    let ids: Vec<u64> = d.entities.list.iter().filter(|e| !e.removed && !e.player && e.kind != c.game.virtual_kind && cube_of(e.pos.floor().as_ivec3()) == cube).map(|e| e.id).collect();
+    let ids: Vec<u64> = d
+        .entities
+        .list
+        .iter()
+        .filter(|e| {
+            !e.removed && !e.player && e.kind != c.game.virtual_kind && cube_of(e.pos.floor().as_ivec3()) == cube
+        })
+        .map(|e| e.id)
+        .collect();
     serialize(c, d, &ids)
 }
 
@@ -2094,7 +2334,18 @@ fn save_player(s: &Storage, p: &Player, d: &Dim) {
     if let Some(inv) = d.entities.inventories.get(&p.entity) {
         let items: Vec<String> = inv
             .iter()
-            .map(|s| if s.is_empty() { "-".into() } else { format!("{}*{}*{}", c.items[s.item as usize].name, s.count, crate::stack::to_text(crate::stack::for_save(s.data))) })
+            .map(|s| {
+                if s.is_empty() {
+                    "-".into()
+                } else {
+                    format!(
+                        "{}*{}*{}",
+                        c.items[s.item as usize].name,
+                        s.count,
+                        crate::stack::to_text(crate::stack::for_save(s.data))
+                    )
+                }
+            })
             .collect();
         text.push_str(&format!("inventory = {}\n", items.join(" ")));
     }
@@ -2160,7 +2411,11 @@ fn load_player(c: &Content, s: &Storage, key: &str) -> Option<PlayerData> {
                             log::warn!("player {key}: dropped {} {} (no such item now)", parts[1], parts[0]);
                         }
                         if let Some(item) = item {
-                            slots[i] = ItemStack { item, count: parts[1].parse().unwrap_or(1), data: crate::stack::from_text(parts[2]) };
+                            slots[i] = ItemStack {
+                                item,
+                                count: parts[1].parse().unwrap_or(1),
+                                data: crate::stack::from_text(parts[2]),
+                            };
                         }
                     }
                 }

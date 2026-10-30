@@ -119,8 +119,13 @@ impl Name {
     pub fn spec(&self) -> String {
         let c = crate::content::try_content();
         match self {
-            Name::Item(i) => format!("item:{}", c.and_then(|c| c.items.get(*i as usize)).map_or("", |d| d.name.as_str())),
-            Name::Block(s) => format!("block:{}", c.filter(|c| (*s as usize) < c.states.len()).map_or(String::new(), |c| c.state_name(*s))),
+            Name::Item(i) => {
+                format!("item:{}", c.and_then(|c| c.items.get(*i as usize)).map_or("", |d| d.name.as_str()))
+            }
+            Name::Block(s) => format!(
+                "block:{}",
+                c.filter(|c| (*s as usize) < c.states.len()).map_or(String::new(), |c| c.state_name(*s))
+            ),
             Name::Liquid(n) => format!("liquid:{n}"),
             Name::Tab(n) => format!("tab:{n}"),
             Name::Mod(n) => format!("mod:{n}"),
@@ -139,12 +144,15 @@ impl Name {
                 (vec![lang_key("item", &n), lang_key("block", &n)], n)
             }
             Name::Block(s) => {
-                let n = c.and_then(|c| c.states.get(*s as usize).map(|_| c.block_of(*s).name.clone())).unwrap_or_default();
+                let n =
+                    c.and_then(|c| c.states.get(*s as usize).map(|_| c.block_of(*s).name.clone())).unwrap_or_default();
                 (vec![lang_key("block", &n), lang_key("item", &n)], n)
             }
             Name::Liquid(n) => (vec![lang_key("block", n)], n.clone()),
             // A mod's own tab, made for items in none, is called like the mod.
-            Name::Tab(n) => (vec![lang_key("tab", n), format!("mod.{}.name", n.split(':').next().unwrap_or(n))], n.clone()),
+            Name::Tab(n) => {
+                (vec![lang_key("tab", n), format!("mod.{}.name", n.split(':').next().unwrap_or(n))], n.clone())
+            }
             Name::Mod(id) => (vec![format!("mod.{id}.name")], id.clone()),
             Name::Recipe(n) => (vec![lang_key("recipe", n)], n.clone()),
             Name::Config(n) => (vec![lang_key("config", n)], n.clone()),
@@ -233,7 +241,12 @@ pub const FONT_PER_GUI: f32 = 2.0;
 /// `hidden` is derived state: spans with the same content are equal whatever it says.
 impl PartialEq for Span {
     fn eq(&self, o: &Span) -> bool {
-        self.piece == o.piece && self.color == o.color && self.fx == o.fx && self.when == o.when && self.align == o.align && self.mono == o.mono
+        self.piece == o.piece
+            && self.color == o.color
+            && self.fx == o.fx
+            && self.when == o.when
+            && self.align == o.align
+            && self.mono == o.mono
     }
 }
 
@@ -339,7 +352,11 @@ impl State {
 /// `ns:name` under `gui/`; a name leaving the folder is logged once and shows nothing.
 fn gui_texture(name: &str) -> String {
     let (ns, path) = name.split_once(':').unwrap_or(("core", name));
-    if path.is_empty() || path.starts_with('/') || path.split('/').any(|p| p == ".." || p.is_empty()) || path.starts_with("gui/") {
+    if path.is_empty()
+        || path.starts_with('/')
+        || path.split('/').any(|p| p == ".." || p.is_empty())
+        || path.starts_with("gui/")
+    {
         static SAID: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
         let mut said = SAID.lock().unwrap();
         if !said.iter().any(|s| s == name) {
@@ -360,7 +377,12 @@ fn push_text(out: &mut Vec<Span>, s: &str, st: &State) {
         return;
     }
     if let Some(last) = out.last_mut() {
-        if last.color == st.color && last.fx == st.fx && last.when == st.when && last.align == st.align && last.mono == st.mono {
+        if last.color == st.color
+            && last.fx == st.fx
+            && last.when == st.when
+            && last.align == st.align
+            && last.mono == st.mono
+        {
             if let Piece::Text(t) = &mut last.piece {
                 t.push_str(s);
                 return;
@@ -375,11 +397,23 @@ fn cond(spec: &str, keys: bool) -> Cond {
         Some(r) => (true, r),
         None => (false, spec),
     };
-    let test = if keys { Test::Keys(rest.split('+').map(|k| k.trim().to_string()).collect()) } else { Test::If(rest.trim().to_string()) };
+    let test = if keys {
+        Test::Keys(rest.split('+').map(|k| k.trim().to_string()).collect())
+    } else {
+        Test::If(rest.trim().to_string())
+    };
     Cond { not, test }
 }
 
-fn format_depth(template: &str, args: &[Arg], cx: &Ctx, out: &mut Vec<Span>, st: &mut State, base: Option<u32>, depth: u32) {
+fn format_depth(
+    template: &str,
+    args: &[Arg],
+    cx: &Ctx,
+    out: &mut Vec<Span>,
+    st: &mut State,
+    base: Option<u32>,
+    depth: u32,
+) {
     st.color = base;
     let mut rest = template;
     while let Some(i) = rest.find(['{', '}']) {
@@ -409,7 +443,11 @@ fn format_depth(template: &str, args: &[Arg], cx: &Ctx, out: &mut Vec<Span>, st:
         } else if tag == "/" {
             st.color = base;
         } else if let Some(action) = tag.strip_prefix("key:") {
-            let name = cx.input.and_then(|i| i.key_of(action)).map(|k| display_chord(cx.lang, k)).unwrap_or_else(|| "?".into());
+            let name = cx
+                .input
+                .and_then(|i| i.key_of(action))
+                .map(|k| display_chord(cx.lang, k))
+                .unwrap_or_else(|| "?".into());
             let color = st.color.or_else(|| cx.lang.color("color.key").map(|c| c >> 8));
             out.push(st.span(Piece::Text(format!("[{name}]")), color));
         } else if let Some(item) = tag.strip_prefix("item:") {
@@ -430,7 +468,10 @@ fn format_depth(template: &str, args: &[Arg], cx: &Ctx, out: &mut Vec<Span>, st:
             let mut parts = spec.split_whitespace();
             // A GUI texture: `base:arrow` is `base:gui/arrow`, like every asset name in a call.
             let name = &gui_texture(parts.next().unwrap_or(""));
-            let size = parts.next().and_then(|s| s.split_once('x')).and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)));
+            let size = parts
+                .next()
+                .and_then(|s| s.split_once('x'))
+                .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)));
             if let Some((w, h)) = size.or_else(|| texture_size(name).map(|(w, h)| (w as f32, h as f32))) {
                 out.push(st.span(Piece::Image(image_id(name), w * FONT_PER_GUI, h * FONT_PER_GUI), None));
             }
@@ -530,7 +571,10 @@ pub enum Placed {
 impl Placed {
     fn pos(&mut self) -> (&mut f32, &mut f32) {
         match self {
-            Placed::Glyph { x, y, .. } | Placed::Icon { x, y, .. } | Placed::Block { x, y, .. } | Placed::Image { x, y, .. } => (x, y),
+            Placed::Glyph { x, y, .. }
+            | Placed::Icon { x, y, .. }
+            | Placed::Block { x, y, .. }
+            | Placed::Image { x, y, .. } => (x, y),
         }
     }
 }
@@ -573,7 +617,14 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
     let mut lines: Vec<(usize, f32, u8)> = Vec::new();
     let mut line_align = spans.iter().find(|s| !s.hidden).map_or(align::LEFT, |s| s.align);
 
-    let newline = |out: &mut TextLayout, x: &mut f32, y: &mut f32, max_x: &mut f32, line_start: &mut usize, line_h: &mut f32, lines: &mut Vec<(usize, f32, u8)>, align: u8| {
+    let newline = |out: &mut TextLayout,
+                   x: &mut f32,
+                   y: &mut f32,
+                   max_x: &mut f32,
+                   line_start: &mut usize,
+                   line_h: &mut f32,
+                   lines: &mut Vec<(usize, f32, u8)>,
+                   align: u8| {
         lines.push((*line_start, *x, align));
         *max_x = max_x.max(*x);
         *x = 0.0;
@@ -590,7 +641,16 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
             Piece::Text(t) => {
                 for ch in t.chars() {
                     if ch == '\n' {
-                        newline(&mut out, &mut x, &mut y, &mut max_x, &mut line_start, &mut line_h, &mut lines, line_align);
+                        newline(
+                            &mut out,
+                            &mut x,
+                            &mut y,
+                            &mut max_x,
+                            &mut line_start,
+                            &mut line_h,
+                            &mut lines,
+                            line_align,
+                        );
                         line_align = span.align;
                         last_break = None;
                         continue;
@@ -599,7 +659,16 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
                     if x + adv > limit && x > 0.0 {
                         if ch == ' ' {
                             // Wrapping right at a space: the space just disappears.
-                            newline(&mut out, &mut x, &mut y, &mut max_x, &mut line_start, &mut line_h, &mut lines, line_align);
+                            newline(
+                                &mut out,
+                                &mut x,
+                                &mut y,
+                                &mut max_x,
+                                &mut line_start,
+                                &mut line_h,
+                                &mut lines,
+                                line_align,
+                            );
                             last_break = None;
                             continue;
                         }
@@ -623,7 +692,16 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
                                 x -= shift;
                                 line_start = idx;
                             }
-                            _ => newline(&mut out, &mut x, &mut y, &mut max_x, &mut line_start, &mut line_h, &mut lines, line_align),
+                            _ => newline(
+                                &mut out,
+                                &mut x,
+                                &mut y,
+                                &mut max_x,
+                                &mut line_start,
+                                &mut line_h,
+                                &mut lines,
+                                line_align,
+                            ),
                         }
                     }
                     if ch == ' ' {
@@ -634,7 +712,13 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
                     }
                     if mono || span.mono {
                         let cell = if adv > font.mono + 1.0 { font.mono * 2.0 } else { font.mono };
-                        out.items.push(Placed::Glyph { x: x + ((cell - adv) / (2.0 * font.pixel)).floor() * font.pixel, y, ch, color: span.color, fx: span.fx });
+                        out.items.push(Placed::Glyph {
+                            x: x + ((cell - adv) / (2.0 * font.pixel)).floor() * font.pixel,
+                            y,
+                            ch,
+                            color: span.color,
+                            fx: span.fx,
+                        });
                         x += cell;
                     } else {
                         out.items.push(Placed::Glyph { x, y, ch, color: span.color, fx: span.fx });
@@ -696,7 +780,11 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
 /// `Ctrl+T`: the modifiers (`keyname.ctrl` ..., either side's key), then the key.
 pub fn display_chord(lang: &Lang, c: crate::input::Chord) -> String {
     let mut out = String::new();
-    for (bit, name) in [(crate::input::CTRL, "keyname.ctrl"), (crate::input::SHIFT, "keyname.shift"), (crate::input::ALT, "keyname.alt")] {
+    for (bit, name) in [
+        (crate::input::CTRL, "keyname.ctrl"),
+        (crate::input::SHIFT, "keyname.shift"),
+        (crate::input::ALT, "keyname.alt"),
+    ] {
         if c.mods & bit != 0 {
             out += lang.get(name);
             out.push('+');
@@ -756,7 +844,11 @@ mod tests {
         // Sneak held, not creative: only the unconditional parts and the effect remain.
         let font = Font::parse_hex(include_str!("../../assets/fonts/unifont.hex"));
         assert!(refresh(&mut spans, &|t| matches!(t, Test::Keys(_))));
-        let shown: String = layout(&spans, &font, None).items.iter().filter_map(|i| if let Placed::Glyph { ch, .. } = i { Some(*ch) } else { None }).collect();
+        let shown: String = layout(&spans, &font, None)
+            .items
+            .iter()
+            .filter_map(|i| if let Placed::Glyph { ch, .. } = i { Some(*ch) } else { None })
+            .collect();
         assert_eq!(shown, "ade");
         assert!(refresh(&mut spans, &|t| matches!(t, Test::If(_))));
         assert!(!refresh(&mut spans, &|t| matches!(t, Test::If(_))));
@@ -769,14 +861,24 @@ mod tests {
         let lang = Lang::load(&crate::assets::Assets::new([], Vec::new()), "en_us", false);
         let cx = Ctx::new(&lang, None);
         let mut spans = Vec::new();
-        format("{align:center}{img:base:x 16x12}{/align}
-ab", &[], &cx, &mut spans);
+        format(
+            "{align:center}{img:base:x 16x12}{/align}
+ab",
+            &[],
+            &cx,
+            &mut spans,
+        );
         let font = Font::parse_hex(include_str!("../../assets/fonts/unifont.hex"));
         let l = layout(&spans, &font, Some(100.0));
-        let (ix, iw, ih) = l.items.iter().find_map(|p| if let Placed::Image { x, w, h, .. } = p { Some((*x, *w, *h)) } else { None }).unwrap();
+        let (ix, iw, ih) = l
+            .items
+            .iter()
+            .find_map(|p| if let Placed::Image { x, w, h, .. } = p { Some((*x, *w, *h)) } else { None })
+            .unwrap();
         assert_eq!((iw, ih), (16.0 * FONT_PER_GUI, 12.0 * FONT_PER_GUI));
         assert_eq!(ix, ((100.0 - (iw + 1.0)) / 2.0).floor());
-        let text_y = l.items.iter().find_map(|p| if let Placed::Glyph { y, .. } = p { Some(*y) } else { None }).unwrap();
+        let text_y =
+            l.items.iter().find_map(|p| if let Placed::Glyph { y, .. } = p { Some(*y) } else { None }).unwrap();
         assert_eq!(text_y, ih + 1.0);
         assert_eq!(l.lines, 2);
         // Escaped player text shows its braces instead of formatting.

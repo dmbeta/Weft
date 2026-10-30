@@ -76,7 +76,12 @@ pub fn register(r: &mut Registry) {
     // A glowing birch (a log's `tree` component grows it from a sapling or worldgen) and
     // flower; not generated in the world, only from the creative tabs.
     static TREE_LEAVES: Component<BlockRef> = Component::named("tree_leaves");
-    r.block(&GLOW_LOG).textures("glow_log_top", "glow_log", "glow_log_top").hardness(2.0).mineable("axe").tag("logs").set_text(&TREE_LEAVES, "glow_leaves");
+    r.block(&GLOW_LOG)
+        .textures("glow_log_top", "glow_log", "glow_log_top")
+        .hardness(2.0)
+        .mineable("axe")
+        .tag("logs")
+        .set_text(&TREE_LEAVES, "glow_leaves");
     r.block(&GLOW_LEAVES).cutout().opacity(1).tint(&GLOW).hardness(0.2).tag("leaves").mineable("shears");
     r.block(&GLOW_FLOWER).plant().needs_below("#plant_soil").tint(&GLOW);
     r.block(&GLOW_CRYSTAL)
@@ -95,8 +100,10 @@ pub fn register(r: &mut Registry) {
         .speed(1.5)
         .flags(entity_flags::NO_GRAVITY)
         .unpushable()
-        
-        .model(Model::from(vec![Part::new("wisp", [0.0, 3.0, 0.0]).cube([-3.0, -3.0, -3.0], [6.0, 6.0, 6.0], [0.0, 0.0])]).uv(32, 16))
+        .model(
+            Model::from(vec![Part::new("wisp", [0.0, 3.0, 0.0]).cube([-3.0, -3.0, -3.0], [6.0, 6.0, 6.0], [0.0, 0.0])])
+                .uv(32, 16),
+        )
         .shader("ghost")
         .on_tick(wisps);
 
@@ -118,13 +125,16 @@ pub fn register(r: &mut Registry) {
         }
     });
     let ring = Part::new("ring", [0.0, 8.0, 0.0]).child_of(0);
-    let ring = [[6.0, -1.0, -1.0], [-8.0, -1.0, -1.0], [-1.0, -1.0, 6.0], [-1.0, -1.0, -8.0]].into_iter().fold(ring, |p, at| p.cube(at, [2.0, 2.0, 2.0], [16.0, 0.0]));
-    r.entity(&ORB)
-        .size(0.6, 0.9)
-        .health(4.0)
-        .flags(entity_flags::NO_GRAVITY)
-        
-        .model(Model::from(vec![Part::new("core", [0.0, 8.0, 0.0]).mesh(sphere([0.0, 8.0, 0.0], 4.0, 8, 12, [0.0, 0.0, 16.0, 16.0])), ring]).uv(32, 16));
+    let ring = [[6.0, -1.0, -1.0], [-8.0, -1.0, -1.0], [-1.0, -1.0, 6.0], [-1.0, -1.0, -8.0]]
+        .into_iter()
+        .fold(ring, |p, at| p.cube(at, [2.0, 2.0, 2.0], [16.0, 0.0]));
+    r.entity(&ORB).size(0.6, 0.9).health(4.0).flags(entity_flags::NO_GRAVITY).model(
+        Model::from(vec![
+            Part::new("core", [0.0, 8.0, 0.0]).mesh(sphere([0.0, 8.0, 0.0], 4.0, 8, 12, [0.0, 0.0, 16.0, 16.0])),
+            ring,
+        ])
+        .uv(32, 16),
+    );
 
     r.set_text_on(Target::Entity("core:player"), &ANIMATIONS, "testmod:player");
     r.item(&TOTEM).max_stack(1);
@@ -174,7 +184,10 @@ fn wisps(t: &EntityTick) {
         w.set_entity(id, &st);
         w.walk(id, [-st.yaw.sin(), -st.yaw.cos()], 1.0, false);
         if (time + phase) % 20 == 0 {
-            w.spawn_particles(&SPARK, [st.pos[0], st.pos[1] + 0.2, st.pos[2]]).count(WISP_SPARKS.get().max(0) as u32).spread(0.15).speed(0.3);
+            w.spawn_particles(&SPARK, [st.pos[0], st.pos[1] + 0.2, st.pos[2]])
+                .count(WISP_SPARKS.get().max(0) as u32)
+                .spread(0.15)
+                .speed(0.3);
         }
     }
 }

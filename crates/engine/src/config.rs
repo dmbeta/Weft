@@ -79,7 +79,18 @@ impl ConfigDef {
     }
 
     pub fn number(name: &str, kind: u32, default: f64, min: f64, max: f64, step: f64) -> ConfigDef {
-        ConfigDef { name: name.into(), kind, default, min, max, step, choices: Vec::new(), flags: 0, scope: scope::CLIENT, text: String::new() }
+        ConfigDef {
+            name: name.into(),
+            kind,
+            default,
+            min,
+            max,
+            step,
+            choices: Vec::new(),
+            flags: 0,
+            scope: scope::CLIENT,
+            text: String::new(),
+        }
     }
 
     pub fn text(name: &str, default: &str) -> ConfigDef {
@@ -262,12 +273,26 @@ pub fn save(run_dir: &Path, ns: &str) {
 
 /// Values of the settings the server decides, for its players.
 pub fn synced() -> Vec<(u32, f64)> {
-    content().game.configs.iter().enumerate().filter(|(_, d)| d.synced() && d.kind != ck::TEXT).map(|(i, _)| (i as u32, get(i as u32))).collect()
+    content()
+        .game
+        .configs
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.synced() && d.kind != ck::TEXT)
+        .map(|(i, _)| (i as u32, get(i as u32)))
+        .collect()
 }
 
 /// A world's settings as it saves them.
 pub fn world_values() -> Vec<(String, f64)> {
-    content().game.configs.iter().enumerate().filter(|(_, d)| d.scope == scope::WORLD).map(|(i, d)| (d.name.clone(), get(i as u32))).collect()
+    content()
+        .game
+        .configs
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.scope == scope::WORLD)
+        .map(|(i, d)| (d.name.clone(), get(i as u32)))
+        .collect()
 }
 
 /// Opening a world: its settings as it saved them, defaults for the rest.
@@ -306,7 +331,10 @@ pub fn engine_configs(keys: &[(String, String)]) -> Vec<ConfigDef> {
         ConfigDef::text("core:resource_packs", ""),
         ConfigDef::text("core:shader_pack", ""),
         ConfigDef { scope: scope::WORLD, ..ConfigDef::number("core:mob_spawning", ck::BOOL, 1.0, 0.0, 1.0, 0.0) },
-        ConfigDef { scope: scope::WORLD, ..ConfigDef::number("core:simulation_distance", ck::INT, 8.0, 2.0, 64.0, 1.0) },
+        ConfigDef {
+            scope: scope::WORLD,
+            ..ConfigDef::number("core:simulation_distance", ck::INT, 8.0, 2.0, 64.0, 1.0)
+        },
     ];
     out.extend(keys.iter().map(|(action, key)| ConfigDef::text(&format!("core:key.{action}"), key)));
     out

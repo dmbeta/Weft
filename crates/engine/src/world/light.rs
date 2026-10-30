@@ -523,7 +523,8 @@ pub fn prelight(c: &Content, cube: &mut Cube, sky: bool) {
     cube.decode(&mut states);
     let pi = |s: u32| palette.iter().position(|&p| p == s).unwrap();
     let props: Vec<Tight> = palette.iter().map(|&s| t[s as usize]).collect();
-    let idx: Box<[u8; 4096]> = Box::new(std::array::from_fn(|i| if palette.len() == 1 { 0 } else { pi(states[i]) as u8 }));
+    let idx: Box<[u8; 4096]> =
+        Box::new(std::array::from_fn(|i| if palette.len() == 1 { 0 } else { pi(states[i]) as u8 }));
     let mut light = [[0u8; 4096]; 4];
     let mut queue: Vec<(u16, u8)> = Vec::new();
     let flood = |light: &mut [u8; 4096], queue: &mut Vec<(u16, u8)>, absorb: &dyn Fn(usize) -> u8, sky: bool| {
@@ -536,7 +537,14 @@ pub fn prelight(c: &Content, cube: &mut Cube, sky: bool) {
                 continue;
             }
             let (x, y, z) = (i & 15, i >> 8, (i >> 4) & 15);
-            for (d, ok, n) in [(0, x > 0, i.wrapping_sub(1)), (1, x < 15, i + 1), (2, y > 0, i.wrapping_sub(256)), (3, y < 15, i + 256), (4, z > 0, i.wrapping_sub(16)), (5, z < 15, i + 16)] {
+            for (d, ok, n) in [
+                (0, x > 0, i.wrapping_sub(1)),
+                (1, x < 15, i + 1),
+                (2, y > 0, i.wrapping_sub(256)),
+                (3, y < 15, i + 256),
+                (4, z > 0, i.wrapping_sub(16)),
+                (5, z < 15, i + 16),
+            ] {
                 if !ok {
                     continue;
                 }
@@ -584,7 +592,9 @@ pub fn prelight(c: &Content, cube: &mut Cube, sky: bool) {
             flood(&mut light[ch + 1], &mut queue, &|k| props[k].absorb[ch], false);
         }
     }
-    let packed: Box<[u32; 4096]> = Box::new(std::array::from_fn(|i| light[0][i] as u32 | (light[1][i] as u32) << 8 | (light[2][i] as u32) << 16 | (light[3][i] as u32) << 24));
+    let packed: Box<[u32; 4096]> = Box::new(std::array::from_fn(|i| {
+        light[0][i] as u32 | (light[1][i] as u32) << 8 | (light[2][i] as u32) << 16 | (light[3][i] as u32) << 24
+    }));
     cube.set_light_all(packed);
 }
 

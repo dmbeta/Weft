@@ -106,24 +106,69 @@ pub fn set(ctm: Ctm) {
 const CTM47: [u8; 256] = [
     0, 3, 0, 3, 12, 5, 12, 15, 0, 3, 0, 3, 12, 5, 12, 15, 1, 2, 1, 2, 4, 7, 4, 29, 1, 2, 1, 2, 13, 31, 13, 14, //
     0, 3, 0, 3, 12, 5, 12, 15, 0, 3, 0, 3, 12, 5, 12, 15, 1, 2, 1, 2, 4, 7, 4, 29, 1, 2, 1, 2, 13, 31, 13, 14, //
-    36, 17, 36, 17, 24, 19, 24, 43, 36, 17, 36, 17, 24, 19, 24, 43, 16, 18, 16, 18, 6, 46, 6, 21, 16, 18, 16, 18, 28, 9, 28, 22, //
-    36, 17, 36, 17, 24, 19, 24, 43, 36, 17, 36, 17, 24, 19, 24, 43, 37, 40, 37, 40, 30, 8, 30, 34, 37, 40, 37, 40, 25, 23, 25, 45, //
+    36, 17, 36, 17, 24, 19, 24, 43, 36, 17, 36, 17, 24, 19, 24, 43, 16, 18, 16, 18, 6, 46, 6, 21, 16, 18, 16, 18, 28,
+    9, 28, 22, //
+    36, 17, 36, 17, 24, 19, 24, 43, 36, 17, 36, 17, 24, 19, 24, 43, 37, 40, 37, 40, 30, 8, 30, 34, 37, 40, 37, 40, 25,
+    23, 25, 45, //
     0, 3, 0, 3, 12, 5, 12, 15, 0, 3, 0, 3, 12, 5, 12, 15, 1, 2, 1, 2, 4, 7, 4, 29, 1, 2, 1, 2, 13, 31, 13, 14, //
     0, 3, 0, 3, 12, 5, 12, 15, 0, 3, 0, 3, 12, 5, 12, 15, 1, 2, 1, 2, 4, 7, 4, 29, 1, 2, 1, 2, 13, 31, 13, 14, //
-    36, 39, 36, 39, 24, 41, 24, 27, 36, 39, 36, 39, 24, 41, 24, 27, 16, 42, 16, 42, 6, 20, 6, 10, 16, 42, 16, 42, 28, 35, 28, 44, //
-    36, 39, 36, 39, 24, 41, 24, 27, 36, 39, 36, 39, 24, 41, 24, 27, 37, 38, 37, 38, 30, 11, 30, 32, 37, 38, 37, 38, 25, 33, 25, 26,
+    36, 39, 36, 39, 24, 41, 24, 27, 36, 39, 36, 39, 24, 41, 24, 27, 16, 42, 16, 42, 6, 20, 6, 10, 16, 42, 16, 42, 28,
+    35, 28, 44, //
+    36, 39, 36, 39, 24, 41, 24, 27, 36, 39, 36, 39, 24, 41, 24, 27, 37, 38, 37, 38, 30, 11, 30, 32, 37, 38, 37, 38, 25,
+    33, 25, 26,
 ];
 
 /// Compact tile per quadrant (TL, TR, BL, BR) of each 47 template tile: 0 isolated, 1 connected
 /// all round, 2 connected up/down, 3 connected left/right, 4 inner corner. Tile 41 differs from
 /// Angelica's generator, which repeats tile 27 there and loses the inner corner.
 const COMPACT: [[u8; 4]; 47] = [
-    [0, 0, 0, 0], [0, 3, 0, 3], [3, 3, 3, 3], [3, 0, 3, 0], [0, 3, 2, 4], [3, 0, 4, 2], [2, 4, 2, 4], [3, 3, 4, 4],
-    [4, 1, 4, 4], [4, 4, 4, 1], [1, 4, 1, 4], [1, 1, 4, 4], [0, 0, 2, 2], [0, 3, 2, 1], [3, 3, 1, 1], [3, 0, 1, 2],
-    [2, 4, 0, 3], [4, 2, 3, 0], [4, 4, 3, 3], [4, 2, 4, 2], [1, 4, 4, 4], [4, 4, 1, 4], [4, 4, 1, 1], [4, 1, 4, 1],
-    [2, 2, 2, 2], [2, 1, 2, 1], [1, 1, 1, 1], [1, 2, 1, 2], [2, 4, 2, 1], [3, 3, 1, 4], [2, 1, 2, 4], [3, 3, 4, 1],
-    [1, 1, 1, 4], [1, 1, 4, 1], [4, 1, 1, 4], [1, 4, 4, 1], [2, 2, 0, 0], [2, 1, 0, 3], [1, 1, 3, 3], [1, 2, 3, 0],
-    [4, 1, 3, 3], [1, 2, 4, 2], [1, 4, 3, 3], [4, 2, 1, 2], [1, 4, 1, 1], [4, 1, 1, 1], [4, 4, 4, 4],
+    [0, 0, 0, 0],
+    [0, 3, 0, 3],
+    [3, 3, 3, 3],
+    [3, 0, 3, 0],
+    [0, 3, 2, 4],
+    [3, 0, 4, 2],
+    [2, 4, 2, 4],
+    [3, 3, 4, 4],
+    [4, 1, 4, 4],
+    [4, 4, 4, 1],
+    [1, 4, 1, 4],
+    [1, 1, 4, 4],
+    [0, 0, 2, 2],
+    [0, 3, 2, 1],
+    [3, 3, 1, 1],
+    [3, 0, 1, 2],
+    [2, 4, 0, 3],
+    [4, 2, 3, 0],
+    [4, 4, 3, 3],
+    [4, 2, 4, 2],
+    [1, 4, 4, 4],
+    [4, 4, 1, 4],
+    [4, 4, 1, 1],
+    [4, 1, 4, 1],
+    [2, 2, 2, 2],
+    [2, 1, 2, 1],
+    [1, 1, 1, 1],
+    [1, 2, 1, 2],
+    [2, 4, 2, 1],
+    [3, 3, 1, 4],
+    [2, 1, 2, 4],
+    [3, 3, 4, 1],
+    [1, 1, 1, 4],
+    [1, 1, 4, 1],
+    [4, 1, 1, 4],
+    [1, 4, 4, 1],
+    [2, 2, 0, 0],
+    [2, 1, 0, 3],
+    [1, 1, 3, 3],
+    [1, 2, 3, 0],
+    [4, 1, 3, 3],
+    [1, 2, 4, 2],
+    [1, 4, 3, 3],
+    [4, 2, 1, 2],
+    [1, 4, 1, 1],
+    [4, 1, 1, 1],
+    [4, 4, 4, 4],
 ];
 
 /// Texture u (right) and up directions of each face, matching the corner order in the mesher.
@@ -191,7 +236,8 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
     let base = c.textures.len() as u32;
     let mut extra = Extra::default();
     let mut ids: FxHashMap<String, u32> = c.textures.iter().enumerate().map(|(i, n)| (n.clone(), i as u32)).collect();
-    let mut ctm = Ctm { by_texture: vec![(0, 0); c.textures.len()], rules: Vec::new(), overlay: vec![0; c.textures.len()] };
+    let mut ctm =
+        Ctm { by_texture: vec![(0, 0); c.textures.len()], rules: Vec::new(), overlay: vec![0; c.textures.len()] };
     for (tex, name) in c.textures.iter().enumerate() {
         let over = format!("{name}_overlay");
         if assets.path(&over, "textures", "png").is_some() {
@@ -202,7 +248,9 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
     // Compact sets waiting for their composite ids, which come after every tile name.
     let mut compact: Vec<(usize, Vec<u32>)> = Vec::new();
     for (tex, name) in c.textures.iter().enumerate() {
-        let Some(src) = assets.read(name, "textures", "ctm").map(|b| String::from_utf8_lossy(&b).into_owned()) else { continue };
+        let Some(src) = assets.read(name, "textures", "ctm").map(|b| String::from_utf8_lossy(&b).into_owned()) else {
+            continue;
+        };
         let start = ctm.rules.len() as u32;
         for section in crate::kv::sections(&src) {
             let kv: FxHashMap<&str, &str> = section.iter().map(|p| (p.1, p.2)).collect();
@@ -258,7 +306,9 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
                 tiles.clear();
             }
             let pick = if method == Method::Random {
-                let given: Vec<u32> = kv.get("weights").map_or(Vec::new(), |w| w.split_whitespace().filter_map(|x| x.parse().ok()).collect());
+                let given: Vec<u32> = kv
+                    .get("weights")
+                    .map_or(Vec::new(), |w| w.split_whitespace().filter_map(|x| x.parse().ok()).collect());
                 let avg = if given.is_empty() { 1 } else { (given.iter().sum::<u32>() / given.len() as u32).max(1) };
                 let weights: Vec<u32> = (0..tiles.len()).map(|i| given.get(i).copied().unwrap_or(avg)).collect();
                 let total: u32 = weights.iter().sum::<u32>().max(1);
@@ -278,7 +328,9 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
             // References like anywhere else: names, `name[prop=value]`, `#tag`, `#pattern/*`.
             let mut blocks = Vec::new();
             for b in kv.get("blocks").map_or("", |v| *v).split_whitespace() {
-                match crate::refs::Ref::parse(b).and_then(|r| crate::refs::blocks(&r, &c.block_names, &c.blocks, &c.components, c.states.len() as u32)) {
+                match crate::refs::Ref::parse(b).and_then(|r| {
+                    crate::refs::blocks(&r, &c.block_names, &c.blocks, &c.components, c.states.len() as u32)
+                }) {
                     Ok(list) => blocks.extend(list),
                     Err(e) => log::error!("{name}.ctm: blocks: {e}"),
                 }
@@ -287,8 +339,12 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
                 let (invert, list) = v.strip_prefix('!').map_or((false, *v), |r| (true, r));
                 let mut set = [0u64; 4];
                 for b in list.split_whitespace() {
-                    match crate::refs::Ref::parse(b).and_then(|r| crate::refs::biomes(&r, &c.biome_names, &c.components, c.biomes.len() as u32)) {
-                        Ok(list) => list.into_iter().filter(|&i| i < 256).for_each(|i| set[i as usize / 64] |= 1 << (i % 64)),
+                    match crate::refs::Ref::parse(b)
+                        .and_then(|r| crate::refs::biomes(&r, &c.biome_names, &c.components, c.biomes.len() as u32))
+                    {
+                        Ok(list) => {
+                            list.into_iter().filter(|&i| i < 256).for_each(|i| set[i as usize / 64] |= 1 << (i % 64))
+                        }
                         Err(e) => log::error!("{name}.ctm: biomes: {e}"),
                     }
                 }
@@ -328,7 +384,12 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
         ctm.rules[rule].tiles = (start..start + 47).collect();
     }
     if !ctm.rules.is_empty() {
-        log::info!("connected textures: {} rules, {} tiles, {} generated", ctm.rules.len(), extra.names.len(), extra.composites.len());
+        log::info!(
+            "connected textures: {} rules, {} tiles, {} generated",
+            ctm.rules.len(),
+            extra.names.len(),
+            extra.composites.len()
+        );
     }
     (ctm, extra)
 }
@@ -348,20 +409,36 @@ impl Ctm {
     #[allow(clippy::too_many_arguments)]
     pub fn resolve(&self, c: &Content, n: &Neighborhood, x: i32, y: i32, z: i32, dir: usize, tex: u32) -> u32 {
         match self.by_texture.get(tex as usize) {
-            Some(&(start, len)) if len > 0 => self.resolve_rules(c, n, x, y, z, dir, tex, start as usize..(start + len) as usize),
+            Some(&(start, len)) if len > 0 => {
+                self.resolve_rules(c, n, x, y, z, dir, tex, start as usize..(start + len) as usize)
+            }
             _ => tex,
         }
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn resolve_rules(&self, c: &Content, n: &Neighborhood, x: i32, y: i32, z: i32, dir: usize, tex: u32, rules: std::ops::Range<usize>) -> u32 {
+    fn resolve_rules(
+        &self,
+        c: &Content,
+        n: &Neighborhood,
+        x: i32,
+        y: i32,
+        z: i32,
+        dir: usize,
+        tex: u32,
+        rules: std::ops::Range<usize>,
+    ) -> u32 {
         let s = n.states[pidx(x, y, z)];
         let info = &c.states[s as usize];
         let world = [n.origin[0] + x, n.origin[1] + y, n.origin[2] + z];
         let (r, u) = AXES[dir];
         let nrm = NORMALS[dir];
         let at = |a: i32, b: i32, extra: [i32; 3]| {
-            pidx(x + r[0] * a + u[0] * b + extra[0], y + r[1] * a + u[1] * b + extra[1], z + r[2] * a + u[2] * b + extra[2])
+            pidx(
+                x + r[0] * a + u[0] * b + extra[0],
+                y + r[1] * a + u[1] * b + extra[1],
+                z + r[2] * a + u[2] * b + extra[2],
+            )
         };
         for rule in &self.rules[rules] {
             if rule.faces & (1 << dir) == 0 || (!rule.blocks.is_empty() && !rule.blocks.contains(&info.block)) {
@@ -392,7 +469,9 @@ impl Ctm {
             let tile = match rule.method {
                 Method::Ctm => {
                     let mut bits = 0usize;
-                    for (bit, (a, b)) in [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)].into_iter().enumerate() {
+                    for (bit, (a, b)) in
+                        [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)].into_iter().enumerate()
+                    {
                         if connects(a, b) {
                             bits |= 1 << bit;
                         }
@@ -488,6 +567,15 @@ mod tests {
     #[test]
     fn tile_ranges_expand() {
         let t = tile_names("glass/0-2 <default> other:x/y", "base:block/glass");
-        assert_eq!(t, vec![Some("base:block/glass/0".into()), Some("base:block/glass/1".into()), Some("base:block/glass/2".into()), None, Some("other:x/y".into())]);
+        assert_eq!(
+            t,
+            vec![
+                Some("base:block/glass/0".into()),
+                Some("base:block/glass/1".into()),
+                Some("base:block/glass/2".into()),
+                None,
+                Some("other:x/y".into())
+            ]
+        );
     }
 }

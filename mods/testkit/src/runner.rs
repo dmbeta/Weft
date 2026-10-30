@@ -48,12 +48,12 @@ impl T {
     fn new(name: &str) -> T {
         T(
             Rc::new(RefCell::new(Inner {
-            client: None,
-            state: ClientState::DEFAULT,
-            screen: String::new(),
-            name: name.to_string(),
-            failures: Vec::new(),
-            notes: Vec::new(),
+                client: None,
+                state: ClientState::DEFAULT,
+                screen: String::new(),
+                name: name.to_string(),
+                failures: Vec::new(),
+                notes: Vec::new(),
             })),
             None,
         )
@@ -139,7 +139,11 @@ impl T {
         let (sp, cp) = (s.pitch as f64).sin_cos();
         let fwd = [-sy * cp, sp, -cy * cp];
         let right = [cy, 0.0, -sy];
-        let up = [right[1] * fwd[2] - right[2] * fwd[1], right[2] * fwd[0] - right[0] * fwd[2], right[0] * fwd[1] - right[1] * fwd[0]];
+        let up = [
+            right[1] * fwd[2] - right[2] * fwd[1],
+            right[2] * fwd[0] - right[0] * fwd[2],
+            right[0] * fwd[1] - right[1] * fwd[0],
+        ];
         let d = [p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]];
         let dot = |a: [f64; 3]| a[0] * d[0] + a[1] * d[1] + a[2] * d[2];
         let z = dot(fwd);
@@ -196,7 +200,9 @@ impl T {
     /// `name` is the top screen and it is laid out and drawn.
     pub fn screen(&self, name: &str) -> Wait<impl FnMut(&T) -> bool + Unpin> {
         let n = name.to_string();
-        self.until(&format!("screen {name}"), DEFAULT_TIMEOUT, move |t| t.0.borrow().screen == n && t.flag(cf::SCREEN_READY))
+        self.until(&format!("screen {name}"), DEFAULT_TIMEOUT, move |t| {
+            t.0.borrow().screen == n && t.flag(cf::SCREEN_READY)
+        })
     }
 
     /// Standing still on the ground for a few frames (camera at rest for screenshots).
@@ -334,7 +340,10 @@ impl T {
             match self.c().ui_rect(q) {
                 None => self.fail(format!("no UI element {q} on {}", self.0.borrow().screen)),
                 Some([x, y, w, h]) => {
-                    self.check(x >= 0.0 && y >= 0.0 && x + w <= 1.001 && y + h <= 1.001, format!("{q} sticks out of the window ({x:.3} {y:.3} {w:.3} {h:.3})"));
+                    self.check(
+                        x >= 0.0 && y >= 0.0 && x + w <= 1.001 && y + h <= 1.001,
+                        format!("{q} sticks out of the window ({x:.3} {y:.3} {w:.3} {h:.3})"),
+                    );
                 }
             }
         }
@@ -389,10 +398,14 @@ impl T {
     pub async fn bench(&self, secs: f32, label: &str) -> Result<[f32; 5], String> {
         let before = self.state().benches;
         self.c().bench(secs, label);
-        self.until(&format!("bench {label}"), Duration::from_secs_f32(secs + 30.0), |t| t.state().benches > before).await?;
+        self.until(&format!("bench {label}"), Duration::from_secs_f32(secs + 30.0), |t| t.state().benches > before)
+            .await?;
         let s = self.state();
         let v = [s.bench_fps, s.bench_avg_ms, s.bench_p99_ms, s.bench_gpu_ms, s.bench_server_ms];
-        self.note(format!("bench {label}: {:.0} fps, avg {:.2} ms, p99 {:.2} ms, gpu {:.2} ms, server {:.2} ms", v[0], v[1], v[2], v[3], v[4]));
+        self.note(format!(
+            "bench {label}: {:.0} fps, avg {:.2} ms, p99 {:.2} ms, gpu {:.2} ms, server {:.2} ms",
+            v[0], v[1], v[2], v[3], v[4]
+        ));
         Ok(v)
     }
 
@@ -410,7 +423,9 @@ impl T {
                     i += 1;
                     match c.block([x, y, z]) {
                         Some(cl) if cl == s => {}
-                        Some(cl) => diffs.push(format!("{x} {y} {z}: server {} client {}", block_name(s), block_name(cl))),
+                        Some(cl) => {
+                            diffs.push(format!("{x} {y} {z}: server {} client {}", block_name(s), block_name(cl)))
+                        }
                         None => diffs.push(format!("{x} {y} {z}: server {}, client has not loaded it", block_name(s))),
                     }
                 }
@@ -471,7 +486,8 @@ impl Shot {
 
     fn each(&self, x0: f32, y0: f32, x1: f32, y1: f32, mut f: impl FnMut([u8; 3])) {
         let (ax, ay) = (((x0 * self.w as f32) as u32).min(self.w - 1), ((y0 * self.h as f32) as u32).min(self.h - 1));
-        let (bx, by) = (((x1 * self.w as f32) as u32).clamp(ax + 1, self.w), ((y1 * self.h as f32) as u32).clamp(ay + 1, self.h));
+        let (bx, by) =
+            (((x1 * self.w as f32) as u32).clamp(ax + 1, self.w), ((y1 * self.h as f32) as u32).clamp(ay + 1, self.h));
         for y in ay..by {
             for x in ax..bx {
                 let i = ((y * self.w + x) * 4) as usize;
@@ -510,7 +526,11 @@ pub fn lum(c: [f32; 3]) -> f32 {
 
 /// Pixels whose color differs noticeably.
 fn compare(a: &[u8], b: &[u8]) -> u32 {
-    let n = a.chunks_exact(4).zip(b.chunks_exact(4)).filter(|(p, q)| (0..3).any(|i| (p[i] as i32 - q[i] as i32).abs() > 40)).count();
+    let n = a
+        .chunks_exact(4)
+        .zip(b.chunks_exact(4))
+        .filter(|(p, q)| (0..3).any(|i| (p[i] as i32 - q[i] as i32).abs() > 40))
+        .count();
     n as u32
 }
 
@@ -600,8 +620,15 @@ thread_local! {
 }
 
 pub fn start(queue: Vec<TestDef>) {
-    weft_sdk::info!("testkit: running {} test(s): {}", queue.len(), queue.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", "));
-    RUNNER.with(|r| *r.borrow_mut() = Some(Runner { queue, current: None, done: Vec::new(), started: Instant::now(), finished: false, warmup: 3 }));
+    weft_sdk::info!(
+        "testkit: running {} test(s): {}",
+        queue.len(),
+        queue.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ")
+    );
+    RUNNER.with(|r| {
+        *r.borrow_mut() =
+            Some(Runner { queue, current: None, done: Vec::new(), started: Instant::now(), finished: false, warmup: 3 })
+    });
 }
 
 pub fn frame(c: &Client) {

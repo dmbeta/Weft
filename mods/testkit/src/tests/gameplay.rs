@@ -130,7 +130,11 @@ pub async fn mining_and_wear(t: T) -> R {
     t.check_eq(t.slot("me", 0).await?.2, 1, "pickaxe wear");
     t.c().teleport([stone[0] as f64 + 0.5, stone[1] as f64, stone[2] as f64 + 0.5]);
     let cobble = item("base:cobblestone");
-    let picked = t.until("cobblestone picked up", Duration::from_secs(5), |t| (0..36).any(|i| t.c().inventory_slot(i).item == cobble)).await;
+    let picked = t
+        .until("cobblestone picked up", Duration::from_secs(5), |t| {
+            (0..36).any(|i| t.c().inventory_slot(i).item == cobble)
+        })
+        .await;
     t.check(picked.is_ok(), "no cobblestone after mining stone with a pickaxe");
     // Dirt by hand drops dirt.
     t.c().select(4);
@@ -143,7 +147,8 @@ pub async fn mining_and_wear(t: T) -> R {
     t.check_eq(t.block(dirt).await?, "core:air".into(), "dirt dug by hand");
     t.c().teleport([dirt[0] as f64 + 0.5, dirt[1] as f64, dirt[2] as f64 + 0.5]);
     let d = item("base:dirt");
-    let got = t.until("dirt picked up", Duration::from_secs(5), |t| (0..36).any(|i| t.c().inventory_slot(i).item == d)).await;
+    let got =
+        t.until("dirt picked up", Duration::from_secs(5), |t| (0..36).any(|i| t.c().inventory_slot(i).item == d)).await;
     t.check(got.is_ok(), "digging dirt by hand gave nothing");
     // A break an interceptor refuses puts the block back on the client too.
     let gold = add(f, [-2, 0, 0]);
@@ -274,7 +279,8 @@ pub async fn bucket(t: T) -> R {
     t.look_at(water);
     t.frames(2).await?;
     t.press("core:use");
-    t.until("water scooped", Duration::from_secs(5), |t| t.c().inventory_slot(0).item == item("base:water_bucket")).await?;
+    t.until("water scooped", Duration::from_secs(5), |t| t.c().inventory_slot(0).item == item("base:water_bucket"))
+        .await?;
     Ok(())
 }
 
@@ -390,10 +396,12 @@ pub async fn mob_physics(t: T) -> R {
         t.fill(at, add(at, [24, 2, 2]), "air").await?;
         let id = t.op(&format!("spawn base:pig {} {} {}", at[0], at[1], at[2] + 1)).await?;
         t.secs(0.5).await?;
-        let x0: f64 = t.op(&format!("entity {id}")).await?.split_whitespace().nth(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        let x0: f64 =
+            t.op(&format!("entity {id}")).await?.split_whitespace().nth(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
         t.op(&format!("push 12 0 0 {id}")).await?;
         t.secs(1.0).await?;
-        let x1: f64 = t.op(&format!("entity {id}")).await?.split_whitespace().nth(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        let x1: f64 =
+            t.op(&format!("entity {id}")).await?.split_whitespace().nth(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
         t.op(&format!("remove {id}")).await?;
         Ok::<f64, String>(x1 - x0)
     };
@@ -410,10 +418,12 @@ pub async fn mob_physics(t: T) -> R {
         }
         let id = t.op(&format!("spawn base:pig {} {} {}", at[0], at[1], at[2] + 1)).await?;
         t.secs(0.5).await?;
-        let x0: f64 = t.op(&format!("entity {id}")).await?.split_whitespace().nth(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        let x0: f64 =
+            t.op(&format!("entity {id}")).await?.split_whitespace().nth(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
         t.op(&format!("drive {id} 1 0 30")).await?;
         t.secs(1.5).await?;
-        let x1: f64 = t.op(&format!("entity {id}")).await?.split_whitespace().nth(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+        let x1: f64 =
+            t.op(&format!("entity {id}")).await?.split_whitespace().nth(1).and_then(|v| v.parse().ok()).unwrap_or(0.0);
         t.op(&format!("remove {id}")).await?;
         Ok::<f64, String>(x1 - x0)
     };
@@ -427,10 +437,12 @@ pub async fn mob_physics(t: T) -> R {
     t.fill(add(wall, [-1, 0, -1]), add(wall, [-1, 5, 1]), "base:ladder[facing=west]").await?;
     let id = t.op(&format!("spawn base:pig {} {} {}", wall[0] - 2, wall[1], wall[2])).await?;
     t.secs(0.5).await?;
-    let y0: f64 = t.op(&format!("entity {id}")).await?.split_whitespace().nth(2).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    let y0: f64 =
+        t.op(&format!("entity {id}")).await?.split_whitespace().nth(2).and_then(|v| v.parse().ok()).unwrap_or(0.0);
     t.op(&format!("drive {id} 1 0 60")).await?;
     t.secs(3.0).await?;
-    let y1: f64 = t.op(&format!("entity {id}")).await?.split_whitespace().nth(2).and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    let y1: f64 =
+        t.op(&format!("entity {id}")).await?.split_whitespace().nth(2).and_then(|v| v.parse().ok()).unwrap_or(0.0);
     t.note(format!("the pig on the ladder: y {y0:.2} -> {y1:.2}"));
     t.check(y1 > y0 + 1.5, format!("it climbs the ladder: {y0:.2} -> {y1:.2}"));
     Ok(())
@@ -533,7 +545,10 @@ async fn creative_clicks_fast(t: &T) -> R {
         for b in row {
             t.set(b, "stone").await?;
         }
-        t.until("the row on the client", Duration::from_secs(2), |t| row.iter().all(|&b| t.c().block(b).is_some_and(|s| s != 0))).await?;
+        t.until("the row on the client", Duration::from_secs(2), |t| {
+            row.iter().all(|&b| t.c().block(b).is_some_and(|s| s != 0))
+        })
+        .await?;
         t.look_at(row[0]);
         t.frames(2).await
     };
@@ -565,14 +580,23 @@ pub async fn food(t: T) -> R {
     t.cmd("/feed 10").await?;
     t.op("put me 0 cooked_beef 3").await?;
     t.c().select(0);
-    t.until("hunger synced", Duration::from_secs(5), |t| t.c().view().component(&HUNGER).is_some_and(|h| h.food == 10.0)).await?;
+    t.until("hunger synced", Duration::from_secs(5), |t| {
+        t.c().view().component(&HUNGER).is_some_and(|h| h.food == 10.0)
+    })
+    .await?;
     t.secs(0.3).await?;
     t.press("core:use");
     t.until("ate", Duration::from_secs(5), |t| t.c().inventory_slot(0).count == 2).await?;
-    t.until("food went up", Duration::from_secs(5), |t| t.c().view().component(&HUNGER).is_some_and(|h| h.food == 18.0)).await?;
+    t.until("food went up", Duration::from_secs(5), |t| {
+        t.c().view().component(&HUNGER).is_some_and(|h| h.food == 18.0)
+    })
+    .await?;
     t.until("healed", Duration::from_secs(3), |t| t.state().health >= before + 2.0).await?;
     let after = t.state().health;
-    t.check(after <= before + 3.0, format!("health {before} -> {after}: two from testmod's food_heal (plus maybe a regen tick)"));
+    t.check(
+        after <= before + 3.0,
+        format!("health {before} -> {after}: two from testmod's food_heal (plus maybe a regen tick)"),
+    );
     Ok(())
 }
 
@@ -593,7 +617,10 @@ pub async fn battery(t: T) -> R {
     let stored = |t: &T| t.c().view().menu_component(&ENERGY).map_or(0, |e| e.stored);
     let first = stored(&t);
     t.until("the battery's bar moves", Duration::from_secs(5), |t| stored(t) > first).await?;
-    t.check(t.c().view().menu_component(&ENERGY).is_some_and(|e| e.capacity == 100_000), "the battery starts with its own capacity");
+    t.check(
+        t.c().view().menu_component(&ENERGY).is_some_and(|e| e.capacity == 100_000),
+        "the battery starts with its own capacity",
+    );
     t.c().close_screen();
     t.no_screen().await
 }
@@ -627,8 +654,14 @@ pub async fn entity_fields(t: T) -> R {
     t.fill(add(f, [4, -2, 0]), add(f, [4, -1, 0]), "lava").await?;
     let id = t.op(&format!("spawn pig {}", at(add(f, [4, -1, 0])))).await?;
     let id: u64 = id.trim().parse().map_err(|_| format!("spawn pig: {id}"))?;
-    t.until("the pig burns on the client", Duration::from_secs(3), |t| t.c().view().component_of(id, &ON_FIRE) == Some(1)).await?;
-    t.until("the pig loses health on the client", Duration::from_secs(3), |t| t.c().entity(id).is_some_and(|e| e.health < e.max_health)).await?;
+    t.until("the pig burns on the client", Duration::from_secs(3), |t| {
+        t.c().view().component_of(id, &ON_FIRE) == Some(1)
+    })
+    .await?;
+    t.until("the pig loses health on the client", Duration::from_secs(3), |t| {
+        t.c().entity(id).is_some_and(|e| e.health < e.max_health)
+    })
+    .await?;
     for _ in 0..400 {
         if t.op(&format!("entity {id}")).await.is_err() {
             t.check(t.c().entity(id).is_some(), "the killed pig stays on the client for its death animation");
@@ -656,7 +689,10 @@ pub async fn own_names(t: T) -> R {
     t.op("put me 0 chest 1").await?;
     t.c().select(0);
     t.cmd("/rename Loot Box").await?;
-    t.until("the stack renamed", Duration::from_secs(3), |t| weft_sdk::stack_name(&t.c().inventory_slot(0)).as_deref() == Some("Loot Box")).await?;
+    t.until("the stack renamed", Duration::from_secs(3), |t| {
+        weft_sdk::stack_name(&t.c().inventory_slot(0)).as_deref() == Some("Loot Box")
+    })
+    .await?;
     let chest = add(f, [0, 0, -2]);
     t.look_at(add(chest, [0, -1, 0]));
     t.frames(2).await?;
@@ -673,7 +709,11 @@ pub async fn own_names(t: T) -> R {
     t.no_screen().await?;
     t.op(&format!("break {} wood_axe", at(chest))).await?;
     t.c().teleport([chest[0] as f64 + 0.5, chest[1] as f64, chest[2] as f64 + 0.5]);
-    let back = t.until("the chest picked up", Duration::from_secs(5), |t| (0..36).any(|i| weft_sdk::stack_name(&t.c().inventory_slot(i)).as_deref() == Some("Loot Box"))).await;
+    let back = t
+        .until("the chest picked up", Duration::from_secs(5), |t| {
+            (0..36).any(|i| weft_sdk::stack_name(&t.c().inventory_slot(i)).as_deref() == Some("Loot Box"))
+        })
+        .await;
     t.check(back.is_ok(), "the broken chest's item has its name again");
     Ok(())
 }
@@ -686,7 +726,10 @@ pub async fn respawn(t: T) -> R {
     t.op("mode survival").await?;
     for with_effect in [false, true] {
         t.cmd("/feed 5").await?;
-        t.until("food down", Duration::from_secs(5), |t| t.c().view().component(&HUNGER).is_some_and(|h| h.food <= 5.0)).await?;
+        t.until("food down", Duration::from_secs(5), |t| {
+            t.c().view().component(&HUNGER).is_some_and(|h| h.food <= 5.0)
+        })
+        .await?;
         if with_effect {
             t.op("attr_mod me core:movement_speed testkit:fast 1 1 0").await?;
         }
@@ -694,7 +737,10 @@ pub async fn respawn(t: T) -> R {
         t.screen("core:death").await?;
         t.c().respawn();
         t.no_screen().await?;
-        t.until("hunger starts over", Duration::from_secs(5), |t| t.c().view().component(&HUNGER).is_some_and(|h| h.food == 20.0)).await?;
+        t.until("hunger starts over", Duration::from_secs(5), |t| {
+            t.c().view().component(&HUNGER).is_some_and(|h| h.food == 20.0)
+        })
+        .await?;
         let speed = t.op("attr me core:movement_speed").await?;
         t.check(!speed.contains("testkit:fast"), format!("no effect after respawning: {speed}"));
         t.check_eq(t.op("health").await?, "20".to_string(), "full health again");

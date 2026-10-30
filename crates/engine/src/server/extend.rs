@@ -56,7 +56,9 @@ fn each_mod(b: &[u8], mut f: impl FnMut(u64, u8, f64, u64, &[u8])) {
 
 pub fn decode_mods(b: &[u8]) -> Vec<AttrMod> {
     let mut out = Vec::new();
-    each_mod(b, |attr, op, amount, until, id| out.push(AttrMod { attr, op, amount, until, id: String::from_utf8_lossy(id).into_owned() }));
+    each_mod(b, |attr, op, amount, until, id| {
+        out.push(AttrMod { attr, op, amount, until, id: String::from_utf8_lossy(id).into_owned() })
+    });
     out
 }
 
@@ -123,7 +125,9 @@ impl Dim {
 
     /// Whether the interceptors of `question` let it happen: any deny wins.
     pub fn ask(&mut self, c: &'static Content, question: &str, q: &mut abi::Query) -> bool {
-        if !c.dims[self.id as usize].editable && (question == abi::question::BREAK_BLOCK || question == abi::question::PLACE_BLOCK) {
+        if !c.dims[self.id as usize].editable
+            && (question == abi::question::BREAK_BLOCK || question == abi::question::PLACE_BLOCK)
+        {
             q.verdict = verdict::DENY;
             return false;
         }
@@ -155,7 +159,13 @@ impl Dim {
         for &(stage, owner, cb) in list {
             let before = value;
             let qp = q as *const abi::Query;
-            let a = self.call(owner, cb, |w| abi::ModifyArgs { world: w, chain: abi::Str::new(chain), ctx: qp, base, value });
+            let a = self.call(owner, cb, |w| abi::ModifyArgs {
+                world: w,
+                chain: abi::Str::new(chain),
+                ctx: qp,
+                base,
+                value,
+            });
             if a.value.is_finite() {
                 value = a.value;
             }
@@ -210,7 +220,11 @@ impl Dim {
             }
             return ((base + add) * (1.0 + mul_base) * mul_total).clamp(def.min, def.max);
         }
-        let mods: Vec<AttrMod> = self.modifiers_of(c, entity).into_iter().filter(|m| m.attr == def.hash && (m.until == 0 || m.until > self.time)).collect();
+        let mods: Vec<AttrMod> = self
+            .modifiers_of(c, entity)
+            .into_iter()
+            .filter(|m| m.attr == def.hash && (m.until == 0 || m.until > self.time))
+            .collect();
         let add: f64 = mods.iter().filter(|m| m.op as u32 == abi::attr_op::ADD).map(|m| m.amount).sum();
         let mul_base: f64 = mods.iter().filter(|m| m.op as u32 == abi::attr_op::MUL_BASE).map(|m| m.amount).sum();
         let mut v = (base + add) * (1.0 + mul_base);
@@ -223,16 +237,31 @@ impl Dim {
                 .iter()
                 .map(|m| {
                     let op = ["+", "x base +", "x"][m.op.min(2) as usize];
-                    let left = if m.until == 0 { String::new() } else { format!(" ({} ticks left)", m.until - self.time) };
+                    let left =
+                        if m.until == 0 { String::new() } else { format!(" ({} ticks left)", m.until - self.time) };
                     format!("{} {op}{}{left}", m.id, m.amount)
                 })
                 .collect();
-            set_explanation(format!("{}: base {base}{}{} = {v}", def.name, if parts.is_empty() { "" } else { ", " }, parts.join(", ")));
+            set_explanation(format!(
+                "{}: base {base}{}{} = {v}",
+                def.name,
+                if parts.is_empty() { "" } else { ", " },
+                parts.join(", ")
+            ));
         }
         v
     }
 
-    pub fn set_attr_modifier(&mut self, c: &Content, entity: u64, attr: u32, id: &str, op: u32, amount: f64, ticks: u64) {
+    pub fn set_attr_modifier(
+        &mut self,
+        c: &Content,
+        entity: u64,
+        attr: u32,
+        id: &str,
+        op: u32,
+        amount: f64,
+        ticks: u64,
+    ) {
         if self.entities.get(entity).is_none() {
             return;
         }
@@ -240,7 +269,13 @@ impl Dim {
         let mut mods = self.modifiers_of(c, entity);
         let now = self.time;
         mods.retain(|m| !(m.attr == hash && m.id == id) && (m.until == 0 || m.until > now));
-        mods.push(AttrMod { attr: hash, op: op.min(2) as u8, amount, until: if ticks == 0 { 0 } else { now + ticks }, id: id.to_string() });
+        mods.push(AttrMod {
+            attr: hash,
+            op: op.min(2) as u8,
+            amount,
+            until: if ticks == 0 { 0 } else { now + ticks },
+            id: id.to_string(),
+        });
         self.entities.comps.insert((entity, c.game.modifiers_comp), encode_mods(&mods));
     }
 
@@ -275,4 +310,3 @@ impl Dim {
         crate::loot::roll(c, t, ctx, &mut rng)
     }
 }
-

@@ -131,7 +131,6 @@ macro_rules! messages {
     };
 }
 
-
 wire_struct! {
     #[derive(Clone, Debug)]
     pub struct EntityView {

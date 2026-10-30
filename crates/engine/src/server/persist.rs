@@ -138,7 +138,8 @@ pub fn write(c: &Content, out: &mut Vec<u8>, list: &[ToSave<'_>]) {
             }
             None => w.u16(u16::MAX),
         }
-        let saved: Vec<&(u32, &[u8])> = comps.iter().filter(|(id, _)| c.game.components[*id as usize].flags & cf::SAVE != 0).collect();
+        let saved: Vec<&(u32, &[u8])> =
+            comps.iter().filter(|(id, _)| c.game.components[*id as usize].flags & cf::SAVE != 0).collect();
         w.u16(saved.len() as u16);
         for (id, bytes) in saved {
             w.str(&c.game.components[*id as usize].name);
@@ -185,11 +186,7 @@ fn read_one(c: &Content, r: &mut R) -> Option<Option<Saved>> {
     let health = r.f32()?;
     let age = r.u64()?;
     let item = r.stack(c)?;
-    let anchor = if r.u8()? == 1 {
-        Some(IVec3::new(r.u32()? as i32, r.u32()? as i32, r.u32()? as i32))
-    } else {
-        None
-    };
+    let anchor = if r.u8()? == 1 { Some(IVec3::new(r.u32()? as i32, r.u32()? as i32, r.u32()? as i32)) } else { None };
     let inv_len = r.u16()?;
     let inv = if inv_len == u16::MAX {
         None

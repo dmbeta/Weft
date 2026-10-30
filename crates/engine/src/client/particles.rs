@@ -11,8 +11,8 @@ use super::textures::GameTextures;
 use super::world::ClientWorld;
 use super::world_render::Camera;
 use crate::content::content;
-use crate::shaders::{Hook, Slots};
 use crate::gpu_layout::GpuParticle;
+use crate::shaders::{Hook, Slots};
 
 /// Particles a client keeps at most; bursts beyond it are dropped.
 const MAX: usize = 1 << 18;
@@ -65,7 +65,14 @@ fn shader(assets: &crate::assets::Assets) -> Result<(Shader, Slots), String> {
 
 impl Particles {
     pub fn new(gpu: &mut dyn Backend, assets: &crate::assets::Assets) -> Particles {
-        let mut p = Particles { list: Vec::new(), rng: weft_noise::Rng(0x9E37_79B9_7F4A_7C15), pipes: None, kind_slots: Vec::new(), instances: Vec::new(), gpu: Vec::new() };
+        let mut p = Particles {
+            list: Vec::new(),
+            rng: weft_noise::Rng(0x9E37_79B9_7F4A_7C15),
+            pipes: None,
+            kind_slots: Vec::new(),
+            instances: Vec::new(),
+            gpu: Vec::new(),
+        };
         p.reload(gpu, assets);
         p
     }
@@ -74,11 +81,31 @@ impl Particles {
     pub fn reload(&mut self, gpu: &mut dyn Backend, assets: &crate::assets::Assets) {
         let made = shader(assets).and_then(|(s, slots)| {
             let mut make = |label: &str, fs: &str, depth: DepthState, blend: Blend| {
-                gpu.create_pipeline(&PipelineDesc { label, shader: &s, vertex: "vs", fragment: Some(fs), color: Some(Format::Surface), depth: Some(depth), blend, cull_back: false, topology: Topology::Triangles })
-                    .map_err(|e| e.0)
+                gpu.create_pipeline(&PipelineDesc {
+                    label,
+                    shader: &s,
+                    vertex: "vs",
+                    fragment: Some(fs),
+                    color: Some(Format::Surface),
+                    depth: Some(depth),
+                    blend,
+                    cull_back: false,
+                    topology: Topology::Triangles,
+                })
+                .map_err(|e| e.0)
             };
-            let cut = make("particles cutout", "fs_cutout", DepthState { write: true, compare: Compare::GreaterEqual }, Blend::None)?;
-            let blend = make("particles blended", "fs_blend", DepthState { write: false, compare: Compare::GreaterEqual }, Blend::Alpha)?;
+            let cut = make(
+                "particles cutout",
+                "fs_cutout",
+                DepthState { write: true, compare: Compare::GreaterEqual },
+                Blend::None,
+            )?;
+            let blend = make(
+                "particles blended",
+                "fs_blend",
+                DepthState { write: false, compare: Compare::GreaterEqual },
+                Blend::Alpha,
+            )?;
             Ok(([cut, blend], slots))
         });
         match made {
@@ -87,7 +114,8 @@ impl Particles {
                     old.into_iter().for_each(|p| gpu.destroy_pipeline(p));
                 }
                 self.kind_slots = content().game.particles.iter().map(|k| slots.slot(&k.shader)).collect();
-                for k in content().game.particles.iter().filter(|k| !k.shader.is_empty() && slots.slot(&k.shader) == 0) {
+                for k in content().game.particles.iter().filter(|k| !k.shader.is_empty() && slots.slot(&k.shader) == 0)
+                {
                     log::warn!("particle {}: no shader {}", k.name, k.shader);
                 }
             }
@@ -131,7 +159,11 @@ impl Particles {
         let tint = dust.filter(|s| s.tint != 0 && s.tint_faces & 2 != 0).map_or(0xFF_FFFF, |s| {
             let p = pos.floor().as_ivec3();
             let biome = world.cube(p >> 4i32).map_or(0, |cube| cube.biome((p.x & 15) as usize, (p.z & 15) as usize));
-            c.biomes.get(biome as usize).and_then(|b| b.tints.get(s.tint as usize - 1)).copied().unwrap_or_else(|| crate::content::item_tint(s.tint))
+            c.biomes
+                .get(biome as usize)
+                .and_then(|b| b.tints.get(s.tint as usize - 1))
+                .copied()
+                .unwrap_or_else(|| crate::content::item_tint(s.tint))
         });
         let n = (b.count as usize).min(MAX.saturating_sub(self.list.len()));
         for _ in 0..n {
@@ -212,7 +244,16 @@ impl Particles {
 
     /// Cutout particles into `list`, blended ones into `late` (after translucent blocks).
     /// `scene`: the frame's `gpu_layout::Scene`.
-    pub fn draw(&mut self, gpu: &mut dyn Backend, list: &mut CommandList, late: &mut CommandList, frame: &FrameInfo, cam: &Camera, textures: &GameTextures, scene: BufferId) {
+    pub fn draw(
+        &mut self,
+        gpu: &mut dyn Backend,
+        list: &mut CommandList,
+        late: &mut CommandList,
+        frame: &FrameInfo,
+        cam: &Camera,
+        textures: &GameTextures,
+        scene: BufferId,
+    ) {
         let Some(pipes) = self.pipes else { return };
         if self.list.is_empty() {
             return;
@@ -253,16 +294,34 @@ impl Particles {
                 let rel = (p.pos - cam.pos).as_vec3();
                 self.gpu.push(GpuParticle {
                     pos_size: [rel.x, rel.y, rel.z, size],
-                    data: [tinted(mix(k.color, k.color_end, t), p.tint), tex & crate::gpu_layout::particle::TEX_MASK | self.kind_slots.get(p.kind as usize).copied().unwrap_or(0) << crate::gpu_layout::particle::SLOT_SHIFT, uv, light],
+                    data: [
+                        tinted(mix(k.color, k.color_end, t), p.tint),
+                        tex & crate::gpu_layout::particle::TEX_MASK
+                            | self.kind_slots.get(p.kind as usize).copied().unwrap_or(0)
+                                << crate::gpu_layout::particle::SLOT_SHIFT,
+                        uv,
+                        light,
+                    ],
                     extra: [t, 0.0, 0.0, 0.0],
                 });
             }
         }
         let n = self.gpu.len() as u32;
         let stride = size_of::<GpuParticle>() as u64;
-        let buf = crate::gpu_layout::frame_buffer(gpu, &mut self.instances, frame.slot, n, stride, usage::STORAGE, "particles");
+        let buf = crate::gpu_layout::frame_buffer(
+            gpu,
+            &mut self.instances,
+            frame.slot,
+            n,
+            stride,
+            usage::STORAGE,
+            "particles",
+        );
         gpu.mapped(buf)[..self.gpu.len() * stride as usize].copy_from_slice(bytemuck::cast_slice(&self.gpu));
-        for (pipe, first, count, list) in [(pipes[0], 0, blended_from as u32, &mut *list), (pipes[1], blended_from as u32, n - blended_from as u32, &mut *late)] {
+        for (pipe, first, count, list) in [
+            (pipes[0], 0, blended_from as u32, &mut *list),
+            (pipes[1], blended_from as u32, n - blended_from as u32, &mut *late),
+        ] {
             if count == 0 {
                 continue;
             }

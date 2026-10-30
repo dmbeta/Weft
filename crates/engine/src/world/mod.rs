@@ -76,6 +76,3 @@ pub fn block_bounds<'a>(cubes: impl Iterator<Item = (&'a IVec3, &'a cube::Cube)>
     }
     out
 }
-
-
-

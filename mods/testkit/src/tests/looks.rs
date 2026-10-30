@@ -65,7 +65,8 @@ pub async fn texture_seams(t: T) -> R {
     let mut seen = 0;
     for x in -7..=7 {
         for dy in [0.96, 1.04] {
-            if let Some((sx, sy)) = t.on_screen([(f[0] + x) as f64 + 0.5, f[1] as f64 + dy, (f[2] - 11) as f64 + 0.01]) {
+            if let Some((sx, sy)) = t.on_screen([(f[0] + x) as f64 + 0.5, f[1] as f64 + dy, (f[2] - 11) as f64 + 0.01])
+            {
                 if (0.0..1.0).contains(&sx) && (0.0..1.0).contains(&sy) {
                     seen += 1;
                     light += (probe::lum(shot.at(sx, sy)) > 170.0) as u32;
@@ -76,7 +77,8 @@ pub async fn texture_seams(t: T) -> R {
     t.check(seen > 6, format!("the wall's edge is in view ({seen} points)"));
     t.probe("light points along the snowy grass edge", light as f32, light == 0);
     // The middle of the 2x2 mosaic face the camera sees.
-    let p = t.on_screen([(mosaic[0] + 1) as f64, (mosaic[1] + 1) as f64, mosaic[2] as f64 + 1.01]).unwrap_or((0.5, 0.5));
+    let p =
+        t.on_screen([(mosaic[0] + 1) as f64, (mosaic[1] + 1) as f64, mosaic[2] as f64 + 1.01]).unwrap_or((0.5, 0.5));
     let colors = shot.share(p.0 - 0.03, p.1 - 0.05, p.0 + 0.03, p.1 + 0.05, |c| {
         let (hi, lo) = (*c.iter().max().unwrap() as i32, *c.iter().min().unwrap() as i32);
         hi - lo > 80
@@ -111,7 +113,10 @@ pub async fn tint_kinds(t: T) -> R {
         t.fill(a, b, "testmod:glow_moss").await?;
         let moss = Block::lookup("testmod:glow_moss");
         // Every block of the wall must reach the client before its color can be looked at.
-        t.until("the moss wall on the client", Duration::from_secs(5), |t| (a[1]..=b[1]).all(|y| (a[0]..=b[0]).all(|x| t.c().block([x, y, a[2]]) == moss))).await?;
+        t.until("the moss wall on the client", Duration::from_secs(5), |t| {
+            (a[1]..=b[1]).all(|y| (a[0]..=b[0]).all(|x| t.c().block([x, y, a[2]]) == moss))
+        })
+        .await?;
         t.c().look(0.0, 0.0);
         t.settled().await?;
         let [r, g, b] = t.pixel(0.5, 0.45).await?;
@@ -204,7 +209,10 @@ pub async fn broken_shader_pack(t: T) -> R {
     t.c().reload_assets();
     let _ = std::fs::remove_dir_all(&dir);
     t.frames(2).await?;
-    t.check(T::differ(&before, &after) < 0.02, format!("the picture stays ({:.1}% differ)", T::differ(&before, &after) * 100.0));
+    t.check(
+        T::differ(&before, &after) < 0.02,
+        format!("the picture stays ({:.1}% differ)", T::differ(&before, &after) * 100.0),
+    );
     // A working pack only writes functions: the engine's own world shader with a sepia ending,
     // its structs and bindings come from the prelude.
     let dir = format!("{}/shaderpacks/testkit_sepia", t.c().run_dir());
@@ -212,8 +220,11 @@ pub async fn broken_shader_pack(t: T) -> R {
     let world = include_str!("../../../../crates/engine/assets/shaders/world.wgsl");
     let ending = "    return vec4(mix(lit.rgb, scene.fog_color.rgb, fog), lit.a);";
     t.check(world.contains(ending), "the world shader still ends its shading like this");
-    let sepia = world.replace(ending, "    let y = dot(mix(lit.rgb, scene.fog_color.rgb, fog), vec3(0.3, 0.59, 0.11));
-    return vec4(vec3(y * 1.2, y, y * 0.75), lit.a);");
+    let sepia = world.replace(
+        ending,
+        "    let y = dot(mix(lit.rgb, scene.fog_color.rgb, fog), vec3(0.3, 0.59, 0.11));
+    return vec4(vec3(y * 1.2, y, y * 0.75), lit.a);",
+    );
     std::fs::write(format!("{dir}/world.wgsl"), sepia).map_err(|e| e.to_string())?;
     weft_sdk::settings::SHADER_PACK.set("testkit_sepia");
     t.c().reload_assets();
@@ -254,7 +265,9 @@ pub async fn shaders_and_glow(t: T) -> R {
     t.secs(1.0).await?;
     let night = t.shot("night_glow").await?;
     let veins = match t.block_on_screen(crystal, [0.0, 0.0, 0.51]) {
-        Some((x, y)) => night.share(x - 0.12, y - 0.15, x + 0.12, y + 0.15, |c| probe::cyan(c) && probe::lum(c) > 100.0),
+        Some((x, y)) => {
+            night.share(x - 0.12, y - 0.15, x + 0.12, y + 0.15, |c| probe::cyan(c) && probe::lum(c) > 100.0)
+        }
         None => 0.0,
     };
     t.probe("the crystal's veins glow", veins, veins > 0.03);
@@ -290,7 +303,10 @@ pub async fn block_model_file(t: T) -> R {
     t.c().look(0.0, 15.0);
     t.settled().await?;
     let shot = t.shot("pedestal").await?;
-    let at = |x: f64| t.on_screen([p[0] as f64 + x, p[1] as f64 + 0.35, p[2] as f64 + 0.5]).map(|(sx, sy)| crate::runner::lum(shot.avg(sx - 0.003, sy - 0.003, sx + 0.003, sy + 0.003)));
+    let at = |x: f64| {
+        t.on_screen([p[0] as f64 + x, p[1] as f64 + 0.35, p[2] as f64 + 0.5])
+            .map(|(sx, sy)| crate::runner::lum(shot.avg(sx - 0.003, sy - 0.003, sx + 0.003, sy + 0.003)))
+    };
     let (gap, column) = (at(0.18).unwrap_or(0.0), at(0.5).unwrap_or(255.0));
     t.probe("sky beside the column (the file's shape, not a cube)", gap, gap > 180.0);
     t.probe("the crystal column itself", column, column < 150.0);
@@ -308,7 +324,10 @@ pub async fn block_model_file(t: T) -> R {
     let _ = std::fs::remove_dir_all(&pack);
     t.c().reload_assets();
     t.frames(2).await?;
-    let filled = t.on_screen([p[0] as f64 + 0.18, p[1] as f64 + 0.35, p[2] as f64 + 0.5]).map(|(sx, sy)| crate::runner::lum(cube.avg(sx - 0.003, sy - 0.003, sx + 0.003, sy + 0.003))).unwrap_or(255.0);
+    let filled = t
+        .on_screen([p[0] as f64 + 0.18, p[1] as f64 + 0.35, p[2] as f64 + 0.5])
+        .map(|(sx, sy)| crate::runner::lum(cube.avg(sx - 0.003, sy - 0.003, sx + 0.003, sy + 0.003)))
+        .unwrap_or(255.0);
     t.probe("a pack's model draws a cube there", filled, filled < 150.0);
     Ok(())
 }
@@ -339,7 +358,10 @@ pub async fn models(t: T) -> R {
     let f = t.feet();
     t.op(&format!("spawn testmod:orb {} {} {}", f[0], f[1] + 1, f[2] - 3)).await?;
     t.op(&format!("spawn testmod:idol {} {} {}", f[0], f[1], f[2] + 3)).await?;
-    t.check(t.count_near("orb", 8.0).await? == 1 && t.count_near("idol", 8.0).await? == 1, "an orb and an idol stand nearby");
+    t.check(
+        t.count_near("orb", 8.0).await? == 1 && t.count_near("idol", 8.0).await? == 1,
+        "an orb and an idol stand nearby",
+    );
     t.c().look(0.0, 0.0);
     t.settled().await?;
     t.secs(0.5).await?;

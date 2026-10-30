@@ -91,7 +91,8 @@ pub fn load(assets: &Assets, c: &Content, next: u32) -> (Looks, Vec<String>) {
             let s = &c.states[st as usize];
             let mut look = StateLook::default();
             if let Some(cube) = &m.cube {
-                look.textures = Some(std::array::from_fn(|i| if cube[i].is_empty() { s.textures[i] } else { id(&cube[i]) }));
+                look.textures =
+                    Some(std::array::from_fn(|i| if cube[i].is_empty() { s.textures[i] } else { id(&cube[i]) }));
             }
             if !m.boxes.is_empty() {
                 look.boxes = Some(boxes(&m, &|i| s.textures[i], &mut id));

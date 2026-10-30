@@ -57,13 +57,18 @@ pub fn parse_usage(usage: &str) -> Result<Vec<Alt>, String> {
                     continue;
                 }
             };
-            let inner = tok.strip_prefix(open).and_then(|t| t.strip_suffix(close)).ok_or_else(|| format!("bad parameter {tok}"))?;
+            let inner = tok
+                .strip_prefix(open)
+                .and_then(|t| t.strip_suffix(close))
+                .ok_or_else(|| format!("bad parameter {tok}"))?;
             let (name, ty) = inner.split_once(':').ok_or_else(|| format!("parameter {tok} needs a type"))?;
             let kind = match ty {
                 "int" => Kind::Int,
                 "float" => Kind::Float,
                 "word" => Kind::Word(Vec::new()),
-                w if w.starts_with("word(") && w.ends_with(')') => Kind::Word(w[5..w.len() - 1].split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect()),
+                w if w.starts_with("word(") && w.ends_with(')') => Kind::Word(
+                    w[5..w.len() - 1].split(',').map(str::trim).filter(|s| !s.is_empty()).map(String::from).collect(),
+                ),
                 "text" => Kind::Text,
                 "item" => Kind::Item,
                 "block" => Kind::Block,
@@ -151,7 +156,9 @@ fn parse_selector(c: &Content, tok: &str, players: &[String]) -> Result<Selector
                 s.kind = Some((c.game.entity_names[&full], neg));
             }
             "distance" => {
-                let num = |t: &str, d: f64| if t.is_empty() { Ok(d) } else { t.parse::<f64>().map_err(|_| err("bad_distance", v)) };
+                let num = |t: &str, d: f64| {
+                    if t.is_empty() { Ok(d) } else { t.parse::<f64>().map_err(|_| err("bad_distance", v)) }
+                };
                 s.distance = Some(match v.split_once("..") {
                     Some((a, b)) => (num(a, 0.0)?, num(b, f64::INFINITY)?),
                     None => (num(v, 0.0)?, num(v, 0.0)?),
@@ -244,7 +251,14 @@ fn position(t: &[&str], o: Origin) -> Option<DVec3> {
     Some(DVec3::new(coordinate(t[0], o.pos.x)?, coordinate(t[1], o.pos.y)?, coordinate(t[2], o.pos.z)?))
 }
 
-fn parse_alt(c: &Content, alt: &Alt, tokens: &[&str], here: Origin, players: &[String], slots: &[String]) -> Result<Args, Msg> {
+fn parse_alt(
+    c: &Content,
+    alt: &Alt,
+    tokens: &[&str],
+    here: Origin,
+    players: &[String],
+    slots: &[String],
+) -> Result<Args, Msg> {
     let mut values: Vec<Option<Value>> = vec![None; slots.len()];
     let mut i = 0;
     for p in alt {
@@ -350,19 +364,40 @@ pub struct CommandDef {
 }
 
 impl CommandDef {
-    pub fn new(name: &str, usage: &str, alts: Vec<Alt>, handler: Option<(ModId, Callback)>, client: bool) -> CommandDef {
+    pub fn new(
+        name: &str,
+        usage: &str,
+        alts: Vec<Alt>,
+        handler: Option<(ModId, Callback)>,
+        client: bool,
+    ) -> CommandDef {
         let owners = vec![0; alts.len()];
-        CommandDef { name: name.to_string(), usage: usage.to_string(), alts, handler, client, owners, branches: Vec::new() }
+        CommandDef {
+            name: name.to_string(),
+            usage: usage.to_string(),
+            alts,
+            handler,
+            client,
+            owners,
+            branches: Vec::new(),
+        }
     }
 
     /// Parses `tokens` and says who handles them: the command's own handler (`None` for the
     /// engine's) or the mod whose branch matched. Values are laid out by that owner's own
     /// alternatives, as its usage string declares them.
-    pub fn parse(&self, c: &Content, tokens: &[&str], here: Origin, players: &[String]) -> Result<(Args, Option<(ModId, Callback)>), Msg> {
+    pub fn parse(
+        &self,
+        c: &Content,
+        tokens: &[&str],
+        here: Origin,
+        players: &[String],
+    ) -> Result<(Args, Option<(ModId, Callback)>), Msg> {
         let mut first_err = None;
         for (i, alt) in self.alts.iter().enumerate() {
             let owner = self.owners[i];
-            let own: Vec<Alt> = self.alts.iter().zip(&self.owners).filter(|(_, o)| **o == owner).map(|(a, _)| a.clone()).collect();
+            let own: Vec<Alt> =
+                self.alts.iter().zip(&self.owners).filter(|(_, o)| **o == owner).map(|(a, _)| a.clone()).collect();
             match parse_alt(c, alt, tokens, here, players, &slots(&own)) {
                 Ok(a) => return Ok((a, if owner == 0 { self.handler } else { Some(self.branches[owner - 1]) })),
                 Err(e) => {
@@ -419,7 +454,6 @@ pub fn usage_text(alts: &[Alt]) -> String {
         .join(" | ")
 }
 
-
 /// Command values as mods receive them; `selected` holds resolved targets per slot. The values
 /// point into `args` and `selected`.
 pub fn abi_values(args: &Args, selected: &[Option<String>]) -> Vec<weft_abi::CommandValue> {
@@ -428,7 +462,14 @@ pub fn abi_values(args: &Args, selected: &[Option<String>]) -> Vec<weft_abi::Com
         .iter()
         .enumerate()
         .map(|(i, v)| {
-            let mut out = weft_abi::CommandValue { kind: cv::NONE, int: 0, float: 0.0, text: Str::new(""), pos: [0.0; 3], name: Str::new(&args.names[i]) };
+            let mut out = weft_abi::CommandValue {
+                kind: cv::NONE,
+                int: 0,
+                float: 0.0,
+                text: Str::new(""),
+                pos: [0.0; 3],
+                name: Str::new(&args.names[i]),
+            };
             match v {
                 None => {}
                 Some(Value::Int(n)) => (out.kind, out.int, out.float) = (cv::INT, *n, *n as f64),
@@ -481,7 +522,8 @@ pub fn complete(c: &Content, line: &str, players: &[String]) -> Completion {
     let done: Vec<&str> = line[..from].split_whitespace().collect();
     let mut out = Completion { suggestions: Vec::new(), from, hint: String::new() };
     if done.is_empty() {
-        let mut names: Vec<String> = c.commands.iter().map(|d| d.name.clone()).filter(|n| n.starts_with(partial)).collect();
+        let mut names: Vec<String> =
+            c.commands.iter().map(|d| d.name.clone()).filter(|n| n.starts_with(partial)).collect();
         names.sort();
         out.suggestions = names;
         return out;
@@ -494,7 +536,13 @@ pub fn complete(c: &Content, line: &str, players: &[String]) -> Completion {
         let mut at = 0;
         let mut found = None;
         for (pi, p) in alt.iter().enumerate() {
-            let width = if p.kind == Kind::Pos { 3 } else if p.kind == Kind::Text { usize::MAX / 2 } else { 1 };
+            let width = if p.kind == Kind::Pos {
+                3
+            } else if p.kind == Kind::Text {
+                usize::MAX / 2
+            } else {
+                1
+            };
             // An optional selector or position the typed word cannot be skips to what follows.
             let fits = |w: &str| match p.kind {
                 Kind::Targets => w.starts_with('@') || players.iter().any(|n| n == w),
@@ -521,7 +569,9 @@ pub fn complete(c: &Content, line: &str, players: &[String]) -> Completion {
         let names_from = |keys: Vec<&String>| -> Vec<String> {
             let mut v: Vec<String> = keys
                 .into_iter()
-                .filter(|n| n.starts_with(partial) || n.split_once(':').is_some_and(|(_, path)| path.starts_with(partial)))
+                .filter(|n| {
+                    n.starts_with(partial) || n.split_once(':').is_some_and(|(_, path)| path.starts_with(partial))
+                })
                 .cloned()
                 .collect();
             v.sort();
@@ -530,17 +580,30 @@ pub fn complete(c: &Content, line: &str, players: &[String]) -> Completion {
         let list = match &p.kind {
             Kind::Literal(l) if l.starts_with(partial) => vec![l.clone()],
             Kind::Word(options) => {
-                let set = |o: &String| o.strip_prefix('#').map(|s| c.word_sets.get(s).cloned().unwrap_or_default()).unwrap_or_else(|| vec![o.clone()]);
+                let set = |o: &String| {
+                    o.strip_prefix('#')
+                        .map(|s| c.word_sets.get(s).cloned().unwrap_or_default())
+                        .unwrap_or_else(|| vec![o.clone()])
+                };
                 names_from(options.iter().flat_map(set).collect::<Vec<_>>().iter().collect())
             }
             Kind::Item => names_from(c.item_names.keys().collect()),
             Kind::Block => names_from(c.block_names.keys().collect()),
-            Kind::Entity => names_from(c.game.entity_names.iter().filter(|(_, k)| !c.game.is_block_entity(**k)).map(|(n, _)| n).collect()),
+            Kind::Entity => names_from(
+                c.game.entity_names.iter().filter(|(_, k)| !c.game.is_block_entity(**k)).map(|(n, _)| n).collect(),
+            ),
             Kind::Dim => names_from(c.dim_names.keys().collect()),
             Kind::Player => players.iter().filter(|n| n.starts_with(partial)).cloned().collect(),
-            Kind::Targets => ["@p", "@a", "@e", "@s", "@r"].iter().map(|s| s.to_string()).chain(players.iter().cloned()).filter(|n| n.starts_with(partial)).collect(),
+            Kind::Targets => ["@p", "@a", "@e", "@s", "@r"]
+                .iter()
+                .map(|s| s.to_string())
+                .chain(players.iter().cloned())
+                .filter(|n| n.starts_with(partial))
+                .collect(),
             Kind::Time => TIMES.iter().map(|t| t.0.to_string()).filter(|n| n.starts_with(partial)).collect(),
-            Kind::Pos if partial.is_empty() || partial == "~" => vec![if within == 0 { "~ ~ ~".to_string() } else { "~".to_string() }],
+            Kind::Pos if partial.is_empty() || partial == "~" => {
+                vec![if within == 0 { "~ ~ ~".to_string() } else { "~".to_string() }]
+            }
             Kind::Pos if partial == "^" => vec![if within == 0 { "^ ^ ^".to_string() } else { "^".to_string() }],
             _ => Vec::new(),
         };

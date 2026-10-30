@@ -108,7 +108,10 @@ impl Lang {
                 continue;
             }
             let first = std::fs::read_to_string(&path).ok().and_then(|s| {
-                s.lines().find(|l| l.trim_start().starts_with("language.name")).and_then(|l| l.split_once('=')).map(|(_, v)| v.trim().to_string())
+                s.lines()
+                    .find(|l| l.trim_start().starts_with("language.name"))
+                    .and_then(|l| l.split_once('='))
+                    .map(|(_, v)| v.trim().to_string())
             });
             out.insert(code.clone(), first.unwrap_or(code));
         }

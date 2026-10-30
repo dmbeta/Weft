@@ -102,7 +102,11 @@ impl Toward {
         }
         let back = [-look[0], -look[1], -look[2]];
         // Horizontal-only blocks go by the horizontal part of the look alone.
-        if allowed.0 & Facings::VERTICAL.0 == 0 { Dir::nearest([back[0], 0.0, back[2]], allowed) } else { Dir::nearest(back, allowed) }
+        if allowed.0 & Facings::VERTICAL.0 == 0 {
+            Dir::nearest([back[0], 0.0, back[2]], allowed)
+        } else {
+            Dir::nearest(back, allowed)
+        }
     }
 }
 

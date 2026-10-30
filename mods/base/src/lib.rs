@@ -39,10 +39,7 @@ fn init(r: &mut Registry) {
     mobs::register(r);
     worldgen::register(r);
     // Its terrain is described in `worldgen`.
-    r.dimension(&OVERWORLD)
-        .player_spawn()
-        .sky_above(16)
-        .day_length(24000);
+    r.dimension(&OVERWORLD).player_spawn().sky_above(16).day_length(24000);
     // Second dimension on purpose: nothing in the engine may assume there is only one world.
     r.dimension(&FLATLANDS)
         .generator(worldgen::flat)

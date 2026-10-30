@@ -1,8 +1,8 @@
 //! Entities of one dimension: core state in a dense list, mod components as raw bytes, inventories
 //! as an engine contract every mod can read and write.
 
-use rayon::prelude::*;
 use glam::{DVec3, IVec3};
+use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use weft_abi::{ItemStack, entity_flags as ef};
 
@@ -140,7 +140,10 @@ impl Entity {
             age: self.age,
             fall: self.fall,
             moved: self.moved,
-            size: { let (hw, h, eye) = self.dims(c); [hw as f32 * 2.0, h as f32, eye as f32] },
+            size: {
+                let (hw, h, eye) = self.dims(c);
+                [hw as f32 * 2.0, h as f32, eye as f32]
+            },
         }
     }
 }
@@ -170,7 +173,6 @@ pub struct Entities {
 
 /// Falls up to this many blocks do no damage.
 pub const SAFE_FALL: f32 = 3.0;
-
 
 /// What a component of an entity of `kind` starts as: the kind's own value, or the component's.
 fn starting_value(c: &Content, kind: &crate::registry::EntityKind, comp: u32) -> Box<[u8]> {
@@ -346,7 +348,13 @@ pub struct Stepped {
 
 /// One physics step (1/20 s) for a non-player entity. `block` gives states, `None` = unloaded;
 /// `bodies` are the solid bodies that moved this tick before it.
-pub fn step(c: &Content, e: &mut Entity, gravity: f64, block: &impl Fn(IVec3) -> Option<u32>, bodies: &[physics::Body]) -> Stepped {
+pub fn step(
+    c: &Content,
+    e: &mut Entity,
+    gravity: f64,
+    block: &impl Fn(IVec3) -> Option<u32>,
+    bodies: &[physics::Body],
+) -> Stepped {
     const DT: f64 = crate::world::TICK;
     let k = &c.game.entities[e.kind as usize];
     let mut out = Stepped { land: None, crushed: false };
@@ -390,7 +398,12 @@ pub fn step(c: &Content, e: &mut Entity, gravity: f64, block: &impl Fn(IVec3) ->
             ctl.swim = true;
         }
     }
-    let frame = physics::Frame { half_width: hw, height: h, step: if e.item.is_empty() { 0.6 } else { 0.0 }, gravity: if k.is(ef::NO_GRAVITY) { 0.0 } else { gravity * DT * DT } };
+    let frame = physics::Frame {
+        half_width: hw,
+        height: h,
+        step: if e.item.is_empty() { 0.6 } else { 0.0 },
+        gravity: if k.is(ef::NO_GRAVITY) { 0.0 } else { gravity * DT * DT },
+    };
     let mut v = e.vel * DT;
     let r = physics::walk(c, block, bodies, e.id, &mut e.pos, &mut v, e.on_ground, &ctl, &frame);
     e.vel = v / DT;
@@ -431,33 +444,46 @@ pub fn soft_push(c: &Content, list: &[Entity]) -> Vec<(usize, DVec3)> {
     for (i, e) in list.iter().enumerate().filter(|(_, e)| soft(e)) {
         cells.entry(((e.pos.x / 2.0).floor() as i32, (e.pos.z / 2.0).floor() as i32)).or_default().push(i);
     }
-    list.par_iter().with_min_len(256).enumerate().filter(|(_, e)| soft(e) && !e.player).filter_map(|(i, e)| {
-        let (cx, cz) = ((e.pos.x / 2.0).floor() as i32, (e.pos.z / 2.0).floor() as i32);
-        let mut push = DVec3::ZERO;
-        // Each mob feels at most this many others (vanilla's cramming limit), so a thousand in
-        // one spot cost a thousand times that, not a million pairs.
-        let (mut felt, mut looked) = (0, 0);
-        'near: for dz in -1..=1 {
-            for dx in -1..=1 {
-                for &j in cells.get(&(cx + dx, cz + dz)).into_iter().flatten() {
-                    looked += 1;
-                    if felt == MAX_CRAMMING || looked > 4 * MAX_CRAMMING {
-                        break 'near;
+    list.par_iter()
+        .with_min_len(256)
+        .enumerate()
+        .filter(|(_, e)| soft(e) && !e.player)
+        .filter_map(|(i, e)| {
+            let (cx, cz) = ((e.pos.x / 2.0).floor() as i32, (e.pos.z / 2.0).floor() as i32);
+            let mut push = DVec3::ZERO;
+            // Each mob feels at most this many others (vanilla's cramming limit), so a thousand in
+            // one spot cost a thousand times that, not a million pairs.
+            let (mut felt, mut looked) = (0, 0);
+            'near: for dz in -1..=1 {
+                for dx in -1..=1 {
+                    for &j in cells.get(&(cx + dx, cz + dz)).into_iter().flatten() {
+                        looked += 1;
+                        if felt == MAX_CRAMMING || looked > 4 * MAX_CRAMMING {
+                            break 'near;
+                        }
+                        let o = &list[j];
+                        let reach = e.dims(c).0 + o.dims(c).0;
+                        let d = e.pos - o.pos;
+                        if j == i
+                            || d.x.abs() >= reach
+                            || d.z.abs() >= reach
+                            || d.y >= o.height(c)
+                            || -d.y >= e.height(c)
+                        {
+                            continue;
+                        }
+                        // Exactly on top of each other: split by id so they still drift apart.
+                        let d = if d.x.abs() + d.z.abs() < 1e-4 {
+                            DVec3::new(if e.id < o.id { -0.01 } else { 0.01 }, d.y, 0.0)
+                        } else {
+                            d
+                        };
+                        push += physics::nudge(d);
+                        felt += 1;
                     }
-                    let o = &list[j];
-                    let reach = e.dims(c).0 + o.dims(c).0;
-                    let d = e.pos - o.pos;
-                    if j == i || d.x.abs() >= reach || d.z.abs() >= reach || d.y >= o.height(c) || -d.y >= e.height(c) {
-                        continue;
-                    }
-                    // Exactly on top of each other: split by id so they still drift apart.
-                    let d = if d.x.abs() + d.z.abs() < 1e-4 { DVec3::new(if e.id < o.id { -0.01 } else { 0.01 }, d.y, 0.0) } else { d };
-                    push += physics::nudge(d);
-                    felt += 1;
                 }
             }
-        }
-        (push != DVec3::ZERO).then_some((i, push * crate::world::TPS as f64))
-    })
-    .collect()
+            (push != DVec3::ZERO).then_some((i, push * crate::world::TPS as f64))
+        })
+        .collect()
 }

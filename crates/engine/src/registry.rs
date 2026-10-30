@@ -176,7 +176,9 @@ impl GroupDef {
     pub fn span(&self, layout: &PlayerLayout) -> (u32, u32, u32) {
         use weft_abi::slot_owner as so;
         match self.owner {
-            so::PLAYER_MAIN => (layout.hotbar, layout.slots - layout.hotbar - layout.worn.len() as u32, layout.hotbar.max(1)),
+            so::PLAYER_MAIN => {
+                (layout.hotbar, layout.slots - layout.hotbar - layout.worn.len() as u32, layout.hotbar.max(1))
+            }
             so::PLAYER_HOTBAR => (0, layout.hotbar, layout.hotbar.max(1)),
             _ => (self.start, self.cols * self.rows, self.cols.max(1)),
         }
@@ -641,14 +643,18 @@ pub const EQUIPMENT_GROUP: &str = "core:equipment";
 
 impl Default for PlayerLayout {
     fn default() -> Self {
-        PlayerLayout::new(&[("hotbar".into(), 9, 1, weft_abi::slot_flags::HOTBAR), ("main".into(), 9, 3, 0)], Vec::new())
+        PlayerLayout::new(
+            &[("hotbar".into(), 9, 1, weft_abi::slot_flags::HOTBAR), ("main".into(), 9, 3, 0)],
+            Vec::new(),
+        )
     }
 }
 
 impl PlayerLayout {
     /// The hotbar group first, then the other groups in order, then the equipment slots.
     pub fn new(groups: &[(String, u32, u32, u32)], equipment: Vec<EquipmentSlot>) -> PlayerLayout {
-        let mut ordered: Vec<&(String, u32, u32, u32)> = groups.iter().filter(|g| g.3 & weft_abi::slot_flags::HOTBAR != 0).take(1).collect();
+        let mut ordered: Vec<&(String, u32, u32, u32)> =
+            groups.iter().filter(|g| g.3 & weft_abi::slot_flags::HOTBAR != 0).take(1).collect();
         ordered.extend(groups.iter().filter(|g| g.3 & weft_abi::slot_flags::HOTBAR == 0));
         let hotbar = ordered.first().filter(|g| g.3 & weft_abi::slot_flags::HOTBAR != 0).map_or(0, |g| g.1 * g.2);
         let mut at = 0;
@@ -785,11 +791,26 @@ pub(crate) unsafe fn copy_parts(list: abi::Slice<abi::ModelPart>) -> Vec<Part> {
         list.as_slice().iter().copied().for_each(|p| {
             let mut cuboids = Vec::new();
             p.cuboids.as_slice().iter().copied().for_each(|c| {
-                cuboids.push(Cuboid { origin: c.origin, size: c.extent, uv: c.uv, inflate: c.inflate, mirror: c.mirror != 0, faces: (c.per_face != 0).then_some(c.faces) })
+                cuboids.push(Cuboid {
+                    origin: c.origin,
+                    size: c.extent,
+                    uv: c.uv,
+                    inflate: c.inflate,
+                    mirror: c.mirror != 0,
+                    faces: (c.per_face != 0).then_some(c.faces),
+                })
             });
             let n = parts.len() as i32;
             let parent = (p.parent >= 0 && p.parent < n).then_some(p.parent as u32);
-            parts.push(Part { name: p.name.as_str().to_string(), parent, pivot: p.pivot, role: 0, rest: p.rest, cuboids, mesh: p.mesh.as_slice().to_vec() });
+            parts.push(Part {
+                name: p.name.as_str().to_string(),
+                parent,
+                pivot: p.pivot,
+                role: 0,
+                rest: p.rest,
+                cuboids,
+                mesh: p.mesh.as_slice().to_vec(),
+            });
         });
         crate::model::assign_roles(&mut parts);
         parts
@@ -866,7 +887,12 @@ pub(crate) unsafe fn copy_menu(owner: ModId, d: &abi::MenuDesc) -> (usize, MenuD
             MenuDef {
                 name: d.name.as_str().to_string(),
                 owner,
-                temp_slots: groups.iter().filter(|g| g.owner == weft_abi::slot_owner::MENU).map(|g| g.start + g.cols * g.rows).max().unwrap_or(0),
+                temp_slots: groups
+                    .iter()
+                    .filter(|g| g.owner == weft_abi::slot_owner::MENU)
+                    .map(|g| g.start + g.cols * g.rows)
+                    .max()
+                    .unwrap_or(0),
                 groups,
                 entity: d.entity.as_str().to_string(),
                 recipes: d.recipes.as_str().split_whitespace().map(str::to_string).collect(),
@@ -895,7 +921,12 @@ pub(crate) unsafe fn copy_recipe(d: &abi::RecipeDesc) -> RawRecipe {
             output: d.output.as_str().to_string(),
             count: d.count.max(1),
             time: d.time,
-            outputs: d.outputs.as_slice().iter().map(|o| (o.item.as_str().to_string(), o.count.max(1), o.chance)).collect(),
+            outputs: d
+                .outputs
+                .as_slice()
+                .iter()
+                .map(|o| (o.item.as_str().to_string(), o.count.max(1), o.chance))
+                .collect(),
             values: crate::components::RawValue::list(d.values),
             flags: d.flags,
         }
@@ -962,14 +993,33 @@ pub struct Entities {
 
 pub fn freeze_entities(raws: &mut [RawGame], errors: &mut Vec<String>) -> Entities {
     let mut entities: Vec<RawEntity> = raws.iter_mut().flat_map(|r| std::mem::take(&mut r.entities)).collect();
-    let models: Vec<(String, Vec<Part>, [u32; 2])> = raws.iter_mut().flat_map(|r| std::mem::take(&mut r.entity_models)).collect();
+    let models: Vec<(String, Vec<Part>, [u32; 2])> =
+        raws.iter_mut().flat_map(|r| std::mem::take(&mut r.entity_models)).collect();
     let mut player = builtin(PLAYER, 0.6, 1.8, ef::FALL_DAMAGE | ef::PUSHABLE);
     player.eye = 1.62;
     player.texture = "core:entity/player".into();
     entities.push(RawEntity { name: PLAYER.into(), cell: 0, desc: player, replace: false, components: Vec::new() });
-    entities.push(RawEntity { name: ITEM.into(), cell: 0, desc: builtin(ITEM, 0.25, 0.25, ef::INVULNERABLE), replace: false, components: Vec::new() });
-    entities.push(RawEntity { name: VIRTUAL.into(), cell: 0, desc: builtin(VIRTUAL, 0.0, 0.0, ef::INVULNERABLE | ef::NO_GRAVITY), replace: false, components: Vec::new() });
-    entities.push(RawEntity { name: FALLING.into(), cell: 0, desc: builtin(FALLING, 0.98, 1.0, ef::INVULNERABLE | ef::SOLID), replace: false, components: Vec::new() });
+    entities.push(RawEntity {
+        name: ITEM.into(),
+        cell: 0,
+        desc: builtin(ITEM, 0.25, 0.25, ef::INVULNERABLE),
+        replace: false,
+        components: Vec::new(),
+    });
+    entities.push(RawEntity {
+        name: VIRTUAL.into(),
+        cell: 0,
+        desc: builtin(VIRTUAL, 0.0, 0.0, ef::INVULNERABLE | ef::NO_GRAVITY),
+        replace: false,
+        components: Vec::new(),
+    });
+    entities.push(RawEntity {
+        name: FALLING.into(),
+        cell: 0,
+        desc: builtin(FALLING, 0.98, 1.0, ef::INVULNERABLE | ef::SOLID),
+        replace: false,
+        components: Vec::new(),
+    });
     entities.sort_by(|a, b| a.name.cmp(&b.name).then(a.replace.cmp(&b.replace)));
     let mut kept: Vec<RawEntity> = Vec::with_capacity(entities.len());
     let mut replaced_cells: Vec<(usize, String)> = Vec::new();
@@ -1037,14 +1087,21 @@ pub fn freeze(
     let mut systems: Vec<(ModId, String, String, Callback)> = Vec::new();
     let mut interceptors: Vec<(ModId, String, Callback)> = Vec::new();
     let mut modifiers: Vec<(ModId, String, u32, Callback)> = Vec::new();
-    let mut attributes: Vec<(String, f64, f64, f64)> = vec![(abi::attribute::MAX_HEALTH.into(), 20.0, 1.0, 1024.0), (abi::attribute::MOVEMENT_SPEED.into(), 1.0, 0.0, 16.0), (abi::attribute::VISIBILITY.into(), 1.0, 0.0, 16.0), (abi::attribute::JUMP_STRENGTH.into(), 1.0, 0.0, 16.0)];
+    let mut attributes: Vec<(String, f64, f64, f64)> = vec![
+        (abi::attribute::MAX_HEALTH.into(), 20.0, 1.0, 1024.0),
+        (abi::attribute::MOVEMENT_SPEED.into(), 1.0, 0.0, 16.0),
+        (abi::attribute::VISIBILITY.into(), 1.0, 0.0, 16.0),
+        (abi::attribute::JUMP_STRENGTH.into(), 1.0, 0.0, 16.0),
+    ];
     let mut particles: Vec<RawParticle> = engine_particles();
     let mut configs: Vec<(usize, crate::config::ConfigDef)> = Vec::new();
     let mut sounds: Vec<(usize, SoundDef)> = engine_sounds();
     let mut music: Vec<(String, MusicDef)> = Vec::new();
     let mut spawns: Vec<RawSpawn> = Vec::new();
     // Music first (`MUSIC_CATEGORY`); the order is also that of the volume settings.
-    let mut sound_categories: Vec<SoundCategory> = ["music", "blocks", "creatures", "players", "ambient", "ui"].map(|n| SoundCategory::new(&format!("core:{n}"), n != "music" && n != "ui")).to_vec();
+    let mut sound_categories: Vec<SoundCategory> = ["music", "blocks", "creatures", "players", "ambient", "ui"]
+        .map(|n| SoundCategory::new(&format!("core:{n}"), n != "music" && n != "ui"))
+        .to_vec();
     let mut categories: Vec<CategoryDef> = vec![
         CategoryDef { name: "core:misc".into(), cap: 6, despawn: 0.0 },
         CategoryDef { name: "core:hostile".into(), cap: 8, despawn: 128.0 },
@@ -1116,7 +1173,8 @@ pub fn freeze(
     }
     freeze_particles(&mut g, particles, errors);
     // Volume settings right after the master volume.
-    let volumes: Vec<(usize, crate::config::ConfigDef)> = sound_categories.iter().filter_map(|k| k.setting.as_deref()).map(|s| (0, crate::config::volume(s))).collect();
+    let volumes: Vec<(usize, crate::config::ConfigDef)> =
+        sound_categories.iter().filter_map(|k| k.setting.as_deref()).map(|s| (0, crate::config::volume(s))).collect();
     configs.splice(1..1, volumes);
     sounds.sort_by(|a, b| a.1.name.cmp(&b.1.name));
     for (cell, mut d) in sounds {
@@ -1147,7 +1205,10 @@ pub fn freeze(
         g.music.push(m);
     }
     // The engine's settings, with a binding per key: the engine's and the mods'.
-    let mut keys: Vec<(String, String)> = crate::input::ENGINE_KEYS.iter().map(|(a, k)| (a.to_string(), crate::settings::chord_id((*k).into()))).collect();
+    let mut keys: Vec<(String, String)> = crate::input::ENGINE_KEYS
+        .iter()
+        .map(|(a, k)| (a.to_string(), crate::settings::chord_id((*k).into())))
+        .collect();
     for (action, key) in &g.keys {
         match crate::settings::parse_chord(key) {
             Some(k) => keys.push((action.clone(), crate::settings::chord_id(k))),
@@ -1190,9 +1251,13 @@ pub fn freeze(
             if name.is_empty() {
                 return Ok(None);
             }
-            crate::refs::tag(c, name).map(Some).map_err(|e| errors.push(format!("spawn rule for {}: {what}: {e}", s.entity)))
+            crate::refs::tag(c, name)
+                .map(Some)
+                .map_err(|e| errors.push(format!("spawn rule for {}: {what}: {e}", s.entity)))
         };
-        let (Ok(biome), Ok(ground)) = (tag(&s.biome, "biome", errors), tag(&s.ground, "block", errors)) else { continue };
+        let (Ok(biome), Ok(ground)) = (tag(&s.biome, "biome", errors), tag(&s.ground, "block", errors)) else {
+            continue;
+        };
         let dimension = match s.dimension.as_str() {
             "" => None,
             d => match dim_names.get(d) {
@@ -1204,15 +1269,36 @@ pub fn freeze(
             },
         };
         let category = g.entities[entity as usize].category;
-        g.spawns.push(SpawnRule { entity, category, biome, ground, dimension, light: s.light, y: s.y, group: s.group, weight: s.weight, chance: s.chance });
+        g.spawns.push(SpawnRule {
+            entity,
+            category,
+            biome,
+            ground,
+            dimension,
+            light: s.light,
+            y: s.y,
+            group: s.group,
+            weight: s.weight,
+            chance: s.chance,
+        });
     }
     // Natural spawning (`spawns`) runs while this is on.
 
-    let mut events: Vec<EventDef> = ENGINE_EVENTS.iter().map(|(n, s, size)| EventDef { name: n.to_string(), schema: s.to_string(), size: (*size).into(), handlers: Vec::new() }).collect();
+    let mut events: Vec<EventDef> = ENGINE_EVENTS
+        .iter()
+        .map(|(n, s, size)| EventDef {
+            name: n.to_string(),
+            schema: s.to_string(),
+            size: (*size).into(),
+            handlers: Vec::new(),
+        })
+        .collect();
     event_handlers.sort_by_key(|h| order(h.0));
     for (owner, name, schema, cb) in event_handlers {
         match events.iter_mut().find(|e| e.name == name) {
-            Some(e) if e.schema != schema => errors.push(format!("event {name} is '{}' but a handler takes '{schema}'", e.schema)),
+            Some(e) if e.schema != schema => {
+                errors.push(format!("event {name} is '{}' but a handler takes '{schema}'", e.schema))
+            }
             Some(e) => e.handlers.push((owner, cb)),
             None => events.push(EventDef { name, schema, size: 0.into(), handlers: vec![(owner, cb)] }),
         }
@@ -1252,7 +1338,10 @@ pub fn freeze(
         }
         let slot = if side == 0 { &mut def.server } else { &mut def.client };
         if slot.is_some() {
-            errors.push(format!("packet channel {name} has two {} handlers", if side == 0 { "server" } else { "client" }));
+            errors.push(format!(
+                "packet channel {name} has two {} handlers",
+                if side == 0 { "server" } else { "client" }
+            ));
         }
         *slot = Some((owner, cb));
     }
@@ -1262,24 +1351,48 @@ pub fn freeze(
     let energy = size_of::<weft_abi::Energy>() as u32;
     components.push(RawComponent {
         owner: ENGINE,
-        def: ComponentDef { name: abi::comp::ENERGY.into(), size: energy, flags: weft_abi::component_flags::SAVE | weft_abi::component_flags::SYNC_MENU, default: vec![0; energy as usize], runtime: true },
+        def: ComponentDef {
+            name: abi::comp::ENERGY.into(),
+            size: energy,
+            flags: weft_abi::component_flags::SAVE | weft_abi::component_flags::SYNC_MENU,
+            default: vec![0; energy as usize],
+            runtime: true,
+        },
         schema: String::new(),
     });
     // Variable length (size 0): attribute modifiers, added on demand.
     components.push(RawComponent {
         owner: ENGINE,
-        def: ComponentDef { name: MODIFIERS.into(), size: 0, flags: weft_abi::component_flags::SAVE, default: Vec::new(), runtime: true },
+        def: ComponentDef {
+            name: MODIFIERS.into(),
+            size: 0,
+            flags: weft_abi::component_flags::SAVE,
+            default: Vec::new(),
+            runtime: true,
+        },
         schema: String::new(),
     });
     components.push(RawComponent {
         owner: ENGINE,
-        def: ComponentDef { name: TIMERS.into(), size: 0, flags: weft_abi::component_flags::SAVE, default: Vec::new(), runtime: true },
+        def: ComponentDef {
+            name: TIMERS.into(),
+            size: 0,
+            flags: weft_abi::component_flags::SAVE,
+            default: Vec::new(),
+            runtime: true,
+        },
         schema: String::new(),
     });
     // A block entity's own name (a renamed chest).
     components.push(RawComponent {
         owner: ENGINE,
-        def: ComponentDef { name: abi::comp::NAME.into(), size: 0, flags: weft_abi::component_flags::SAVE, default: Vec::new(), runtime: true },
+        def: ComponentDef {
+            name: abi::comp::NAME.into(),
+            size: 0,
+            flags: weft_abi::component_flags::SAVE,
+            default: Vec::new(),
+            runtime: true,
+        },
         schema: String::new(),
     });
     let shown = weft_abi::component_flags::SYNC_WATCHERS;
@@ -1287,30 +1400,50 @@ pub fn freeze(
     let mut shape = vec![0u8; 12];
     shape.extend(u32::MAX.to_le_bytes());
     let save = weft_abi::component_flags::SAVE;
-    for (name, size, flags, default) in [(HEALTH, 8, own, vec![0; 8]), (BURNING, 1, shown, vec![0]), (WORN, 0, shown, Vec::new()), (SHAPE, 16, own, shape), (SIMULATED, 8, save, vec![0; 8])] {
-        components.push(RawComponent { owner: ENGINE, def: ComponentDef { name: name.into(), size, flags, default, runtime: true }, schema: String::new() });
+    for (name, size, flags, default) in [
+        (HEALTH, 8, own, vec![0; 8]),
+        (BURNING, 1, shown, vec![0]),
+        (WORN, 0, shown, Vec::new()),
+        (SHAPE, 16, own, shape),
+        (SIMULATED, 8, save, vec![0; 8]),
+    ] {
+        components.push(RawComponent {
+            owner: ENGINE,
+            def: ComponentDef { name: name.into(), size, flags, default, runtime: true },
+            schema: String::new(),
+        });
     }
     for rc in components {
         let Some(id) = c.id(&rc.def.name) else { continue };
         g.components[id as usize] = ComponentDef { runtime: true, ..rc.def };
     }
-    g.component_names = g.components.iter().enumerate().filter(|(_, d)| d.runtime).map(|(i, d)| (d.name.clone(), i as u32)).collect();
+    g.component_names =
+        g.components.iter().enumerate().filter(|(_, d)| d.runtime).map(|(i, d)| (d.name.clone(), i as u32)).collect();
     g.energy = g.component_names[abi::comp::ENERGY];
     g.modifiers_comp = g.component_names[MODIFIERS];
     g.timers_comp = g.component_names[TIMERS];
     g.name_comp = g.component_names[abi::comp::NAME];
     g.field_comps = [HEALTH, BURNING, WORN, SHAPE].map(|n| g.component_names[n]);
     g.simulated_comp = g.component_names[SIMULATED];
-    let with_flag = |f: u32| g.components.iter().enumerate().filter(|(_, d)| d.runtime && d.flags & f != 0).map(|(i, _)| i as u32).collect::<Vec<u32>>();
+    let with_flag = |f: u32| {
+        g.components
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.runtime && d.flags & f != 0)
+            .map(|(i, _)| i as u32)
+            .collect::<Vec<u32>>()
+    };
     g.watched_comps = with_flag(abi::component_flags::SYNC_WATCHERS);
     g.menu_comps = with_flag(abi::component_flags::SYNC_MENU);
-    let any_sync = abi::component_flags::SYNC_OWNER | abi::component_flags::SYNC_WATCHERS | abi::component_flags::SYNC_MENU;
+    let any_sync =
+        abi::component_flags::SYNC_OWNER | abi::component_flags::SYNC_WATCHERS | abi::component_flags::SYNC_MENU;
     g.synced_comps = g.components.iter().map(|d| d.runtime && d.flags & any_sync != 0).collect();
     systems.sort_by_key(|s| order(s.0));
     for (owner, name, schema, cb) in systems {
         match g.component_names.get(&name) {
             Some(&id) if c.schemas[id as usize] == schema || schema.is_empty() => g.systems.push((owner, id, cb)),
-            Some(&id) => errors.push(format!("system over {name}: it is '{}', the system takes '{schema}'", c.schemas[id as usize])),
+            Some(&id) => errors
+                .push(format!("system over {name}: it is '{}', the system takes '{schema}'", c.schemas[id as usize])),
             None => errors.push(format!("system over {name}: no entity component of that name")),
         }
     }
@@ -1319,7 +1452,10 @@ pub fn freeze(
             (Some(&k), Some(&cid)) => {
                 let size = g.components[cid as usize].size as usize;
                 match value {
-                    Some(v) if v.len() != size => errors.push(format!("attaching {comp} to {kind}: a value of {} bytes, the component has {size}", v.len())),
+                    Some(v) if v.len() != size => errors.push(format!(
+                        "attaching {comp} to {kind}: a value of {} bytes, the component has {size}",
+                        v.len()
+                    )),
                     Some(v) => g.entities[k as usize].values.push((cid, v.into_boxed_slice())),
                     None => {}
                 }
@@ -1347,28 +1483,38 @@ pub fn freeze(
             }
             PlayerLayout::new(&groups, equipment)
         }
-        None => PlayerLayout { ..PlayerLayout::new(&[("hotbar".into(), 9, 1, weft_abi::slot_flags::HOTBAR), ("main".into(), 9, 3, 0)], equipment) },
+        None => PlayerLayout {
+            ..PlayerLayout::new(
+                &[("hotbar".into(), 9, 1, weft_abi::slot_flags::HOTBAR), ("main".into(), 9, 3, 0)],
+                equipment,
+            )
+        },
     };
     // Menus showing the player's equipment get a group per slot, taking what is worn there.
     let layout = g.player_layout.clone();
     for m in &mut g.menus {
-        let Some(at) = m.groups.iter().position(|g| g.owner == weft_abi::slot_owner::PLAYER_EQUIPMENT) else { continue };
+        let Some(at) = m.groups.iter().position(|g| g.owner == weft_abi::slot_owner::PLAYER_EQUIPMENT) else {
+            continue;
+        };
         m.groups.remove(at);
         for (i, e) in layout.equipment.iter().enumerate().rev() {
-            m.groups.insert(at, GroupDef {
-                name: e.name.clone(),
-                owner: weft_abi::slot_owner::PLAYER,
-                start: layout.worn.start + i as u32,
-                cols: 1,
-                rows: 1,
-                flags: 0,
-                accepts: format!("worn/{}", e.name),
-                limit: 1,
-                size: 18.0,
-                background: (!e.background.is_empty()).then(|| e.background.clone()),
-                tooltip: None,
-                priority: 1,
-            });
+            m.groups.insert(
+                at,
+                GroupDef {
+                    name: e.name.clone(),
+                    owner: weft_abi::slot_owner::PLAYER,
+                    start: layout.worn.start + i as u32,
+                    cols: 1,
+                    rows: 1,
+                    flags: 0,
+                    accepts: format!("worn/{}", e.name),
+                    limit: 1,
+                    size: 18.0,
+                    background: (!e.background.is_empty()).then(|| e.background.clone()),
+                    tooltip: None,
+                    priority: 1,
+                },
+            );
         }
     }
     g.player_menu = player_menu.and_then(|(_, n)| {
@@ -1422,7 +1568,9 @@ pub fn freeze(
             }
         };
         let found = match &r {
-            crate::refs::Ref::Tags(p) if !p.contains('*') => crate::refs::items(&r, item_names, c, tag_items).map(|_| Ingredient::Tag(c.id(p).unwrap_or(u32::MAX))),
+            crate::refs::Ref::Tags(p) if !p.contains('*') => {
+                crate::refs::items(&r, item_names, c, tag_items).map(|_| Ingredient::Tag(c.id(p).unwrap_or(u32::MAX)))
+            }
             crate::refs::Ref::Tags(_) => crate::refs::items(&r, item_names, c, tag_items).map(Ingredient::Any),
             _ => crate::refs::item(&r, item_names, c, tag_items).map(Ingredient::Item),
         };
@@ -1483,7 +1631,15 @@ pub fn freeze(
         }
         let values = r.values.iter().filter_map(|v| c.id(&v.name).map(|id| (id, v.bytes.clone()))).collect();
         let hidden = r.flags & weft_abi::recipe_flags::HIDDEN != 0;
-        g.recipes.entry(r.kind).or_default().push(Recipe { shaped, inputs, input_counts, outputs, time: r.time, values, hidden });
+        g.recipes.entry(r.kind).or_default().push(Recipe {
+            shaped,
+            inputs,
+            input_counts,
+            outputs,
+            time: r.time,
+            values,
+            hidden,
+        });
     }
     g
 }
@@ -1567,7 +1723,10 @@ impl Game {
             if matches!(ing, Ingredient::Empty) {
                 continue;
             }
-            let i = stacks.iter().enumerate().position(|(i, s)| !used[i] && !s.is_empty() && s.count >= n && ing.matches(s.item, tags))?;
+            let i = stacks
+                .iter()
+                .enumerate()
+                .position(|(i, s)| !used[i] && !s.is_empty() && s.count >= n && ing.matches(s.item, tags))?;
             used[i] = true;
             out.push(i);
         }
@@ -1577,7 +1736,20 @@ impl Game {
 
 /// Sounds the engine plays itself (files in its own assets, packs may replace them).
 fn engine_sounds() -> Vec<(usize, SoundDef)> {
-    let one = |name: &str, file: &str, category: &str, volume: f32, pitch: [f32; 2]| (0, SoundDef { name: name.into(), files: vec![file.into()], category: 0, category_name: category.into(), volume, pitch, range: 16.0 });
+    let one = |name: &str, file: &str, category: &str, volume: f32, pitch: [f32; 2]| {
+        (
+            0,
+            SoundDef {
+                name: name.into(),
+                files: vec![file.into()],
+                category: 0,
+                category_name: category.into(),
+                volume,
+                pitch,
+                range: 16.0,
+            },
+        )
+    };
     vec![
         one("core:ui.click", "core:ui/click", "core:ui", 0.6, [1.0, 1.0]),
         one("core:item.pickup", "core:item/pickup", "core:players", 0.4, [1.4, 2.2]),
@@ -1587,11 +1759,33 @@ fn engine_sounds() -> Vec<(usize, SoundDef)> {
 /// Kinds the engine spawns itself; mods may replace their look by registering the same name.
 fn engine_particles() -> Vec<RawParticle> {
     use abi::particle_flags as pf;
-    let block = abi::ParticleDesc { life: [0.2, 1.0], scale: [0.05, 0.1], gravity: 16.0, color: 0x999999FF, color_end: 0x999999FF, flags: pf::COLLIDE, ..abi::ParticleDesc::DEFAULT };
-    let poof = abi::ParticleDesc { life: [0.4, 1.1], scale: [0.15, 0.3], gravity: -2.0, drag: 0.9, color: 0xD0D0D0FF, color_end: 0x909090FF, ..abi::ParticleDesc::DEFAULT };
+    let block = abi::ParticleDesc {
+        life: [0.2, 1.0],
+        scale: [0.05, 0.1],
+        gravity: 16.0,
+        color: 0x999999FF,
+        color_end: 0x999999FF,
+        flags: pf::COLLIDE,
+        ..abi::ParticleDesc::DEFAULT
+    };
+    let poof = abi::ParticleDesc {
+        life: [0.4, 1.1],
+        scale: [0.15, 0.3],
+        gravity: -2.0,
+        drag: 0.9,
+        color: 0xD0D0D0FF,
+        color_end: 0x909090FF,
+        ..abi::ParticleDesc::DEFAULT
+    };
     let frames = (0..8).map(|i| format!("core:particle/generic_{}", 7 - i)).collect();
     vec![
-        RawParticle { name: abi::particle::BLOCK.into(), cell: 0, textures: Vec::new(), desc: block, shader: String::new() },
+        RawParticle {
+            name: abi::particle::BLOCK.into(),
+            cell: 0,
+            textures: Vec::new(),
+            desc: block,
+            shader: String::new(),
+        },
         RawParticle { name: abi::particle::POOF.into(), cell: 0, textures: frames, desc: poof, shader: String::new() },
     ]
 }
@@ -1642,10 +1836,21 @@ fn freeze_particles(g: &mut Game, raws: Vec<RawParticle>, errors: &mut Vec<Strin
 /// item carries are left out. So every mod's ores smelt into the matching ingots. (`*` is "any",
 /// not a variable.) A variable with no value at all is an error.
 fn expand_variables(r: RawRecipe, tags: &FxHashMap<&str, u32>) -> Result<Vec<RawRecipe>, String> {
-    let names: Vec<&String> = r.keys.iter().map(|k| &k.1).chain(&r.inputs).chain(std::iter::once(&r.output)).chain(r.outputs.iter().map(|o| &o.0)).collect();
-    let Some(pattern) = names.iter().find_map(|n| n.strip_prefix('#').filter(|t| t.contains('{'))) else { return Ok(vec![r]) };
+    let names: Vec<&String> = r
+        .keys
+        .iter()
+        .map(|k| &k.1)
+        .chain(&r.inputs)
+        .chain(std::iter::once(&r.output))
+        .chain(r.outputs.iter().map(|o| &o.0))
+        .collect();
+    let Some(pattern) = names.iter().find_map(|n| n.strip_prefix('#').filter(|t| t.contains('{'))) else {
+        return Ok(vec![r]);
+    };
     let (pre, rest) = pattern.split_once('{').unwrap();
-    let Some((var, post)) = rest.split_once('}') else { return Err(format!("recipe for {}: #{pattern} has no closing }}", r.output)) };
+    let Some((var, post)) = rest.split_once('}') else {
+        return Err(format!("recipe for {}: #{pattern} has no closing }}", r.output));
+    };
     let var = format!("{{{var}}}");
     let mut values: Vec<&str> = tags
         .keys()
@@ -1659,7 +1864,9 @@ fn expand_variables(r: RawRecipe, tags: &FxHashMap<&str, u32>) -> Result<Vec<Raw
     let mut out = Vec::new();
     for v in values {
         let sub = |s: &String| s.replace(&var, v);
-        let usable = names.iter().all(|n| n.strip_prefix('#').is_none_or(|t| tags.contains_key(t.replace(&var, v).as_str()) || t.contains('*')));
+        let usable = names.iter().all(|n| {
+            n.strip_prefix('#').is_none_or(|t| tags.contains_key(t.replace(&var, v).as_str()) || t.contains('*'))
+        });
         if usable {
             out.push(RawRecipe {
                 kind: r.kind.clone(),
@@ -1685,9 +1892,20 @@ mod tests {
 
     #[test]
     fn variable_recipes_expand_per_material() {
-        let tags: FxHashMap<&str, u32> = [("ores/iron", 1), ("ingots/iron", 2), ("ores/tin", 3), ("ingots/tin", 4), ("ores/ruby", 5)].into_iter().collect();
-        let r = RawRecipe { kind: "smelting".into(), inputs: vec!["#ores/{m}".into()], output: "#ingots/{m}".into(), count: 1, time: 200, ..Default::default() };
-        let out: Vec<(String, String)> = expand_variables(r, &tags).unwrap().into_iter().map(|r| (r.inputs[0].clone(), r.output)).collect();
+        let tags: FxHashMap<&str, u32> =
+            [("ores/iron", 1), ("ingots/iron", 2), ("ores/tin", 3), ("ingots/tin", 4), ("ores/ruby", 5)]
+                .into_iter()
+                .collect();
+        let r = RawRecipe {
+            kind: "smelting".into(),
+            inputs: vec!["#ores/{m}".into()],
+            output: "#ingots/{m}".into(),
+            count: 1,
+            time: 200,
+            ..Default::default()
+        };
+        let out: Vec<(String, String)> =
+            expand_variables(r, &tags).unwrap().into_iter().map(|r| (r.inputs[0].clone(), r.output)).collect();
         // Ruby has no ingot, so it is left out.
         assert_eq!(out, vec![("#ores/iron".into(), "#ingots/iron".into()), ("#ores/tin".into(), "#ingots/tin".into())]);
     }

@@ -14,30 +14,50 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::content::{Content, content};
 use crate::server::area::{self, AreaFill};
-use crate::world::{Cube, View};
 use crate::world::light::{self, CubeMap, Lighter, SkyBelow};
+use crate::world::{Cube, View};
 
 pub enum In {
-    Reset { dim: u32, seed: u64 },
-    View { center: IVec3, radius: i32 },
+    Reset {
+        dim: u32,
+        seed: u64,
+    },
+    View {
+        center: IVec3,
+        radius: i32,
+    },
     /// A cube the server sent: it wins over generation from now on. `edit`: sent again because
     /// it changed (shown whole with the rest of its round).
-    Cube { pos: IVec3, cube: Arc<Cube>, edit: bool },
+    Cube {
+        pos: IVec3,
+        cube: Arc<Cube>,
+        edit: bool,
+    },
     Blocks(Vec<(IVec3, u32)>),
     Unload(IVec3),
     Saved(Vec<IVec3>),
-    Edits { specs: Vec<String>, all: bool },
+    Edits {
+        specs: Vec<String>,
+        all: bool,
+    },
     /// What came from the server in one frame, handled in one round (one batch out).
     Many(Vec<In>),
 }
 
 pub enum Out {
     /// `hidden`: the cubes around it never coming (`cube::around_mask` bits).
-    Cube { pos: IVec3, cube: Arc<Cube>, hidden: u32 },
+    Cube {
+        pos: IVec3,
+        cube: Arc<Cube>,
+        hidden: u32,
+    },
     Blocks(Vec<(IVec3, u32)>),
     Unload(IVec3),
     /// The view now spans cubes `lo..=hi` up and down.
-    Range { lo: i32, hi: i32 },
+    Range {
+        lo: i32,
+        hi: i32,
+    },
 }
 
 /// What one round handed over: the resets it comes after, whether it has to be shown whole
@@ -98,7 +118,14 @@ const BACKLOG: usize = 8;
 /// other bulk work: the frame's culling comes first.
 pub fn pool() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
-    POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(crate::workers()).thread_name(|i| format!("terrain light {i}")).start_handler(|_| crate::lower_priority()).build().expect("terrain light pool"))
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(crate::workers())
+            .thread_name(|i| format!("terrain light {i}"))
+            .start_handler(|_| crate::lower_priority())
+            .build()
+            .expect("terrain light pool")
+    })
 }
 
 /// The terrain as the visibility fill sees it.
@@ -143,7 +170,12 @@ struct Run<'a> {
 impl Run<'_> {
     fn slot(&self, c: IVec3) -> Option<usize> {
         let i = self.top.y - c.y;
-        (c.x == self.top.x && c.z == self.top.z && i >= 0 && (i as usize) < self.own.len() && self.own[i as usize].is_some()).then_some(i as usize)
+        (c.x == self.top.x
+            && c.z == self.top.z
+            && i >= 0
+            && (i as usize) < self.own.len()
+            && self.own[i as usize].is_some())
+        .then_some(i as usize)
     }
 }
 
@@ -167,7 +199,13 @@ impl CubeMap for Run<'_> {
 /// open sky were above it (`lit`, unless an edit came since): right when the cube above lets
 /// full sky through, and without its sky light when none comes through (block light does not
 /// depend on it); otherwise lit again.
-fn light_run(c: &Content, def: &crate::content::DimensionDef, cubes: &FxHashMap<IVec3, Arc<Cube>>, hi: i32, run: Vec<(IVec3, Cube, bool)>) -> Vec<(IVec3, Cube)> {
+fn light_run(
+    c: &Content,
+    def: &crate::content::DimensionDef,
+    cubes: &FxHashMap<IVec3, Arc<Cube>>,
+    hi: i32,
+    run: Vec<(IVec3, Cube, bool)>,
+) -> Vec<(IVec3, Cube)> {
     let top = run[0].0;
     let mut map = Run { cubes, own: Vec::with_capacity((top.y - run[run.len() - 1].0.y + 1) as usize), top };
     for (pos, mut cube, lit) in run {
@@ -317,7 +355,15 @@ impl Terrain {
             if out_tx.len() < BACKLOG {
                 self.request();
             }
-            if !self.out.is_empty() && out_tx.send(Batch { resets: self.epoch, whole: std::mem::take(&mut self.whole), out: std::mem::take(&mut self.out) }).is_err() {
+            if !self.out.is_empty()
+                && out_tx
+                    .send(Batch {
+                        resets: self.epoch,
+                        whole: std::mem::take(&mut self.whole),
+                        out: std::mem::take(&mut self.out),
+                    })
+                    .is_err()
+            {
                 return;
             }
             crate::diag::TERRAIN_BUSY_NS.add(busy.elapsed().as_nanos() as u64);
@@ -338,7 +384,13 @@ impl Terrain {
             In::Reset { dim, seed } => {
                 // The client world was cleared with it.
                 let gpu = self.gpu.take();
-                *self = Terrain { epoch: self.epoch + 1, offsets: std::mem::take(&mut self.offsets), gpu, gpu_on: self.gpu_on, ..Terrain::new(self.pending.clone(), self.gen_tx.clone()) };
+                *self = Terrain {
+                    epoch: self.epoch + 1,
+                    offsets: std::mem::take(&mut self.offsets),
+                    gpu,
+                    gpu_on: self.gpu_on,
+                    ..Terrain::new(self.pending.clone(), self.gen_tx.clone())
+                };
                 (self.dim, self.seed, self.active) = (dim, seed, true);
                 self.gpu_custom = super::terrain_gpu::describe(c, dim, seed).map(|(_, custom)| Arc::new(custom));
                 self.view.radius = 0;
@@ -413,10 +465,17 @@ impl Terrain {
         let c = content();
         let def = &c.dims[self.dim as usize];
         if radius != self.view.radius || self.offsets.is_empty() {
-            self.offsets = (-radius..=radius).flat_map(|z| (-radius..=radius).map(move |x| IVec2::new(x, z))).filter(|o| o.length_squared() <= radius * radius).collect();
+            self.offsets = (-radius..=radius)
+                .flat_map(|z| (-radius..=radius).map(move |x| IVec2::new(x, z)))
+                .filter(|o| o.length_squared() <= radius * radius)
+                .collect();
             self.offsets.sort_by_key(|o| o.length_squared());
         }
-        let air = (1..=View::air_probe(radius)).take_while(|&d| self.cubes.get(&(center - IVec3::Y * d)).is_some_and(|c| c.uniform_state() == Some(crate::content::AIR))).count() as i32;
+        let air = (1..=View::air_probe(radius))
+            .take_while(|&d| {
+                self.cubes.get(&(center - IVec3::Y * d)).is_some_and(|c| c.uniform_state() == Some(crate::content::AIR))
+            })
+            .count() as i32;
         let view = View::around(center, radius, air);
         let (lo, hi) = view.loaded_y(def);
         if (lo, hi) != (self.lo, self.hi) {
@@ -427,7 +486,8 @@ impl Terrain {
         self.cursor = 0;
         // What left the view goes (a cube more around it, against flicker at the edge).
         let keep = view.grown(2);
-        let gone: Vec<IVec3> = self.cubes.keys().copied().filter(|&p| !keep.column(p) || p.y < lo - 2 || p.y > hi + 2).collect();
+        let gone: Vec<IVec3> =
+            self.cubes.keys().copied().filter(|&p| !keep.column(p) || p.y < lo - 2 || p.y > hi + 2).collect();
         for p in gone {
             self.cubes.remove(&p);
             self.server.remove(&p);
@@ -486,7 +546,10 @@ impl Terrain {
 
     /// Neither here, nor coming from the server or the workers.
     fn missing(&self, pos: IVec3) -> bool {
-        !(self.cubes.contains_key(&pos) || self.saved.contains(&pos) || self.generating.contains(&pos) || self.waiting.contains_key(&pos))
+        !(self.cubes.contains_key(&pos)
+            || self.saved.contains(&pos)
+            || self.generating.contains(&pos)
+            || self.waiting.contains_key(&pos))
     }
 
     /// The visibility fill (`server::visibility`, the one the server used) goes on from what
@@ -545,20 +608,31 @@ impl Terrain {
         let (tx, epoch, dim, seed, edits) = (self.gen_tx.clone(), self.epoch, self.dim, self.seed, self.edits.clone());
         let def = &c.dims[dim as usize];
         let gpu = self.gpu.as_ref().filter(|g| g.1.load(Ordering::Relaxed)).map(|g| g.0.clone());
-        let (on_gpu, on_cpu): (Vec<IVec3>, Vec<IVec3>) = list.into_iter().partition(|p| gpu.is_some() && self.gpu_custom.is_some() && p.y >= def.min_cube_y && p.y <= def.max_cube_y);
+        let (on_gpu, on_cpu): (Vec<IVec3>, Vec<IVec3>) = list.into_iter().partition(|p| {
+            gpu.is_some() && self.gpu_custom.is_some() && p.y >= def.min_cube_y && p.y <= def.max_cube_y
+        });
         self.generating.extend(on_gpu.iter().chain(&on_cpu));
         if let (Some(gpu), Some(custom), Some(&first)) = (gpu, self.gpu_custom.clone(), on_gpu.first()) {
             let (tx, edits) = (tx.clone(), edits.clone());
             let send = move |heights: Arc<Vec<i32>>| {
                 for pos in on_gpu {
-                    let _ = gpu.send(super::terrain_gpu::Job { epoch, dim, seed, pos, custom: heights.clone(), edits: edits.clone(), done: tx.clone() });
+                    let _ = gpu.send(super::terrain_gpu::Job {
+                        epoch,
+                        dim,
+                        seed,
+                        pos,
+                        custom: heights.clone(),
+                        edits: edits.clone(),
+                        done: tx.clone(),
+                    });
                 }
             };
             if custom.is_empty() {
                 send(Arc::new(Vec::new()));
             } else {
                 // Mods' features run their code: on a worker, not here.
-                crate::background().spawn(move || send(super::terrain_gpu::custom_heights(c, dim, seed, first.x, first.z, &custom)));
+                crate::background()
+                    .spawn(move || send(super::terrain_gpu::custom_heights(c, dim, seed, first.x, first.z, &custom)));
             }
         }
         for pos in on_cpu {
@@ -618,7 +692,8 @@ impl Terrain {
         let c: &'static Content = content();
         let def = &c.dims[self.dim as usize];
         let (cubes, hi) = (&self.cubes, self.hi);
-        let lit: Vec<Vec<(IVec3, Cube)>> = pool().install(|| runs.into_par_iter().map(|run| light_run(c, def, cubes, hi, run)).collect());
+        let lit: Vec<Vec<(IVec3, Cube)>> =
+            pool().install(|| runs.into_par_iter().map(|run| light_run(c, def, cubes, hi, run)).collect());
         let mut new = Vec::new();
         for (p, cube) in lit.into_iter().flatten() {
             self.cubes.insert(p, Arc::new(cube));
@@ -654,7 +729,8 @@ impl Terrain {
         let mut look: FxHashSet<IVec3> = new.into_iter().chain(around).chain(changed).collect();
         look.retain(|p| self.cubes.contains_key(p));
         let this = &*self;
-        let ready: Vec<(IVec3, Option<u32>)> = pool().install(|| look.par_iter().map(|&p| (p, this.readiness(p))).collect());
+        let ready: Vec<(IVec3, Option<u32>)> =
+            pool().install(|| look.par_iter().map(|&p| (p, this.readiness(p))).collect());
         for (p, r) in ready {
             match r {
                 Some(hidden) => self.hand_over(p, hidden),

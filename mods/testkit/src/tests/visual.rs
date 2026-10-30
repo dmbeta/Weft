@@ -22,7 +22,12 @@ fn avg_around(t: &T, shot: &Shot, p: [f64; 3], r: f32) -> [f32; 3] {
 
 /// Share of pixels that changed in a box between two grabs of the same size.
 fn changed(a: &[u8], b: &[u8], w: u32, h: u32, x0: f32, y0: f32, x1: f32, y1: f32) -> f32 {
-    let (ax, ay, bx, by) = ((x0 * w as f32) as u32, (y0 * h as f32) as u32, ((x1 * w as f32) as u32).min(w), ((y1 * h as f32) as u32).min(h));
+    let (ax, ay, bx, by) = (
+        (x0 * w as f32) as u32,
+        (y0 * h as f32) as u32,
+        ((x1 * w as f32) as u32).min(w),
+        ((y1 * h as f32) as u32).min(h),
+    );
     let (mut n, mut all) = (0.0f32, 0.0f32);
     for y in ay..by {
         for x in ax..bx {
@@ -50,7 +55,11 @@ pub async fn hide_hud(t: T) -> R {
     t.press("core:hide_hud");
     t.frames(4).await?;
     let again = t.shot("again").await?;
-    let parts = [("hotbar", [0.35, 0.92, 0.65, 1.0], 0.1), ("crosshair", [0.49, 0.48, 0.51, 0.52], 0.05), ("hand", [0.7, 0.6, 1.0, 1.0], 0.01)];
+    let parts = [
+        ("hotbar", [0.35, 0.92, 0.65, 1.0], 0.1),
+        ("crosshair", [0.49, 0.48, 0.51, 0.52], 0.05),
+        ("hand", [0.7, 0.6, 1.0, 1.0], 0.01),
+    ];
     for (name, [x0, y0, x1, y1], min) in parts {
         let gone = changed(&shown.px, &hidden.px, shown.w, shown.h, x0, y0, x1, y1);
         t.probe(&format!("{name} gone with F1"), gone, gone > min);
@@ -67,7 +76,13 @@ pub async fn held_items(t: T) -> R {
         t.op(&format!("put me {i} {name} 1")).await?;
     }
     t.c().look(0.0, -10.0);
-    let looks: [(&str, fn([u8; 3]) -> bool, f32); 5] = [("pickaxe", probe::brown, 0.03), ("sword", probe::cyan, 0.03), ("block", probe::light, 0.03), ("flower", probe::red, 0.02), ("torch", probe::dark, 0.03)];
+    let looks: [(&str, fn([u8; 3]) -> bool, f32); 5] = [
+        ("pickaxe", probe::brown, 0.03),
+        ("sword", probe::cyan, 0.03),
+        ("block", probe::light, 0.03),
+        ("flower", probe::red, 0.02),
+        ("torch", probe::dark, 0.03),
+    ];
     for (i, (name, color, min)) in looks.into_iter().enumerate() {
         t.c().select(i as u32);
         t.until("selected", Duration::from_secs(5), |t| t.state().selected == i as u32).await?;
@@ -155,7 +170,8 @@ pub async fn third_person(t: T) -> R {
     t.secs(0.5).await?;
     for name in ["behind", "front"] {
         let shot = t.shot(name).await?;
-        let (shirt, skin) = (shot.share(0.42, 0.35, 0.58, 0.8, probe::cyan), shot.share(0.42, 0.35, 0.58, 0.8, probe::skin));
+        let (shirt, skin) =
+            (shot.share(0.42, 0.35, 0.58, 0.8, probe::cyan), shot.share(0.42, 0.35, 0.58, 0.8, probe::skin));
         t.probe(&format!("{name}: shirt"), shirt, shirt > 0.05);
         t.probe(&format!("{name}: skin"), skin, skin > 0.05);
         t.press("core:perspective");
@@ -180,7 +196,8 @@ pub async fn player_skin(t: T) -> R {
         t.c().look(30.0, -15.0);
         t.secs(0.8).await?;
         let shot = t.shot("red").await?;
-        let (red, shirt) = (shot.share(0.42, 0.35, 0.58, 0.8, probe::red), shot.share(0.42, 0.35, 0.58, 0.8, probe::cyan));
+        let (red, shirt) =
+            (shot.share(0.42, 0.35, 0.58, 0.8, probe::red), shot.share(0.42, 0.35, 0.58, 0.8, probe::cyan));
         t.probe("the model in the player's red skin", red, red > 0.05);
         t.probe("and not in the default shirt", shirt, shirt < 0.01);
         t.press("core:perspective");
@@ -243,7 +260,8 @@ pub async fn liquid_layers(t: T) -> R {
     t.frames(20).await?;
     let over = t.shot("outline_water").await?;
     let violet = over.share(0.2, 0.2, 0.8, 0.9, probe::under_water);
-    let pink = over.share(0.2, 0.2, 0.8, 0.9, |c| c[0] > 200 && c[1] > 120 && c[2] > 120 && c[0] as i32 > c[2] as i32 + 30);
+    let pink =
+        over.share(0.2, 0.2, 0.8, 0.9, |c| c[0] > 200 && c[1] > 120 && c[2] > 120 && c[0] as i32 > c[2] as i32 + 30);
     t.probe("the pig under water is tinted violet", violet, violet > 0.005);
     t.probe("and not drawn pink", pink, pink < 0.002);
     t.cmd(&format!("/tp {} {} {}", f[0] as f64 + 2.5, f[1], f[2] as f64 - 4.5)).await?;
@@ -330,7 +348,10 @@ pub async fn use_swing(t: T) -> R {
     t.press("core:use");
     t.frames(4).await?;
     let after = t.grab().await?;
-    t.check(T::differ(&still, &after) < 0.001, format!("the arm moved on a use that did nothing ({:.4})", T::differ(&still, &after)));
+    t.check(
+        T::differ(&still, &after) < 0.001,
+        format!("the arm moved on a use that did nothing ({:.4})", T::differ(&still, &after)),
+    );
     t.op("put me 0 dirt 4").await?;
     t.c().select(0);
     // Past the use cooldown of the first click.
@@ -394,7 +415,10 @@ pub async fn pick_block(t: T) -> R {
     t.look_at(b);
     t.frames(3).await?;
     t.c().click(2, 0.0);
-    t.until("bricks picked", Duration::from_secs(5), |t| t.c().inventory_slot(t.state().selected).item == item("base:bricks")).await
+    t.until("bricks picked", Duration::from_secs(5), |t| {
+        t.c().inventory_slot(t.state().selected).item == item("base:bricks")
+    })
+    .await
 }
 
 /// The cube and light gizmos draw their lines and numbers.
@@ -434,12 +458,23 @@ pub async fn multiplayer(t: T) -> R {
         .spawn()
         .map_err(|e| format!("cannot start the second client: {e}"))?;
     let heard = t
-        .until("the second player's chat", Duration::from_secs(90), |t| (0..5).any(|i| t.c().chat_line(i).contains("hello from the second player")))
+        .until("the second player's chat", Duration::from_secs(90), |t| {
+            (0..5).any(|i| t.c().chat_line(i).contains("hello from the second player"))
+        })
         .await;
-    let seen = t.c().entities().iter().filter_map(|&id| t.c().entity(id)).any(|e| name_of(abi::entry_kind::ENTITY, e.kind) == "core:player");
+    let seen = t
+        .c()
+        .entities()
+        .iter()
+        .filter_map(|&id| t.c().entity(id))
+        .any(|e| name_of(abi::entry_kind::ENTITY, e.kind) == "core:player");
     // A synced setting the host changes while the other player is in reaches them.
     SPARKS.set(7);
-    let synced = t.until("the second player's config", Duration::from_secs(30), |t| (0..5).any(|i| t.c().chat_line(i).contains("config testmod:wisp_sparks = 7"))).await;
+    let synced = t
+        .until("the second player's config", Duration::from_secs(30), |t| {
+            (0..5).any(|i| t.c().chat_line(i).contains("config testmod:wisp_sparks = 7"))
+        })
+        .await;
     SPARKS.set(sparks);
     if heard.is_err() || synced.is_err() {
         let _ = child.kill();

@@ -66,7 +66,8 @@ impl RawValue {
         unsafe {
             let schema = v.schema.as_str().to_string();
             let bytes = v.value.as_slice().to_vec();
-            let text = (written_as_text(&schema) && bytes.len() == size_of::<Str>()).then(|| std::ptr::read_unaligned(bytes.as_ptr() as *const Str).as_str().to_string());
+            let text = (written_as_text(&schema) && bytes.len() == size_of::<Str>())
+                .then(|| std::ptr::read_unaligned(bytes.as_ptr() as *const Str).as_str().to_string());
             RawValue { name: v.name.as_str().to_string(), schema, bytes, text }
         }
     }
@@ -131,7 +132,12 @@ struct Table {
 impl Table {
     fn new(entries: usize, components: usize) -> Table {
         let words = components.div_ceil(64).max(1);
-        Table { entries: entries as u32, words: words as u32, bits: vec![0; entries * words], cols: (0..components).map(|_| (0, Vec::new())).collect() }
+        Table {
+            entries: entries as u32,
+            words: words as u32,
+            bits: vec![0; entries * words],
+            cols: (0..components).map(|_| (0, Vec::new())).collect(),
+        }
     }
 
     #[inline]
@@ -141,7 +147,8 @@ impl Table {
 
     fn value(&self, entry: u32, comp: u32) -> Option<&[u8]> {
         let (stride, data) = &self.cols[comp as usize];
-        (self.has(entry, comp) && *stride > 0).then(|| &data[(entry * stride) as usize..((entry + 1) * stride) as usize])
+        (self.has(entry, comp) && *stride > 0)
+            .then(|| &data[(entry * stride) as usize..((entry + 1) * stride) as usize])
     }
 }
 
@@ -183,18 +190,26 @@ impl Components {
 
     /// Typed read; the caller knows the schema (engine built-ins).
     pub fn get<T: Copy>(&self, kind: usize, entry: u32, comp: u32) -> Option<T> {
-        self.bytes(kind, entry, comp).filter(|b| b.len() >= size_of::<T>()).map(|b| unsafe { std::ptr::read_unaligned(b.as_ptr() as *const T) })
+        self.bytes(kind, entry, comp)
+            .filter(|b| b.len() >= size_of::<T>())
+            .map(|b| unsafe { std::ptr::read_unaligned(b.as_ptr() as *const T) })
     }
 
     pub fn text(&self, kind: usize, entry: u32, comp: u32) -> Option<&str> {
-        (self.schemas.get(comp as usize).map(String::as_str) == Some("str")).then(|| self.get::<Str>(kind, entry, comp)).flatten().map(|s| unsafe { s.as_str() })
+        (self.schemas.get(comp as usize).map(String::as_str) == Some("str"))
+            .then(|| self.get::<Str>(kind, entry, comp))
+            .flatten()
+            .map(|s| unsafe { s.as_str() })
     }
 
     /// Component ids an entry has, in id order.
     pub fn of(&self, kind: usize, entry: u32) -> impl Iterator<Item = u32> + '_ {
         let t = &self.tables[kind];
-        let row: &[u64] = if entry < t.entries { &t.bits[(entry * t.words) as usize..((entry + 1) * t.words) as usize] } else { &[] };
-        row.iter().enumerate().flat_map(|(w, &bits)| (0..64).filter(move |b| bits >> b & 1 != 0).map(move |b| w as u32 * 64 + b))
+        let row: &[u64] =
+            if entry < t.entries { &t.bits[(entry * t.words) as usize..((entry + 1) * t.words) as usize] } else { &[] };
+        row.iter()
+            .enumerate()
+            .flat_map(|(w, &bits)| (0..64).filter(move |b| bits >> b & 1 != 0).map(move |b| w as u32 * 64 + b))
     }
 
     pub fn is_tag(&self, comp: u32) -> bool {
@@ -224,7 +239,16 @@ pub struct Builder {
 
 impl Default for Builder {
     fn default() -> Self {
-        let mut b = Builder { decl: FxHashMap::default(), names: Vec::new(), ids: FxHashMap::default(), tables: Vec::new(), texts: Vec::new(), setters: FxHashMap::default(), errors: Vec::new(), refs: None };
+        let mut b = Builder {
+            decl: FxHashMap::default(),
+            names: Vec::new(),
+            ids: FxHashMap::default(),
+            tables: Vec::new(),
+            texts: Vec::new(),
+            setters: FxHashMap::default(),
+            errors: Vec::new(),
+            refs: None,
+        };
         for (name, schema) in BUILTIN {
             b.decl.insert(name.to_string(), (schema.to_string(), "the engine".into()));
         }
@@ -235,21 +259,36 @@ impl Default for Builder {
 impl Builder {
     /// Records a use of `name` with `schema`; uses must agree. `who` names the mod and entry for
     /// the error.
-    pub fn declare(&mut self, name: &str, schema: &str, bytes: Option<usize>, who: &dyn Fn() -> String, errors: &mut Vec<String>) {
+    pub fn declare(
+        &mut self,
+        name: &str,
+        schema: &str,
+        bytes: Option<usize>,
+        who: &dyn Fn() -> String,
+        errors: &mut Vec<String>,
+    ) {
         if name.is_empty() {
             errors.push(format!("{}: component without a name", who()));
             return;
         }
         if let (Some(n), Some(want)) = (bytes, primitive_size(schema)) {
             if n != want {
-                errors.push(format!("{}: component {name} is {schema} ({want} bytes) but the value has {n} bytes", who()));
+                errors.push(format!(
+                    "{}: component {name} is {schema} ({want} bytes) but the value has {n} bytes",
+                    who()
+                ));
                 return;
             }
         }
         match self.decl.get(name) {
             Some((s, first)) if s != schema => {
                 let shown = |s: &str| if s.is_empty() { "a tag".to_string() } else { format!("'{s}'") };
-                errors.push(format!("{}: component {name} used as {} but {first} uses it as {}", who(), shown(schema), shown(s)));
+                errors.push(format!(
+                    "{}: component {name} used as {} but {first} uses it as {}",
+                    who(),
+                    shown(schema),
+                    shown(s)
+                ));
             }
             Some(_) => {}
             None => {
@@ -293,7 +332,11 @@ impl Builder {
         for &c in comps {
             mask[(c / 64) as usize] |= 1 << (c % 64);
         }
-        (0..t.entries).filter(|&e| t.bits[(e * t.words) as usize..((e + 1) * t.words) as usize].iter().zip(&mask).any(|(b, m)| b & m != 0)).collect()
+        (0..t.entries)
+            .filter(|&e| {
+                t.bits[(e * t.words) as usize..((e + 1) * t.words) as usize].iter().zip(&mask).any(|(b, m)| b & m != 0)
+            })
+            .collect()
     }
 
     fn encode<'v>(&mut self, v: &'v RawValue) -> Result<std::borrow::Cow<'v, [u8]>, String> {
@@ -310,7 +353,9 @@ impl Builder {
                 let boxed: Box<str> = t.as_str().into();
                 let s = Str { ptr: boxed.as_ptr(), len: boxed.len() };
                 self.texts.push(boxed);
-                Ok(unsafe { std::slice::from_raw_parts(&s as *const Str as *const u8, size_of::<Str>()).to_vec().into() })
+                Ok(unsafe {
+                    std::slice::from_raw_parts(&s as *const Str as *const u8, size_of::<Str>()).to_vec().into()
+                })
             }
             None => Ok(v.bytes.as_slice().into()),
         }
@@ -318,7 +363,14 @@ impl Builder {
 
     /// Sets a value (or tag) on an entry. `setter` is the mod of an `r.set` (None for an entry's own
     /// registration); replacing another mod's different value is logged.
-    pub fn put(&mut self, kind: usize, entry: u32, v: &RawValue, setter: Option<(ModId, &str)>, label: &dyn Fn() -> String) {
+    pub fn put(
+        &mut self,
+        kind: usize,
+        entry: u32,
+        v: &RawValue,
+        setter: Option<(ModId, &str)>,
+        label: &dyn Fn() -> String,
+    ) {
         let Some(comp) = self.id(&v.name) else { return };
         let bytes = match self.encode(v) {
             Ok(b) => b,
@@ -349,7 +401,13 @@ impl Builder {
             }
             if bytes.len() != *stride as usize {
                 // Marking it present with no value would read as zero.
-                self.errors.push(format!("{}: {} has a value of {} bytes, others have {}", label(), v.name, bytes.len(), stride));
+                self.errors.push(format!(
+                    "{}: {} has a value of {} bytes, others have {}",
+                    label(),
+                    v.name,
+                    bytes.len(),
+                    stride
+                ));
                 return;
             }
             let at = (entry * *stride) as usize;
@@ -374,10 +432,12 @@ impl Builder {
             return;
         }
         let row = (from.1 * src.words) as usize;
-        let set: Vec<u32> = (0..src.words as usize).flat_map(|w| {
-            let bits = src.bits[row + w];
-            (0..64u32).filter(move |b| bits >> b & 1 != 0).map(move |b| w as u32 * 64 + b)
-        }).collect();
+        let set: Vec<u32> = (0..src.words as usize)
+            .flat_map(|w| {
+                let bits = src.bits[row + w];
+                (0..64u32).filter(move |b| bits >> b & 1 != 0).map(move |b| w as u32 * 64 + b)
+            })
+            .collect();
         for comp in set {
             if self.tables[to.0].has(to.1, comp) {
                 continue;
@@ -402,7 +462,10 @@ impl Builder {
     pub fn finish(self) -> Components {
         let Builder { decl, names, ids, tables, texts, .. } = self;
         let schemas: Vec<String> = names.iter().map(|n| decl[n].0.clone()).collect();
-        let columns: Vec<Vec<abi::Column>> = tables.iter().map(|t| t.cols.iter().map(|(stride, data)| abi::Column { data: data.as_ptr(), stride: *stride }).collect()).collect();
+        let columns: Vec<Vec<abi::Column>> = tables
+            .iter()
+            .map(|t| t.cols.iter().map(|(stride, data)| abi::Column { data: data.as_ptr(), stride: *stride }).collect())
+            .collect();
         let kinds: [abi::KindTable; KINDS] = std::array::from_fn(|k| {
             let t = &tables[k];
             abi::KindTable { entries: t.entries, words: t.words, bits: t.bits.as_ptr(), columns: columns[k].as_ptr() }
@@ -449,8 +512,11 @@ mod tests {
         let mut errors = Vec::new();
         b.declare("leaves", "block", None, &|| "a".into(), &mut errors);
         b.start([1, 0, 0, 0, 0]);
-        b.refs = Some(Box::new(|_, t| if t == "a:oak_leaves" { Ok(7u32.to_le_bytes().to_vec()) } else { Err(format!("unknown block {t}")) }));
-        let v = |t: &str| RawValue { name: "leaves".into(), schema: "block".into(), bytes: vec![], text: Some(t.into()) };
+        b.refs = Some(Box::new(|_, t| {
+            if t == "a:oak_leaves" { Ok(7u32.to_le_bytes().to_vec()) } else { Err(format!("unknown block {t}")) }
+        }));
+        let v =
+            |t: &str| RawValue { name: "leaves".into(), schema: "block".into(), bytes: vec![], text: Some(t.into()) };
         b.put(BLOCK, 0, &v("a:oak_leaves"), None, &|| "log".into());
         b.put(BLOCK, 0, &v("a:oak_leafs"), None, &|| "log".into());
         assert_eq!(b.errors, vec!["log: leaves: unknown block a:oak_leafs".to_string()]);
@@ -468,7 +534,13 @@ mod tests {
         b.start([3, 2, 0, 0, 0]);
         b.put(BLOCK, 1, &value("fuel", "u32", 300), None, &|| "x".into());
         b.put(BLOCK, 2, &RawValue::tag("plant_soil"), None, &|| "x".into());
-        b.put(ITEM, 0, &RawValue { name: "label".into(), schema: "str".into(), bytes: vec![], text: Some("hi".into()) }, None, &|| "x".into());
+        b.put(
+            ITEM,
+            0,
+            &RawValue { name: "label".into(), schema: "str".into(), bytes: vec![], text: Some("hi".into()) },
+            None,
+            &|| "x".into(),
+        );
         b.inherit((BLOCK, 1), (ITEM, 1));
         b.put(BLOCK, 1, &value("fuel", "u32", 100), Some((ModId(1), "testmod")), &|| "x".into());
         let c = b.finish();

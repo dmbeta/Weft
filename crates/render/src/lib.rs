@@ -130,21 +130,60 @@ pub enum Target {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Cmd {
-    BeginPass { color: Option<(Target, Option<[f32; 4]>)>, depth: Option<(TextureId, Option<f32>)> },
+    BeginPass {
+        color: Option<(Target, Option<[f32; 4]>)>,
+        depth: Option<(TextureId, Option<f32>)>,
+    },
     EndPass,
     SetPipeline(PipelineId),
-    BindBuffer { binding: u32, buffer: BufferId, offset: u64, size: u64 },
+    BindBuffer {
+        binding: u32,
+        buffer: BufferId,
+        offset: u64,
+        size: u64,
+    },
     /// Range inside [`CommandList::data`].
-    PushConstants { start: u32, len: u32 },
-    Scissor { x: i32, y: i32, w: u32, h: u32 },
-    Draw { vertices: u32, instances: u32, first_vertex: u32, first_instance: u32 },
-    DrawIndirect { buffer: BufferId, offset: u64, count: u32 },
+    PushConstants {
+        start: u32,
+        len: u32,
+    },
+    Scissor {
+        x: i32,
+        y: i32,
+        w: u32,
+        h: u32,
+    },
+    Draw {
+        vertices: u32,
+        instances: u32,
+        first_vertex: u32,
+        first_instance: u32,
+    },
+    DrawIndirect {
+        buffer: BufferId,
+        offset: u64,
+        count: u32,
+    },
     /// 32-bit indices for the following indexed draws.
     IndexBuffer(BufferId),
     /// `count` [`DrawIndexedArgs`] records.
-    DrawIndexedIndirect { buffer: BufferId, offset: u64, count: u32 },
-    DrawIndirectCount { buffer: BufferId, offset: u64, count_buffer: BufferId, count_offset: u64, max: u32 },
-    Dispatch { x: u32, y: u32, z: u32 },
+    DrawIndexedIndirect {
+        buffer: BufferId,
+        offset: u64,
+        count: u32,
+    },
+    DrawIndirectCount {
+        buffer: BufferId,
+        offset: u64,
+        count_buffer: BufferId,
+        count_offset: u64,
+        max: u32,
+    },
+    Dispatch {
+        x: u32,
+        y: u32,
+        z: u32,
+    },
     /// Makes shader writes visible to later commands. Only needed between compute and its consumers.
     Barrier,
     /// GPU timestamp, see [`Backend::gpu_times`].

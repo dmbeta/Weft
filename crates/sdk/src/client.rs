@@ -102,12 +102,21 @@ impl Client {
 
     /// Turns the local player, in degrees like the F3 screen.
     pub fn look(&self, yaw_deg: f32, pitch_deg: f32) {
-        self.control(&abi::PlayerControl { mask: abi::control_mask::LOOK, yaw: yaw_deg.to_radians(), pitch: pitch_deg.to_radians(), ..abi::PlayerControl::DEFAULT });
+        self.control(&abi::PlayerControl {
+            mask: abi::control_mask::LOOK,
+            yaw: yaw_deg.to_radians(),
+            pitch: pitch_deg.to_radians(),
+            ..abi::PlayerControl::DEFAULT
+        });
     }
 
     /// Puts the local player's feet at `pos` (the server takes it as a move).
     pub fn teleport(&self, pos: [f64; 3]) {
-        self.control(&abi::PlayerControl { mask: abi::control_mask::POS | abi::control_mask::VEL, pos, ..abi::PlayerControl::DEFAULT });
+        self.control(&abi::PlayerControl {
+            mask: abi::control_mask::POS | abi::control_mask::VEL,
+            pos,
+            ..abi::PlayerControl::DEFAULT
+        });
     }
 
     pub fn velocity(&self, vel: [f64; 3]) {
@@ -115,16 +124,28 @@ impl Client {
     }
 
     pub fn fly(&self, on: bool) {
-        self.control(&abi::PlayerControl { mask: abi::control_mask::FLYING, flying: on as u32, ..abi::PlayerControl::DEFAULT });
+        self.control(&abi::PlayerControl {
+            mask: abi::control_mask::FLYING,
+            flying: on as u32,
+            ..abi::PlayerControl::DEFAULT
+        });
     }
 
     pub fn fly_speed(&self, mul: f32) {
-        self.control(&abi::PlayerControl { mask: abi::control_mask::FLY_SPEED, fly_speed: mul, ..abi::PlayerControl::DEFAULT });
+        self.control(&abi::PlayerControl {
+            mask: abi::control_mask::FLY_SPEED,
+            fly_speed: mul,
+            ..abi::PlayerControl::DEFAULT
+        });
     }
 
     /// Hotbar slot 0..9.
     pub fn select(&self, slot: u32) {
-        self.control(&abi::PlayerControl { mask: abi::control_mask::SELECTED, selected: slot, ..abi::PlayerControl::DEFAULT });
+        self.control(&abi::PlayerControl {
+            mask: abi::control_mask::SELECTED,
+            selected: slot,
+            ..abi::PlayerControl::DEFAULT
+        });
     }
 
     fn command(&self, op: u32, text: &str, num: f64) -> u64 {
@@ -282,9 +303,29 @@ impl Client {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn draw(&self, group: Option<&crate::GizmoGroup>, kind: u32, a: [f64; 3], b: [f64; 3], color: u32, key: &str, args: &[crate::Arg]) {
+    fn draw(
+        &self,
+        group: Option<&crate::GizmoGroup>,
+        kind: u32,
+        a: [f64; 3],
+        b: [f64; 3],
+        color: u32,
+        key: &str,
+        args: &[crate::Arg],
+    ) {
         let raw = crate::ui::raw_args(args);
-        unsafe { (host().client_draw)(self.raw, s(group.map_or("", |g| g.name())), kind, &a, &b, color, s(key), crate::abi::Slice::new(&raw)) }
+        unsafe {
+            (host().client_draw)(
+                self.raw,
+                s(group.map_or("", |g| g.name())),
+                kind,
+                &a,
+                &b,
+                color,
+                s(key),
+                crate::abi::Slice::new(&raw),
+            )
+        }
     }
 
     /// The server's `draw_*` for this frame only: always, or with a `group` while the player
@@ -304,7 +345,15 @@ impl Client {
 
     /// The translation `key` with `args` at a world position, `size` times as big as menu text.
     #[allow(clippy::too_many_arguments)]
-    pub fn draw_text(&self, group: Option<&crate::GizmoGroup>, pos: [f64; 3], key: &str, args: &[crate::Arg], color: u32, size: f32) {
+    pub fn draw_text(
+        &self,
+        group: Option<&crate::GizmoGroup>,
+        pos: [f64; 3],
+        key: &str,
+        args: &[crate::Arg],
+        color: u32,
+        size: f32,
+    ) {
         self.draw(group, gk::LABEL, pos, [size as f64, 0.0, 0.0], color, key, args);
     }
 
@@ -512,14 +561,21 @@ impl Registry {
     /// Cosmetics of entities of `kind` on the client, every frame (wing flaps, sparks, purring),
     /// instead of the engine's steps, idle noises and death smoke; `e.engine_effects()` keeps
     /// those. One per kind: a later mod's replaces an earlier one's.
-    pub fn client_entity_tick(&mut self, kind: &crate::Entity, f: impl Fn(&Client, &ClientEntity) + Send + Sync + 'static) {
-        let cb = callback(move |a: &mut abi::ClientEntityArgs| f(&Client::from_raw(a.client), unsafe { &*(a as *const abi::ClientEntityArgs as *const ClientEntity) }));
+    pub fn client_entity_tick(
+        &mut self,
+        kind: &crate::Entity,
+        f: impl Fn(&Client, &ClientEntity) + Send + Sync + 'static,
+    ) {
+        let cb = callback(move |a: &mut abi::ClientEntityArgs| {
+            f(&Client::from_raw(a.client), unsafe { &*(a as *const abi::ClientEntityArgs as *const ClientEntity) })
+        });
         unsafe { (host().reg_client_entity_tick)(self.raw, s(kind.name()), cb) }
     }
 
     /// When the top screen changes; the name is empty back in the world.
     pub fn client_screen(&mut self, f: impl Fn(&Client, &str) + Send + Sync + 'static) {
-        let cb = callback(move |a: &mut abi::ClientScreenArgs| f(&Client::from_raw(a.client), unsafe { a.screen.as_str() }));
+        let cb =
+            callback(move |a: &mut abi::ClientScreenArgs| f(&Client::from_raw(a.client), unsafe { a.screen.as_str() }));
         unsafe { (host().reg_client_hook)(self.raw, abi::client_hook::SCREEN, cb) }
     }
 

@@ -1,19 +1,19 @@
-pub mod gpu_layout;
-pub mod kv;
 pub mod app;
 pub mod assets;
 pub mod audio;
+pub mod gpu_layout;
+pub mod kv;
 
 pub mod bench;
 pub mod block_model;
 pub mod client;
-pub mod commands;
-pub mod config;
-pub mod components;
-pub mod game_screens;
 pub mod clipboard;
+pub mod commands;
+pub mod components;
+pub mod config;
 pub mod content;
 pub mod diag;
+pub mod game_screens;
 pub mod host;
 pub mod hud;
 pub mod hud_editor;
@@ -46,7 +46,10 @@ pub use app::{BackendFactory, Options, run};
 pub fn init_workers() {
     // The frame's own parallel work (culling, taking terrain) runs here and the main thread
     // waits for it: above the bulk pools, which keep every core busy while loading.
-    let _ = rayon::ThreadPoolBuilder::new().num_threads(workers()).start_handler(|_| set_priority(PRIORITY_ABOVE_NORMAL)).build_global();
+    let _ = rayon::ThreadPoolBuilder::new()
+        .num_threads(workers())
+        .start_handler(|_| set_priority(PRIORITY_ABOVE_NORMAL))
+        .build_global();
     set_priority(PRIORITY_ABOVE_NORMAL);
 }
 
@@ -60,7 +63,12 @@ fn workers() -> usize {
 pub fn background() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
     POOL.get_or_init(|| {
-        rayon::ThreadPoolBuilder::new().num_threads(workers()).thread_name(|i| format!("background {i}")).start_handler(|_| lower_priority()).build().expect("background pool")
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(workers())
+            .thread_name(|i| format!("background {i}"))
+            .start_handler(|_| lower_priority())
+            .build()
+            .expect("background pool")
     })
 }
 
@@ -68,14 +76,27 @@ pub fn background() -> &'static rayon::ThreadPool {
 /// frame's culling waited behind it.
 pub fn meshing() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
-    POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(workers()).thread_name(|i| format!("mesh {i}")).start_handler(|_| lower_priority()).build().expect("mesh pool"))
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(workers())
+            .thread_name(|i| format!("mesh {i}"))
+            .start_handler(|_| lower_priority())
+            .build()
+            .expect("mesh pool")
+    })
 }
 
 /// Meshing of what the player is looking at changing (around them, edits): a few threads of
 /// normal priority, not behind the loading queue.
 pub fn meshing_urgent() -> &'static rayon::ThreadPool {
     static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
-    POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(4).thread_name(|i| format!("mesh urgent {i}")).build().expect("urgent mesh pool"))
+    POOL.get_or_init(|| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(4)
+            .thread_name(|i| format!("mesh urgent {i}"))
+            .build()
+            .expect("urgent mesh pool")
+    })
 }
 
 /// Bulk work runs below normal priority: with every core busy loading, the frame and the

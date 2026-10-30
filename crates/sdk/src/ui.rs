@@ -88,7 +88,9 @@ pub(crate) fn raw_args<'a>(args: &'a [Arg<'a>]) -> Vec<abi::UiArg> {
             Arg::Text(s) => abi::UiArg { kind: abi::ui_arg::TEXT, text: Str::new(s), ..abi::UiArg::DEFAULT },
             Arg::Key(s) => abi::UiArg { kind: abi::ui_arg::KEY, text: Str::new(s), ..abi::UiArg::DEFAULT },
             Arg::Int(v) => abi::UiArg { kind: abi::ui_arg::INT, num: *v as f64, ..abi::UiArg::DEFAULT },
-            Arg::Float(v, digits) => abi::UiArg { kind: abi::ui_arg::FLOAT, num: *v, digits: *digits, ..abi::UiArg::DEFAULT },
+            Arg::Float(v, digits) => {
+                abi::UiArg { kind: abi::ui_arg::FLOAT, num: *v, digits: *digits, ..abi::UiArg::DEFAULT }
+            }
             Arg::Item(v) => abi::UiArg { kind: abi::ui_arg::ITEM, num: *v as f64, ..abi::UiArg::DEFAULT },
             Arg::Name(s) => abi::UiArg { kind: abi::ui_arg::NAME, text: Str::new(s), ..abi::UiArg::DEFAULT },
         })
@@ -522,7 +524,13 @@ impl Ui {
     }
 
     /// Like `progress_bind`, filling in direction `dir` (`abi::ui_dir`).
-    pub fn progress_bind_dir(&mut self, class: &str, s: S, dir: u32, f: impl Fn(&ClientView) -> f32 + Send + Sync + 'static) {
+    pub fn progress_bind_dir(
+        &mut self,
+        class: &str,
+        s: S,
+        dir: u32,
+        f: impl Fn(&ClientView) -> f32 + Send + Sync + 'static,
+    ) {
         let mut n = node(k::PROGRESS, s);
         n.class = Str::new(class);
         n.bind = bind(f);
@@ -580,16 +588,29 @@ impl Ui {
 
     /// A one-line text field starting with `value` (at most `max` characters, 0 for any);
     /// `on_change` gets the text after every edit.
-    pub fn input(&mut self, value: &str, max: u32, s: S, on_change: impl Fn(&ClientView, &str) + Send + Sync + 'static) {
+    pub fn input(
+        &mut self,
+        value: &str,
+        max: u32,
+        s: S,
+        on_change: impl Fn(&ClientView, &str) + Send + Sync + 'static,
+    ) {
         let mut n = node(k::INPUT, s);
         n.text = Str::new(value);
         n.count = max;
-        n.on_change = callback(move |a: &mut abi::UiChangeArgs| on_change(&ClientView { raw: a.client }, unsafe { a.text.as_str() }));
+        n.on_change = callback(move |a: &mut abi::UiChangeArgs| {
+            on_change(&ClientView { raw: a.client }, unsafe { a.text.as_str() })
+        });
         self.leaf(n)
     }
 
     /// A slider at `value` (0..1, read every frame); `on_change` gets where the player drags it.
-    pub fn slider(&mut self, s: S, value: impl Fn(&ClientView) -> f32 + Send + Sync + 'static, on_change: impl Fn(&ClientView, f32) + Send + Sync + 'static) {
+    pub fn slider(
+        &mut self,
+        s: S,
+        value: impl Fn(&ClientView) -> f32 + Send + Sync + 'static,
+        on_change: impl Fn(&ClientView, f32) + Send + Sync + 'static,
+    ) {
         let mut n = node(k::SLIDER, s);
         n.bind = bind(value);
         n.on_change = callback(move |a: &mut abi::UiChangeArgs| on_change(&ClientView { raw: a.client }, a.value));

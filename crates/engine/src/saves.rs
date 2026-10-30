@@ -53,7 +53,18 @@ pub fn now_secs() -> u64 {
 impl WorldMeta {
     pub fn load(dir: &Path) -> Option<WorldMeta> {
         let src = std::fs::read_to_string(dir.join("world.txt")).ok()?;
-        let mut m = WorldMeta { dir: dir.to_path_buf(), format: 1, name: String::new(), seed: 0, last_played: 0, times: Vec::new(), edits: Vec::new(), next_entity: 1, configs: Vec::new(), mods: Vec::new() };
+        let mut m = WorldMeta {
+            dir: dir.to_path_buf(),
+            format: 1,
+            name: String::new(),
+            seed: 0,
+            last_played: 0,
+            times: Vec::new(),
+            edits: Vec::new(),
+            next_entity: 1,
+            configs: Vec::new(),
+            mods: Vec::new(),
+        };
         for (_, k, v) in crate::kv::pairs(&src) {
             match k {
                 "name" => m.name = v.to_string(),
@@ -104,23 +115,24 @@ impl WorldMeta {
 
     /// Mods the world was played with that are not loaded now, as "id version".
     pub fn missing_mods(&self, c: &Content) -> Vec<String> {
-        self.mods.iter().filter(|(id, _)| !c.mods.iter().any(|m| &m.id == id)).map(|(id, v)| format!("{id} {v}")).collect()
+        self.mods
+            .iter()
+            .filter(|(id, _)| !c.mods.iter().any(|m| &m.id == id))
+            .map(|(id, v)| format!("{id} {v}"))
+            .collect()
     }
 }
 
 pub fn list(saves: &Path) -> Vec<WorldMeta> {
-    let mut v: Vec<WorldMeta> = std::fs::read_dir(saves)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter_map(|e| WorldMeta::load(&e.path()))
-        .collect();
+    let mut v: Vec<WorldMeta> =
+        std::fs::read_dir(saves).into_iter().flatten().flatten().filter_map(|e| WorldMeta::load(&e.path())).collect();
     v.sort_by(|a, b| b.last_played.cmp(&a.last_played));
     v
 }
 
 pub fn create(saves: &Path, name: &str, seed: u64) -> WorldMeta {
-    let base: String = name.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
+    let base: String =
+        name.chars().map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
     let base = if base.is_empty() { "world".to_string() } else { base };
     let mut dir = saves.join(&base);
     let mut n = 1;
@@ -128,7 +140,18 @@ pub fn create(saves: &Path, name: &str, seed: u64) -> WorldMeta {
         n += 1;
         dir = saves.join(format!("{base}_{n}"));
     }
-    let m = WorldMeta { dir, format: SAVE_FORMAT, name: name.to_string(), seed, last_played: now_secs(), times: Vec::new(), edits: Vec::new(), next_entity: 1, configs: Vec::new(), mods: Vec::new() };
+    let m = WorldMeta {
+        dir,
+        format: SAVE_FORMAT,
+        name: name.to_string(),
+        seed,
+        last_played: now_secs(),
+        times: Vec::new(),
+        edits: Vec::new(),
+        next_entity: 1,
+        configs: Vec::new(),
+        mods: Vec::new(),
+    };
     m.save();
     m
 }
@@ -139,7 +162,9 @@ pub fn parse_seed(s: &str) -> u64 {
     if s.is_empty() {
         return weft_noise::mix(now_secs() ^ (std::process::id() as u64) << 32);
     }
-    s.parse::<i64>().map(|v| v as u64).unwrap_or_else(|_| crate::world::mix(s.bytes().fold(0u64, |h, b| h.wrapping_mul(31).wrapping_add(b as u64))))
+    s.parse::<i64>()
+        .map(|v| v as u64)
+        .unwrap_or_else(|_| crate::world::mix(s.bytes().fold(0u64, |h, b| h.wrapping_mul(31).wrapping_add(b as u64))))
 }
 
 // ---------------------------------------------------------------- id table
@@ -167,9 +192,18 @@ impl IdTable {
             })
             .collect();
         if !missing.is_empty() {
-            log::warn!("world contains {} block states from missing mods (shown as air): {}", missing.len(), missing.join(", "));
+            log::warn!(
+                "world contains {} block states from missing mods (shown as air): {}",
+                missing.len(),
+                missing.join(", ")
+            );
         }
-        let to_world = to_runtime.iter().enumerate().filter(|(i, r)| **r != AIR || names[*i] == "core:air").map(|(i, &r)| (r, i as u32)).collect();
+        let to_world = to_runtime
+            .iter()
+            .enumerate()
+            .filter(|(i, r)| **r != AIR || names[*i] == "core:air")
+            .map(|(i, &r)| (r, i as u32))
+            .collect();
         IdTable { names, to_runtime, to_world, dirty: false }
     }
 
@@ -271,13 +305,17 @@ impl Storage {
     pub fn open(mut meta: WorldMeta, c: &Content) -> Storage {
         meta.mods = c.mods.iter().map(|m| (m.id.clone(), m.version.clone())).collect();
         let ids = IdTable::load(&meta.dir, c);
-        let dim_dirs: Vec<PathBuf> = c.dims.iter().map(|d| meta.dir.join("dims").join(d.name.replace(':', "_"))).collect();
+        let dim_dirs: Vec<PathBuf> =
+            c.dims.iter().map(|d| meta.dir.join("dims").join(d.name.replace(':', "_"))).collect();
         let mut on_disk = FxHashSet::default();
         let mut saved = vec![FxHashSet::default(); dim_dirs.len()];
         for (dim, dir) in dim_dirs.iter().enumerate() {
             for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
                 let name = e.file_name().to_string_lossy().into_owned();
-                let parts: Vec<i32> = name.strip_prefix("r.").and_then(|n| n.strip_suffix(".bin")).map_or(Vec::new(), |n| n.split('.').filter_map(|v| v.parse().ok()).collect());
+                let parts: Vec<i32> = name
+                    .strip_prefix("r.")
+                    .and_then(|n| n.strip_suffix(".bin"))
+                    .map_or(Vec::new(), |n| n.split('.').filter_map(|v| v.parse().ok()).collect());
                 if let [x, y, z] = parts[..] {
                     let r = IVec3::new(x, y, z);
                     on_disk.insert((dim as u32, r));
@@ -287,7 +325,9 @@ impl Storage {
                         for i in 0..ENTRIES {
                             if raw[i * 8 + 4..i * 8 + 8] != [0; 4] {
                                 let i = i as i32;
-                                saved[dim].insert(r * REGION + IVec3::new(i % REGION, i / (REGION * REGION), i / REGION % REGION));
+                                saved[dim].insert(
+                                    r * REGION + IVec3::new(i % REGION, i / (REGION * REGION), i / REGION % REGION),
+                                );
                             }
                         }
                     }
@@ -441,7 +481,9 @@ impl Screen for MissingMods {
             label(ui, cx, "world.missing_mods.note", &[], "dim");
             ui.container(Style::row().gap(6.0), |ui| {
                 let world = self.world.clone();
-                let go = button(ui, cx, "world.missing_mods.continue", &[], 145.0, move |c| c.requests.push(Request::StartWorldAnyway(world.clone())));
+                let go = button(ui, cx, "world.missing_mods.continue", &[], 145.0, move |c| {
+                    c.requests.push(Request::StartWorldAnyway(world.clone()))
+                });
                 ui.set_id(go, "continue");
                 button(ui, cx, "menu.cancel", &[], 145.0, |c| c.requests.push(Request::Close));
             });
@@ -465,29 +507,44 @@ impl Screen for WorldSelect {
         let selected = worlds.iter().position(|w| self.selected.as_ref() == Some(&w.dir));
         frame(ui, cx, "world.select", |ui| {
             // The list takes whatever height is left and scrolls; the buttons below always show.
-            let list = ui.panel("panel", Style::default().pad(8.0).gap(4.0).stretch().w(300.0).h(0.0).grow().min_h(60.0).scroll(), |ui| {
-                if worlds.is_empty() {
-                    label(ui, cx, "world.empty", &[], "dim");
-                }
-                for (i, w) in worlds.iter().enumerate() {
-                    let when = format_age(now_secs().saturating_sub(w.last_played));
-                    let info = cx.t("world.info", &[Arg::Text(w.dir.file_name().unwrap_or_default().to_string_lossy().into()), Arg::Text(when)]);
-                    let (name, dir) = (w.name.clone(), w.dir.clone());
-                    let b = ui.button("button", Style::default().pad(4.0).stretch().gap(2.0), Rc::new(move |c: &mut Ctx| {
-                        if let Some(s) = c.screen::<WorldSelect>() {
-                            s.selected = Some(dir.clone());
-                        }
-                        c.requests.push(Request::Rebuild);
-                    }), |ui| {
-                        ui.text(text::plain(&name), "button");
-                        ui.text(info, "dim");
-                    });
-                    if let Kind::Button { selected: s, .. } = &mut ui.nodes[b].kind {
-                        *s = selected == Some(i);
+            let list = ui.panel(
+                "panel",
+                Style::default().pad(8.0).gap(4.0).stretch().w(300.0).h(0.0).grow().min_h(60.0).scroll(),
+                |ui| {
+                    if worlds.is_empty() {
+                        label(ui, cx, "world.empty", &[], "dim");
                     }
-                    ui.set_id(b, &format!("world:{i}"));
-                }
-            });
+                    for (i, w) in worlds.iter().enumerate() {
+                        let when = format_age(now_secs().saturating_sub(w.last_played));
+                        let info = cx.t(
+                            "world.info",
+                            &[
+                                Arg::Text(w.dir.file_name().unwrap_or_default().to_string_lossy().into()),
+                                Arg::Text(when),
+                            ],
+                        );
+                        let (name, dir) = (w.name.clone(), w.dir.clone());
+                        let b = ui.button(
+                            "button",
+                            Style::default().pad(4.0).stretch().gap(2.0),
+                            Rc::new(move |c: &mut Ctx| {
+                                if let Some(s) = c.screen::<WorldSelect>() {
+                                    s.selected = Some(dir.clone());
+                                }
+                                c.requests.push(Request::Rebuild);
+                            }),
+                            |ui| {
+                                ui.text(text::plain(&name), "button");
+                                ui.text(info, "dim");
+                            },
+                        );
+                        if let Kind::Button { selected: s, .. } = &mut ui.nodes[b].kind {
+                            *s = selected == Some(i);
+                        }
+                        ui.set_id(b, &format!("world:{i}"));
+                    }
+                },
+            );
             ui.set_id(list, "worlds");
             ui.container(Style::row().gap(6.0), |ui| {
                 let sel = selected.and_then(|i| worlds.get(i)).cloned();
@@ -500,7 +557,9 @@ impl Screen for WorldSelect {
                     *enabled = selected.is_some();
                 }
                 ui.set_id(play, "play");
-                button(ui, cx, "world.create", &[], 145.0, |c| c.requests.push(Request::Screen("core:create_world".into())));
+                button(ui, cx, "world.create", &[], 145.0, |c| {
+                    c.requests.push(Request::Screen("core:create_world".into()))
+                });
             });
             ui.container(Style::row().gap(6.0), |ui| {
                 let sel = selected.and_then(|i| worlds.get(i)).cloned();

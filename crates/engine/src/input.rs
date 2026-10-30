@@ -6,7 +6,17 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use winit::keyboard::KeyCode;
 
 /// The hotbar slot actions, first to ninth.
-pub const HOTBAR: [&str; 9] = ["core:hotbar1", "core:hotbar2", "core:hotbar3", "core:hotbar4", "core:hotbar5", "core:hotbar6", "core:hotbar7", "core:hotbar8", "core:hotbar9"];
+pub const HOTBAR: [&str; 9] = [
+    "core:hotbar1",
+    "core:hotbar2",
+    "core:hotbar3",
+    "core:hotbar4",
+    "core:hotbar5",
+    "core:hotbar6",
+    "core:hotbar7",
+    "core:hotbar8",
+    "core:hotbar9",
+];
 
 /// The engine's actions and their default keys.
 pub const ENGINE_KEYS: &[(&str, Key)] = {
@@ -185,7 +195,13 @@ impl Input {
             return false;
         }
         let held = self.mods();
-        held & c.mods == c.mods && !self.binds.iter().any(|b| b.key.key == c.key && b.key.mods != c.mods && b.key.mods & c.mods == c.mods && held & b.key.mods == b.key.mods)
+        held & c.mods == c.mods
+            && !self.binds.iter().any(|b| {
+                b.key.key == c.key
+                    && b.key.mods != c.mods
+                    && b.key.mods & c.mods == c.mods
+                    && held & b.key.mods == b.key.mods
+            })
     }
 
     pub fn held_key(&self, k: Key) -> bool {

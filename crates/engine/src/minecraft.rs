@@ -15,9 +15,7 @@ pub const PACK: &str = "minecraft";
 
 fn get_roots_from_home() -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = Vec::new();
-    let home = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .map(PathBuf::from);
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
 
     if let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) {
         roots.push(appdata.join(".minecraft"));
@@ -33,13 +31,7 @@ fn get_roots_from_home() -> Vec<PathBuf> {
 }
 
 fn get_roots_from_env() -> Option<Vec<PathBuf>> {
-    Some(
-        std::env::var_os("MINECRAFT_DIR_LOOKUP")?
-            .to_str()?
-            .split(':')
-            .map(PathBuf::from)
-            .collect(),
-    )
+    Some(std::env::var_os("MINECRAFT_DIR_LOOKUP")?.to_str()?.split(':').map(PathBuf::from).collect())
 }
 
 /// Client jars the launchers keep, newest first.
@@ -54,20 +46,12 @@ fn jars() -> Vec<(PathBuf, String)> {
     };
     for root in roots {
         // Official launcher: versions/<v>/<v>.jar.
-        for e in std::fs::read_dir(root.join("versions"))
-            .into_iter()
-            .flatten()
-            .flatten()
-        {
+        for e in std::fs::read_dir(root.join("versions")).into_iter().flatten().flatten() {
             let v = e.file_name().to_string_lossy().into_owned();
             add(e.path().join(format!("{v}.jar")), v);
         }
         // Prism: libraries/com/mojang/minecraft/<v>/minecraft-<v>-client.jar.
-        for e in std::fs::read_dir(root.join("libraries/com/mojang/minecraft"))
-            .into_iter()
-            .flatten()
-            .flatten()
-        {
+        for e in std::fs::read_dir(root.join("libraries/com/mojang/minecraft")).into_iter().flatten().flatten() {
             let v = e.file_name().to_string_lossy().into_owned();
             add(e.path().join(format!("minecraft-{v}-client.jar")), v);
         }
@@ -82,9 +66,7 @@ pub fn ensure_pack(run_dir: &Path, mods: &[(String, PathBuf)]) -> bool {
     let maps: Vec<(String, PathBuf, String)> = mods
         .iter()
         .filter_map(|(ns, dir)| {
-            std::fs::read_to_string(dir.join("minecraft.txt"))
-                .ok()
-                .map(|m| (ns.clone(), dir.clone(), m))
+            std::fs::read_to_string(dir.join("minecraft.txt")).ok().map(|m| (ns.clone(), dir.clone(), m))
         })
         .collect();
     if maps.is_empty() {
@@ -110,10 +92,7 @@ pub fn ensure_pack(run_dir: &Path, mods: &[(String, PathBuf)]) -> bool {
         }
         match build(&jar, &version, &maps, &out, &key) {
             Ok(n) => {
-                log::info!(
-                    "made the {PACK} resource pack from {} ({n} files)",
-                    jar.display()
-                );
+                log::info!("made the {PACK} resource pack from {} ({n} files)", jar.display());
                 return fresh;
             }
             Err(e) => log::warn!("{}: {e}", jar.display()),
@@ -129,8 +108,8 @@ fn build(
     out: &Path,
     key: &str,
 ) -> Result<usize, String> {
-    let mut zip = zip::ZipArchive::new(std::fs::File::open(jar).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    let mut zip =
+        zip::ZipArchive::new(std::fs::File::open(jar).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     const T: &str = "assets/minecraft/textures/";
     if zip.by_name(&format!("{T}block/dirt.png")).is_err() {
         return Err("no textures in it".into());
@@ -172,17 +151,12 @@ fn build(
             std::fs::create_dir_all(&dst_dir).map_err(|e| e.to_string())?;
             if mode == "glow" || crop.len() == 4 {
                 let img = crate::assets::decode_png(&png).ok_or(format!("{src}: not a png"))?;
-                let (x0, y0, w, h) = if crop.len() == 4 {
-                    (crop[0], crop[1], crop[2], crop[3])
-                } else {
-                    (0, 0, img.width, img.height)
-                };
+                let (x0, y0, w, h) =
+                    if crop.len() == 4 { (crop[0], crop[1], crop[2], crop[3]) } else { (0, 0, img.width, img.height) };
                 let mut px = Vec::with_capacity((w * h * 4) as usize);
                 for y in y0..(y0 + h).min(img.height) {
                     let row = ((y * img.width + x0) * 4) as usize;
-                    px.extend_from_slice(
-                        &img.rgba[row..row + (w.min(img.width - x0) * 4) as usize],
-                    );
+                    px.extend_from_slice(&img.rgba[row..row + (w.min(img.width - x0) * 4) as usize]);
                 }
                 if mode == "glow" {
                     // White where the texel is bright and warm (fire, embers).
@@ -196,20 +170,14 @@ fn build(
                 std::fs::write(&dst, &png).map_err(|e| e.to_string())?;
             }
             files += 1;
-            if let Some(meta) =
-                read(&format!("{T}{src}.png.mcmeta")).and_then(|m| String::from_utf8(m).ok())
-            {
+            if let Some(meta) = read(&format!("{T}{src}.png.mcmeta")).and_then(|m| String::from_utf8(m).ok()) {
                 if meta.contains("\"gui\"") {
                     let _ = std::fs::write(dst.with_extension("png.mcmeta"), &meta);
                 }
-                if let Some(a) = serde_json::from_str::<serde_json::Value>(&meta)
-                    .ok()
-                    .and_then(|v| v.get("animation").cloned())
+                if let Some(a) =
+                    serde_json::from_str::<serde_json::Value>(&meta).ok().and_then(|v| v.get("animation").cloned())
                 {
-                    let mut s = format!(
-                        "frametime = {}\n",
-                        a.get("frametime").and_then(|f| f.as_u64()).unwrap_or(1)
-                    );
+                    let mut s = format!("frametime = {}\n", a.get("frametime").and_then(|f| f.as_u64()).unwrap_or(1));
                     if a.get("interpolate").and_then(|i| i.as_bool()) == Some(true) {
                         s.push_str("interpolate = true\n");
                     }
@@ -244,7 +212,5 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 fn fnv(s: &str) -> u64 {
-    s.bytes().fold(0xcbf29ce484222325, |h, b| {
-        (h ^ b as u64).wrapping_mul(0x100000001b3)
-    })
+    s.bytes().fold(0xcbf29ce484222325, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3))
 }

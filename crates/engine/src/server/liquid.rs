@@ -31,11 +31,7 @@ fn decode(c: &Content, state: u32) -> Option<Fluid> {
 }
 
 fn encode(def: &LiquidDef, amount: u32, falling: bool) -> u32 {
-    if falling {
-        def.first_state + 8
-    } else {
-        def.first_state + 8 - amount.clamp(1, 8)
-    }
+    if falling { def.first_state + 8 } else { def.first_state + 8 - amount.clamp(1, 8) }
 }
 
 impl Dim {
@@ -96,7 +92,10 @@ impl Dim {
     fn falls_into(&self, c: &Content, l: u16, p: IVec3) -> Option<u32> {
         let state = self.get(p)?;
         let mine = c.liquids[l as usize].first_state;
-        c.reactions.iter().find(|r| r.falls_into.is_some() && c.matches(&r.liquid, mine) && c.matches(&r.touching, state)).and_then(|r| r.falls_into)
+        c.reactions
+            .iter()
+            .find(|r| r.falls_into.is_some() && c.matches(&r.liquid, mine) && c.matches(&r.touching, state))
+            .and_then(|r| r.falls_into)
     }
 
     fn spread_to(&mut self, c: &'static Content, p: IVec3, state: u32, falling_in: bool, l: u16) {
@@ -192,7 +191,8 @@ impl Dim {
         if self.can_spread_to(c, below, f.id, true) {
             let state = self.new_liquid(c, below, f.id, down).unwrap_or(encode(def, 8, true));
             self.spread_to(c, below, state, true, f.id);
-            let sources = HORIZONTAL.iter().filter(|&&d| self.fluid(c, p + d).is_some_and(|n| n.id == f.id && n.source)).count();
+            let sources =
+                HORIZONTAL.iter().filter(|&&d| self.fluid(c, p + d).is_some_and(|n| n.id == f.id && n.source)).count();
             if sources >= 3 {
                 self.spread_sides(c, p, f, down);
             }
@@ -266,7 +266,11 @@ impl Dim {
         let structures: Vec<(u64, DVec3, &dyn crate::physics::Blocks)> = self
             .structures
             .iter()
-            .filter_map(|(&sid, s)| self.entities.get(sid).map(|b| (sid, super::structure::origin(b.pos), &**s as &dyn crate::physics::Blocks)))
+            .filter_map(|(&sid, s)| {
+                self.entities
+                    .get(sid)
+                    .map(|b| (sid, super::structure::origin(b.pos), &**s as &dyn crate::physics::Blocks))
+            })
             .collect();
         crate::physics::pick(c, &|p| self.get(p), &structures, eye, dir, max, liquids)
     }

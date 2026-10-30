@@ -25,19 +25,18 @@ pub fn register(r: &mut Registry) {
         }
     });
     // 6 blocks a second along x for 3 seconds each way; riders stay with it up to 3 blocks up.
-    r.entity(&SKIFF).health(100.0).invulnerable().solid().kinematic().carry_height(3.0).blocks(&SKIFF_DECK).on_tick(|t| {
-        let w = t.world();
-        for &id in t.ids() {
-            let Some(mut st) = w.entity(id) else { continue };
-            st.vel = [if (st.age / 60) % 2 == 0 { 6.0 } else { -6.0 }, 0.0, 0.0];
-            w.set_entity(id, &st);
-        }
-    });
-    r.entity(&CRATE)
-        .size(1.0, 1.0)
-        .health(10.0)
-        .invulnerable()
-        .solid()
-        .texture("bodies")
-        .model(Model::from(vec![Part::new("crate", [0.0; 3]).cube([-8.0, 0.0, -8.0], [16.0, 16.0, 16.0], [0.0, 24.0])]).uv(64, 64));
+    r.entity(&SKIFF).health(100.0).invulnerable().solid().kinematic().carry_height(3.0).blocks(&SKIFF_DECK).on_tick(
+        |t| {
+            let w = t.world();
+            for &id in t.ids() {
+                let Some(mut st) = w.entity(id) else { continue };
+                st.vel = [if (st.age / 60) % 2 == 0 { 6.0 } else { -6.0 }, 0.0, 0.0];
+                w.set_entity(id, &st);
+            }
+        },
+    );
+    r.entity(&CRATE).size(1.0, 1.0).health(10.0).invulnerable().solid().texture("bodies").model(
+        Model::from(vec![Part::new("crate", [0.0; 3]).cube([-8.0, 0.0, -8.0], [16.0, 16.0, 16.0], [0.0, 24.0])])
+            .uv(64, 64),
+    );
 }

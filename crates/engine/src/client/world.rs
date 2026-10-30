@@ -146,7 +146,8 @@ impl ClientWorld {
             removed: Vec::new(),
             next_version: 0,
             next_rev: 0,
-            filler: content().states.iter().position(|s| s.flags & weft_abi::block_flags::OPAQUE != 0).unwrap_or(0) as u32,
+            filler: content().states.iter().position(|s| s.flags & weft_abi::block_flags::OPAQUE != 0).unwrap_or(0)
+                as u32,
             columns: FxHashMap::default(),
             tints_dirty: FxHashSet::default(),
             bounded: false,
@@ -197,7 +198,9 @@ impl ClientWorld {
     /// Above the camera a cube not here yet is taken for air: those are the new top of the view
     /// while rising, nearly always sky.
     pub fn column_shown(&self, col: IVec2) -> bool {
-        shows_ground(self.range, self.eye, |y| self.cubes.get(&IVec3::new(col.x, y, col.y)).map(|s| (s.shown, s.cube.uniform_state() == Some(AIR))))
+        shows_ground(self.range, self.eye, |y| {
+            self.cubes.get(&IVec3::new(col.x, y, col.y)).map(|s| (s.shown, s.cube.uniform_state() == Some(AIR)))
+        })
     }
 
     /// Columns whose `column_shown` may have changed since the last call.
@@ -227,7 +230,11 @@ impl ClientWorld {
         let hidden = self.cubes.get(&p).map_or(0, |s| s.hidden);
         (0..27).all(|i| {
             let n = p + crate::world::cube::around(i);
-            i == 13 || hidden & (1 << i) != 0 || n.y < def.min_cube_y || n.y > def.max_cube_y || self.cubes.contains_key(&n)
+            i == 13
+                || hidden & (1 << i) != 0
+                || n.y < def.min_cube_y
+                || n.y > def.max_cube_y
+                || self.cubes.contains_key(&n)
         })
     }
 
@@ -268,7 +275,16 @@ impl ClientWorld {
     /// Starts collecting what arrives into one batch; `whole`: shown once all of it is meshed
     /// (edits), else as it comes (loading, light reaching cubes shown already).
     pub fn begin_batch(&mut self, whole: bool) {
-        self.open = Some(Batch { members: FxHashSet::default(), resent: Vec::new(), results: Vec::new(), since: Instant::now(), update: false, fresh: Vec::new(), touched: Vec::new(), whole });
+        self.open = Some(Batch {
+            members: FxHashSet::default(),
+            resent: Vec::new(),
+            results: Vec::new(),
+            since: Instant::now(),
+            update: false,
+            fresh: Vec::new(),
+            touched: Vec::new(),
+            whole,
+        });
     }
 
     pub fn end_batch(&mut self) {
@@ -277,9 +293,16 @@ impl ClientWorld {
         // reach far more cubes than the edit does.
         let resent = std::mem::take(&mut b.resent);
         let cubes = &self.cubes;
-        let masks: Vec<(IVec3, u32)> = resent.par_iter().filter_map(|(p, old)| cubes.get(p).and_then(|now| now.cube.changed_around(old)).map(|m| (*p, m))).collect();
+        let masks: Vec<(IVec3, u32)> = resent
+            .par_iter()
+            .filter_map(|(p, old)| cubes.get(p).and_then(|now| now.cube.changed_around(old)).map(|m| (*p, m)))
+            .collect();
         b.touched.extend(masks);
-        let mut members: Vec<IVec3> = std::mem::take(&mut b.touched).into_par_iter().flat_map_iter(|(p, mask)| around(p, mask)).filter(|p| self.cubes.contains_key(p)).collect();
+        let mut members: Vec<IVec3> = std::mem::take(&mut b.touched)
+            .into_par_iter()
+            .flat_map_iter(|(p, mask)| around(p, mask))
+            .filter(|p| self.cubes.contains_key(p))
+            .collect();
         members.par_sort_unstable_by_key(|p| p.to_array());
         members.dedup();
         // Each looks at the 26 around it: on every core, a batch while loading has thousands.
@@ -291,7 +314,8 @@ impl ClientWorld {
         let todo: Vec<(IVec3, Option<bool>)> = members
             .par_iter()
             .map(|&p| {
-                let new_air = cubes[&p].cube.uniform_state() == Some(AIR) && fresh.binary_search_by_key(&p.to_array(), |f| f.to_array()).is_ok();
+                let new_air = cubes[&p].cube.uniform_state() == Some(AIR)
+                    && fresh.binary_search_by_key(&p.to_array(), |f| f.to_array()).is_ok();
                 (p, (!new_air).then(|| self.neighbors_known(p)))
             })
             .collect();
@@ -453,7 +477,8 @@ impl ClientWorld {
         let defaults: Vec<u32> = c.tint_kinds.iter().map(|t| t.1).collect();
         let get = |c: &Column, x: i32, z: i32| c.biomes.as_ref().map_or(0, |b| b[(z * 16 + x) as usize]);
         let own = &self.columns[&col];
-        let around: [Option<&Column>; 9] = std::array::from_fn(|i| self.columns.get(&(col + IVec2::new(i as i32 % 3 - 1, i as i32 / 3 - 1))));
+        let around: [Option<&Column>; 9] =
+            std::array::from_fn(|i| self.columns.get(&(col + IVec2::new(i as i32 % 3 - 1, i as i32 / 3 - 1))));
         // Blocks of missing neighbor columns repeat this column's edge.
         let biome_at = |x: i32, z: i32| -> u16 {
             match around[((z.div_euclid(16) + 1) * 3 + x.div_euclid(16) + 1) as usize] {
@@ -593,7 +618,11 @@ impl ClientWorld {
         let jobs: Vec<(IVec3, [Option<Arc<Cube>>; 27], u32, u32)> = start
             .par_iter()
             .map(|&pos| {
-                let around = std::array::from_fn(|i| cubes.get(&(pos + IVec3::new(i as i32 % 3 - 1, i as i32 / 9 - 1, i as i32 / 3 % 3 - 1))).map(|s| s.cube.clone()));
+                let around = std::array::from_fn(|i| {
+                    cubes
+                        .get(&(pos + IVec3::new(i as i32 % 3 - 1, i as i32 / 9 - 1, i as i32 / 3 % 3 - 1)))
+                        .map(|s| s.cube.clone())
+                });
                 let s = &cubes[&pos];
                 (pos, around, s.version, s.hidden)
             })
@@ -647,7 +676,8 @@ impl ClientWorld {
             now.extend(b.results.drain(..).filter(|r| cubes.get(&r.pos).map(|s| s.version) == Some(r.version)));
             false
         });
-        let (near, rest): (Vec<MeshResult>, Vec<MeshResult>) = out.into_iter().partition(|r| (r.pos - center).abs().max_element() <= URGENT);
+        let (near, rest): (Vec<MeshResult>, Vec<MeshResult>) =
+            out.into_iter().partition(|r| (r.pos - center).abs().max_element() <= URGENT);
         now.extend(near);
         (now, rest)
     }
@@ -695,12 +725,30 @@ fn neighborhood(around: &[Option<Arc<Cube>>; 27], hidden: u32, filler: u32, pos:
         }
     }
     for y in -1..17i32 {
-        let cy = if y < 0 { 0 } else if y > 15 { 2 } else { 1 };
+        let cy = if y < 0 {
+            0
+        } else if y > 15 {
+            2
+        } else {
+            1
+        };
         for z in -1..17i32 {
-            let cz = if z < 0 { 0 } else if z > 15 { 2 } else { 1 };
+            let cz = if z < 0 {
+                0
+            } else if z > 15 {
+                2
+            } else {
+                1
+            };
             let xs: &[i32] = if cy == 1 && cz == 1 { &[-1, 16] } else { &BORDER_ROW };
             for &x in xs {
-                let cx = if x < 0 { 0 } else if x > 15 { 2 } else { 1 };
+                let cx = if x < 0 {
+                    0
+                } else if x > 15 {
+                    2
+                } else {
+                    1
+                };
                 let Some(cube) = &around[cy * 9 + cz * 3 + cx] else {
                     // A face neighbor that is never coming is solid ground: no faces toward it.
                     let face = [cx, cy, cz].iter().filter(|&&v| v != 1).count() == 1;
@@ -786,14 +834,26 @@ mod tests {
         for y in -1..17i32 {
             for z in -1..17i32 {
                 for x in -1..17i32 {
-                    let c = |v: i32| if v < 0 { 0 } else if v > 15 { 2 } else { 1 };
+                    let c = |v: i32| {
+                        if v < 0 {
+                            0
+                        } else if v > 15 {
+                            2
+                        } else {
+                            1
+                        }
+                    };
                     let k = (c(y) * 9 + c(z) * 3 + c(x)) as usize;
                     let (s, l) = match &around[k] {
                         Some(cube) => {
                             let i = crate::world::cube::index((x & 15) as usize, (y & 15) as usize, (z & 15) as usize);
                             (cube.get(i), cube.light(i))
                         }
-                        None if [c(x), c(y), c(z)].iter().filter(|&&v| v != 1).count() == 1 && hidden & (1 << k) != 0 => (9, 0),
+                        None if [c(x), c(y), c(z)].iter().filter(|&&v| v != 1).count() == 1
+                            && hidden & (1 << k) != 0 =>
+                        {
+                            (9, 0)
+                        }
                         None => (AIR, 15),
                     };
                     assert_eq!((n.states[pidx(x, y, z)], n.light[pidx(x, y, z)]), (s, l), "at {x} {y} {z}");

@@ -2,7 +2,6 @@
 
 use std::time::Duration;
 
-
 use super::add;
 use crate::runner::{R, T};
 
@@ -16,7 +15,10 @@ pub async fn menu_sync(t: T) -> R {
     t.op(&format!("insert {} {} {} coal 1", p[0], p[1], p[2])).await?;
     t.op(&format!("menu base:furnace {} {} {}", p[0], p[1], p[2])).await?;
     t.screen("core:menu").await?;
-    t.until("furnace progress on the client", Duration::from_secs(5), |t| t.c().view().menu_component(&SMELTING).is_some_and(|s| s.cook > 0)).await?;
+    t.until("furnace progress on the client", Duration::from_secs(5), |t| {
+        t.c().view().menu_component(&SMELTING).is_some_and(|s| s.cook > 0)
+    })
+    .await?;
     let first = t.c().view().menu_component(&SMELTING).map_or(0, |s| s.cook);
     t.secs(1.0).await?;
     let later = t.c().view().menu_component(&SMELTING).map_or(0, |s| s.cook);
@@ -26,4 +28,3 @@ pub async fn menu_sync(t: T) -> R {
     t.c().close_screen();
     t.no_screen().await
 }
-

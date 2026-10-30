@@ -12,10 +12,10 @@ use weft_render::*;
 use crate::assets::Assets;
 use crate::components::ENTITY;
 use crate::content::content;
-use crate::model::{self, Bound, Motion};
-use crate::registry::Part;
 pub use crate::gpu_layout::Instance;
 use crate::gpu_layout::{GpuCorner, GpuCuboid};
+use crate::model::{self, Bound, Motion};
+use crate::registry::Part;
 
 /// A kind's model and animations.
 pub struct KindModel {
@@ -90,7 +90,9 @@ fn load_kind(assets: &Assets, k: u32) -> (Vec<Part>, Option<[u32; 2]>, Vec<model
     let c = content();
     let kind = &c.game.entities[k as usize];
     let named = |key: &str| c.components.id(key).and_then(|id| c.components.text(ENTITY, k, id)).map(str::to_string);
-    let file = |name: &str, kind: &str, ext: &str| assets.read(name, kind, ext).map(|b| String::from_utf8_lossy(&b).into_owned());
+    let file = |name: &str, kind: &str, ext: &str| {
+        assets.read(name, kind, ext).map(|b| String::from_utf8_lossy(&b).into_owned())
+    };
     let (mut parts, mut texture) = (kind.parts.clone(), None);
     let model_name = named(comp::MODEL).unwrap_or_else(|| kind.name.clone());
     if let Some(src) = file(&model_name, "models", "geo.json") {
@@ -139,28 +141,57 @@ impl Models {
             for (b, p) in parts.iter().enumerate() {
                 for cu in &p.cuboids {
                     let origin = [p.pivot[0] + cu.origin[0], p.pivot[1] + cu.origin[1], p.pivot[2] + cu.origin[2]];
-                    cuboids.push(GpuCuboid { origin, bone: b as u32, size: cu.size, inflate: cu.inflate, faces: cu.face_rects(), role: p.role, pad0: 0, pad1: 0, pad2: 0 });
+                    cuboids.push(GpuCuboid {
+                        origin,
+                        bone: b as u32,
+                        size: cu.size,
+                        inflate: cu.inflate,
+                        faces: cu.face_rects(),
+                        role: p.role,
+                        pad0: 0,
+                        pad1: 0,
+                        pad2: 0,
+                    });
                 }
-                corners.extend(p.mesh.iter().map(|v| GpuCorner { pos: v.pos, bone: b as u32, uv: v.uv, role: p.role, pad: 0 }));
+                corners.extend(p.mesh.iter().map(|v| GpuCorner {
+                    pos: v.pos,
+                    bone: b as u32,
+                    uv: v.uv,
+                    role: p.role,
+                    pad: 0,
+                }));
             }
             let anims: Vec<Bound> = anims.into_iter().map(|a| Bound::new(a, &parts)).collect();
             let find = |n: &str| anims.iter().position(|a| a.anim.name == n);
             let (idle, walk) = (find("idle"), find("walk"));
-            self.kinds.push(KindModel { cuboids: (c0, cuboids.len() as u32 - c0), corners: (v0, corners.len() as u32 - v0), parts, anims, idle, walk, texture });
+            self.kinds.push(KindModel {
+                cuboids: (c0, cuboids.len() as u32 - c0),
+                corners: (v0, corners.len() as u32 - v0),
+                parts,
+                anims,
+                idle,
+                walk,
+                texture,
+            });
         }
         // Buffers may not be empty.
         cuboids.push(GpuCuboid::default());
         corners.push(GpuCorner::default());
         gpu.destroy_buffer(self.cuboids);
         gpu.destroy_buffer(self.corners);
-        self.cuboids = gpu.create_buffer((cuboids.len() * size_of::<GpuCuboid>()) as u64, usage::STORAGE, "model cuboids");
+        self.cuboids =
+            gpu.create_buffer((cuboids.len() * size_of::<GpuCuboid>()) as u64, usage::STORAGE, "model cuboids");
         gpu.write_buffer(self.cuboids, 0, bytemuck::cast_slice(&cuboids));
-        self.corners = gpu.create_buffer((corners.len() * size_of::<GpuCorner>()) as u64, usage::STORAGE, "model corners");
+        self.corners =
+            gpu.create_buffer((corners.len() * size_of::<GpuCorner>()) as u64, usage::STORAGE, "model corners");
         gpu.write_buffer(self.corners, 0, bytemuck::cast_slice(&corners));
     }
 
     pub fn destroy(&mut self, gpu: &mut dyn Backend) {
-        for b in [self.cuboids, self.corners].into_iter().chain(self.instances.iter_mut().chain(&mut self.bones).flat_map(|v| v.drain(..)).map(|b| b.0)) {
+        for b in [self.cuboids, self.corners]
+            .into_iter()
+            .chain(self.instances.iter_mut().chain(&mut self.bones).flat_map(|v| v.drain(..)).map(|b| b.0))
+        {
             gpu.destroy_buffer(b);
         }
     }
@@ -177,7 +208,8 @@ impl Models {
         let first = self.rows.len() as u32;
         self.rows.extend(self.scratch.iter().map(|b| [b.row(0).to_array(), b.row(1).to_array(), b.row(2).to_array()]));
         for mut inst in layers {
-            (inst.bones, inst.cuboids, inst.cuboid_count, inst.vertices) = (first, m.cuboids.0, m.cuboids.1, m.corners.0);
+            (inst.bones, inst.cuboids, inst.cuboid_count, inst.vertices) =
+                (first, m.cuboids.0, m.cuboids.1, m.corners.0);
             self.queued.push((kind, inst));
         }
     }
@@ -223,7 +255,8 @@ impl Models {
         for (e, &n) in entities.iter().zip(&counts) {
             if let Some(m) = self.kinds.get(e.kind as usize) {
                 for mut inst in e.layers[..e.layer_count].iter().copied() {
-                    (inst.bones, inst.cuboids, inst.cuboid_count, inst.vertices) = (first, m.cuboids.0, m.cuboids.1, m.corners.0);
+                    (inst.bones, inst.cuboids, inst.cuboid_count, inst.vertices) =
+                        (first, m.cuboids.0, m.cuboids.1, m.corners.0);
                     self.queued.push((e.kind, inst));
                 }
             }
@@ -234,14 +267,38 @@ impl Models {
 
     /// Draws what was queued since `begin`, one instanced draw per kind, with `pipe` and the
     /// view in `view`.
-    pub fn draw(&mut self, gpu: &mut dyn Backend, list: &mut CommandList, frame: &FrameInfo, batch: Batch, pipe: PipelineId, view: BufferId) {
+    pub fn draw(
+        &mut self,
+        gpu: &mut dyn Backend,
+        list: &mut CommandList,
+        frame: &FrameInfo,
+        batch: Batch,
+        pipe: PipelineId,
+        view: BufferId,
+    ) {
         if self.queued.is_empty() {
             return;
         }
         self.queued.sort_by_key(|q| q.0);
         let grow = crate::gpu_layout::frame_buffer;
-        let ib = grow(gpu, &mut self.instances[batch as usize], frame.slot, self.queued.len() as u32, size_of::<Instance>() as u64, usage::STORAGE, "model instances");
-        let bb = grow(gpu, &mut self.bones[batch as usize], frame.slot, self.rows.len().max(1) as u32, 48, usage::STORAGE, "model bones");
+        let ib = grow(
+            gpu,
+            &mut self.instances[batch as usize],
+            frame.slot,
+            self.queued.len() as u32,
+            size_of::<Instance>() as u64,
+            usage::STORAGE,
+            "model instances",
+        );
+        let bb = grow(
+            gpu,
+            &mut self.bones[batch as usize],
+            frame.slot,
+            self.rows.len().max(1) as u32,
+            48,
+            usage::STORAGE,
+            "model bones",
+        );
         let insts: Vec<Instance> = self.queued.iter().map(|q| q.1).collect();
         gpu.mapped(ib)[..insts.len() * size_of::<Instance>()].copy_from_slice(bytemuck::cast_slice(&insts));
         gpu.mapped(bb)[..self.rows.len() * 48].copy_from_slice(bytemuck::cast_slice(&self.rows));

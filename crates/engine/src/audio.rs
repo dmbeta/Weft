@@ -70,7 +70,11 @@ fn sound_path(assets: &Assets, name: &str) -> Option<std::path::PathBuf> {
     assets.path(name, "sounds", "ogg").or_else(|| assets.path(name, "sounds", "wav"))
 }
 
-const QUICK: Tween = Tween { start_time: kira::StartTime::Immediate, duration: Duration::from_millis(400), easing: kira::Easing::Linear };
+const QUICK: Tween = Tween {
+    start_time: kira::StartTime::Immediate,
+    duration: Duration::from_millis(400),
+    easing: kira::Easing::Linear,
+};
 
 fn db(volume: f64) -> Decibels {
     if volume <= 0.001 { Decibels::SILENCE } else { Decibels((20.0 * volume.log10()) as f32) }
@@ -87,7 +91,9 @@ impl Audio {
         };
         let made = (|| -> Result<Audio, kira::ResourceLimitReached> {
             let listener = mgr.add_listener(glam::Vec3::ZERO, Quat::IDENTITY)?;
-            let reverb = mgr.add_send_track(SendTrackBuilder::new().with_effect(ReverbBuilder::new().mix(Mix::WET).damping(0.6).feedback(0.85)))?;
+            let reverb = mgr.add_send_track(
+                SendTrackBuilder::new().with_effect(ReverbBuilder::new().mix(Mix::WET).damping(0.6).feedback(0.85)),
+            )?;
             let mut wb = TrackBuilder::new().sub_track_capacity(64).with_send(&reverb, Decibels::SILENCE);
             let lowpass = wb.add_effect(FilterBuilder::new().cutoff(20_000.0));
             let mut world = mgr.add_sub_track(wb)?;
@@ -158,7 +164,12 @@ impl Audio {
     /// Settings, listener, environment and music, once a frame.
     pub fn update(&mut self, assets: &Assets, l: Option<&Listener>) {
         let ids = self.volume_ids.get_or_insert_with(|| {
-            let mut ids: Vec<Option<u32>> = crate::content::content().game.sound_categories.iter().map(|k| k.setting.as_deref().and_then(crate::config::by_name)).collect();
+            let mut ids: Vec<Option<u32>> = crate::content::content()
+                .game
+                .sound_categories
+                .iter()
+                .map(|k| k.setting.as_deref().and_then(crate::config::by_name))
+                .collect();
             ids.push(crate::config::by_name("core:volume_master"));
             ids
         });
@@ -187,7 +198,11 @@ impl Audio {
         if (l.underwater, l.enclosed) != self.state {
             self.state = (l.underwater, l.enclosed);
             self.lowpass.set_cutoff(if l.underwater { 900.0 } else { 20_000.0 }, QUICK);
-            if let Err(e) = self.world.set_send(&self.reverb, if l.enclosed && !l.underwater { Decibels(-9.0) } else { Decibels::SILENCE }, QUICK) {
+            if let Err(e) = self.world.set_send(
+                &self.reverb,
+                if l.enclosed && !l.underwater { Decibels(-9.0) } else { Decibels::SILENCE },
+                QUICK,
+            ) {
                 log::debug!("cave reverb: {e:?}");
             }
         }
@@ -196,7 +211,9 @@ impl Audio {
 
     fn music(&mut self, assets: &Assets, l: &Listener) {
         use weft_abi::music_when as mw;
-        if self.music.as_ref().is_some_and(|m| m.state() != kira::sound::PlaybackState::Stopped) || Instant::now() < self.next_music {
+        if self.music.as_ref().is_some_and(|m| m.state() != kira::sound::PlaybackState::Stopped)
+            || Instant::now() < self.next_music
+        {
             return;
         }
         self.music = None;
@@ -205,7 +222,9 @@ impl Audio {
             let w = m.when;
             m.dimension.is_none_or(|d| d == l.dim)
                 && (w & (mw::DAY | mw::NIGHT) == 0 || (w & mw::DAY != 0 && l.day) || (w & mw::NIGHT != 0 && !l.day))
-                && (w & (mw::UNDERGROUND | mw::SURFACE) == 0 || (w & mw::UNDERGROUND != 0 && l.enclosed) || (w & mw::SURFACE != 0 && !l.enclosed))
+                && (w & (mw::UNDERGROUND | mw::SURFACE) == 0
+                    || (w & mw::UNDERGROUND != 0 && l.enclosed)
+                    || (w & mw::SURFACE != 0 && !l.enclosed))
                 && (w & mw::CREATIVE == 0 || l.creative)
         };
         // Quiet for a few minutes between tracks, like vanilla's (shorter: there is less music).
@@ -217,7 +236,9 @@ impl Audio {
             return;
         };
         match StreamingSoundData::from_file(&path) {
-            Ok(data) => match self.groups[crate::registry::MUSIC_CATEGORY as usize].play(data.fade_in_tween(Tween { duration: Duration::from_secs(3), ..Default::default() })) {
+            Ok(data) => match self.groups[crate::registry::MUSIC_CATEGORY as usize]
+                .play(data.fade_in_tween(Tween { duration: Duration::from_secs(3), ..Default::default() }))
+            {
                 Ok(h) => {
                     log::debug!("music: {track}");
                     self.music = Some(h);
@@ -251,7 +272,12 @@ impl Audio {
         // `hurt*`: one of the files whose names start so, found once.
         if let Some(prefix) = file.strip_suffix('*') {
             let found = self.globs.entry(file.clone()).or_insert_with(|| {
-                let mut v: Vec<String> = ["ogg", "wav"].iter().flat_map(|e| assets.list("sounds", e)).map(|f| f.0).filter(|n| n.starts_with(prefix)).collect();
+                let mut v: Vec<String> = ["ogg", "wav"]
+                    .iter()
+                    .flat_map(|e| assets.list("sounds", e))
+                    .map(|f| f.0)
+                    .filter(|n| n.starts_with(prefix))
+                    .collect();
                 v.sort();
                 v.dedup();
                 if v.is_empty() {
@@ -277,7 +303,10 @@ impl Audio {
                 // Heard up to `range` blocks (further for loud ones), full volume within one.
                 let reach = def.range * volume.max(1.0);
                 let b = SpatialTrackBuilder::new().distances((1.0, reach.max(1.5))).persist_until_sounds_finish(true);
-                group.add_spatial_sub_track(&self.listener, pos.as_vec3(), b).map_err(|e| format!("{e:?}")).and_then(|mut t| t.play(data).map(|_| ()).map_err(|e| e.to_string()))
+                group
+                    .add_spatial_sub_track(&self.listener, pos.as_vec3(), b)
+                    .map_err(|e| format!("{e:?}"))
+                    .and_then(|mut t| t.play(data).map(|_| ()).map_err(|e| e.to_string()))
             }
             None => group.play(data).map(|_| ()).map_err(|e| e.to_string()),
         };

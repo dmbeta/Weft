@@ -1,6 +1,7 @@
 pub mod ctm;
 pub mod entity_render;
 pub mod gizmo;
+pub mod lod;
 pub mod looks;
 pub mod mesher;
 pub mod models;
@@ -8,25 +9,24 @@ pub mod modui;
 pub mod particles;
 pub mod terrain;
 pub mod terrain_gpu;
-pub mod lod;
 pub mod textures;
 pub mod world;
 pub mod world_render;
 
 use std::time::Instant;
 
+use crate::gpu_layout::Scene;
 use glam::{DVec3, IVec3, Vec3};
 use rustc_hash::{FxHashMap, FxHashSet};
 use weft_abi::{ItemStack, block_flags as bf};
 use weft_render::{Backend, BufferId, CommandList, FrameInfo};
-use crate::gpu_layout::Scene;
 
 use crate::content::content;
 use crate::input::Input;
 use crate::net::{ClientConn, ToClient, ToServer};
 use crate::physics::{self, Hit};
-use crate::world::GameMode;
 use crate::ui::text::{Arg, Msg};
+use crate::world::GameMode;
 use entity_render::EntityRenderer;
 use textures::GameTextures;
 use world::ClientWorld;
@@ -135,11 +135,20 @@ fn words(bytes: &[u8]) -> impl Iterator<Item = [u8; 4]> + '_ {
     bytes.chunks_exact(4).map(|w| [w[0], w[1], w[2], w[3]])
 }
 
-
 impl ClientEntity {
     /// What its kind's client tick gets (`client` filled in by the caller).
     pub fn args(&self, id: u64, dt: f32) -> weft_abi::ClientEntityArgs {
-        weft_abi::ClientEntityArgs { client: std::ptr::null_mut(), entity: id, kind: self.kind, pos: self.pos.to_array(), yaw: self.yaw, walked: self.walk, dying: self.dying.unwrap_or(-1.0), age: self.age, dt }
+        weft_abi::ClientEntityArgs {
+            client: std::ptr::null_mut(),
+            entity: id,
+            kind: self.kind,
+            pos: self.pos.to_array(),
+            yaw: self.yaw,
+            walked: self.walk,
+            dying: self.dying.unwrap_or(-1.0),
+            age: self.age,
+            dt,
+        }
     }
 
     /// Half width, height and eye height of its box, like the server's `Entity::dims`.
@@ -180,7 +189,6 @@ impl ClientEntity {
         last
     }
 }
-
 
 pub struct ClientMenu {
     pub kind: u32,
@@ -368,7 +376,11 @@ impl Client {
         let text = |s: &str| Arg::Text(s.to_string());
         if group.is_empty() {
             let mut out = vec![Msg::new("command.gizmo.groups", Vec::new())];
-            out.extend(gizmo::BUILTIN.iter().map(|g| Msg::new("command.gizmo.group", vec![text(g), Arg::Key(format!("gizmo.{g}"))])));
+            out.extend(
+                gizmo::BUILTIN
+                    .iter()
+                    .map(|g| Msg::new("command.gizmo.group", vec![text(g), Arg::Key(format!("gizmo.{g}"))])),
+            );
             out.push(match self.gizmos.enabled.is_empty() {
                 true => Msg::new("command.gizmo.none_on", Vec::new()),
                 false => Msg::new("command.gizmo.on_list", vec![text(&self.gizmos.enabled.join(", "))]),
@@ -386,7 +398,11 @@ impl Client {
         self.gizmos = g;
         let c = content();
         let eye = self.render_camera().pos;
-        let opaque = |p: IVec3| self.world.block_or_air(p).map(|s| if c.states[s as usize].flags & bf::OPAQUE != 0 { s } else { crate::content::AIR });
+        let opaque = |p: IVec3| {
+            self.world
+                .block_or_air(p)
+                .map(|s| if c.states[s as usize].flags & bf::OPAQUE != 0 { s } else { crate::content::AIR })
+        };
         labels.retain(|(pos, ..)| {
             let d = *pos - eye;
             let len = d.length();
@@ -403,7 +419,16 @@ impl Client {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new(gpu: &mut dyn Backend, assets: &crate::assets::Assets, textures: &GameTextures, mut conn: ClientConn, name: &str, key: &str, view_radius: i32, skin: Option<Vec<u8>>) -> Result<Client, String> {
+    pub fn new(
+        gpu: &mut dyn Backend,
+        assets: &crate::assets::Assets,
+        textures: &GameTextures,
+        mut conn: ClientConn,
+        name: &str,
+        key: &str,
+        view_radius: i32,
+        skin: Option<Vec<u8>>,
+    ) -> Result<Client, String> {
         let c = content();
         let render = WorldRenderer::new(gpu, c, textures, assets)?;
         let entity_render = EntityRenderer::new(gpu, assets)?;
@@ -434,7 +459,10 @@ impl Client {
                 fov_mul: 1.0,
                 crouched: false,
                 support: None,
-                size: { let k = &c.game.entities[c.game.player_kind as usize]; [k.width, k.height, k.eye].map(|v| v as f64) },
+                size: {
+                    let k = &c.game.entities[c.game.player_kind as usize];
+                    [k.width, k.height, k.eye].map(|v| v as f64)
+                },
                 carried: DVec3::ZERO,
                 carried_prev: DVec3::ZERO,
                 riding: None,
@@ -569,11 +597,15 @@ impl Client {
                     self.seed = seed;
                     self.reset_terrain(dim, &mut fwd);
                 }
-                ToClient::Cube { dim, pos, cube, edit } if dim == self.world.dim => fwd.push(terrain::In::Cube { pos, cube, edit }),
+                ToClient::Cube { dim, pos, cube, edit } if dim == self.world.dim => {
+                    fwd.push(terrain::In::Cube { pos, cube, edit })
+                }
                 ToClient::Unload { dim, pos } if dim == self.world.dim => fwd.push(terrain::In::Unload(pos)),
                 ToClient::Blocks { dim, changes } if dim == self.world.dim => fwd.push(terrain::In::Blocks(changes)),
                 ToClient::Saved { dim, cubes } if dim == self.world.dim => fwd.push(terrain::In::Saved(cubes)),
-                ToClient::Edits { dim, specs, all } if dim == self.world.dim => fwd.push(terrain::In::Edits { specs, all }),
+                ToClient::Edits { dim, specs, all } if dim == self.world.dim => {
+                    fwd.push(terrain::In::Edits { specs, all })
+                }
                 ToClient::Time { dim, time } if dim == self.world.dim => {
                     self.world.time = time;
                     self.since_time = 0;
@@ -631,7 +663,9 @@ impl Client {
                     // A long stall (or the first move) starts the timeline over.
                     let sample = self.body_clock - STEP + self.accum - tick as f64 * STEP;
                     match self.tick_offset {
-                        Some(o) if (sample - o).abs() < 0.25 => self.offset_target += (sample - self.offset_target) * 0.1,
+                        Some(o) if (sample - o).abs() < 0.25 => {
+                            self.offset_target += (sample - self.offset_target) * 0.1
+                        }
                         _ => (self.tick_offset, self.offset_target) = (Some(sample), sample),
                     }
                     let solid = |k: u32| content().game.entities[k as usize].is(weft_abi::entity_flags::SOLID);
@@ -708,7 +742,9 @@ impl Client {
                         // they reach the taker.
                         match self.entities.get_mut(&id) {
                             Some(e) if e.pulled.is_some() => {}
-                            Some(e) if (killed || e.health <= 0.0) && e.item.is_empty() && e.dying.is_none() => e.dying = Some(0.0),
+                            Some(e) if (killed || e.health <= 0.0) && e.item.is_empty() && e.dying.is_none() => {
+                                e.dying = Some(0.0)
+                            }
                             _ => {
                                 self.entities.remove(&id);
                             }
@@ -718,7 +754,8 @@ impl Client {
                 ToClient::Players(names) => self.players = names,
                 ToClient::GameMode(mode) => {
                     self.mode = mode;
-                    self.player.flying = mode == GameMode::Spectator || (mode == GameMode::Creative && self.player.flying);
+                    self.player.flying =
+                        mode == GameMode::Spectator || (mode == GameMode::Creative && self.player.flying);
                     self.player.noclip = mode == GameMode::Spectator;
                     self.player.fly_speed = 1.0;
                 }
@@ -736,7 +773,15 @@ impl Client {
                     }
                 }
                 ToClient::OpenMenu { kind, window, slots, owner, block, name } => {
-                    self.menu = Some(ClientMenu { kind, window, owner, block, name, slots: vec![ItemStack::EMPTY; slots as usize], cursor: ItemStack::EMPTY });
+                    self.menu = Some(ClientMenu {
+                        kind,
+                        window,
+                        owner,
+                        block,
+                        name,
+                        slots: vec![ItemStack::EMPTY; slots as usize],
+                        cursor: ItemStack::EMPTY,
+                    });
                     self.events.push(ClientEvent::OpenMenu);
                 }
                 ToClient::MenuSlots(list) => {
@@ -799,14 +844,20 @@ impl Client {
                 ToClient::Animate(list) => {
                     for (id, name, looping) in list {
                         if id == self.player_id {
-                            self.self_anim = (!name.is_empty()).then(|| (name, self.start.elapsed().as_secs_f32(), looping));
+                            self.self_anim =
+                                (!name.is_empty()).then(|| (name, self.start.elapsed().as_secs_f32(), looping));
                         } else if let Some(e) = self.entities.get_mut(&id) {
                             e.anim = (!name.is_empty()).then(|| (name, e.age, looping));
                         }
                     }
                 }
                 ToClient::Sounds(list) => {
-                    self.sounds.extend(list.into_iter().map(|(sound, pos, volume, pitch)| crate::audio::Play { sound, pos: Some(pos), volume, pitch }));
+                    self.sounds.extend(list.into_iter().map(|(sound, pos, volume, pitch)| crate::audio::Play {
+                        sound,
+                        pos: Some(pos),
+                        volume,
+                        pitch,
+                    }));
                 }
                 ToClient::Particles(list) => {
                     for b in &list {
@@ -889,7 +940,8 @@ impl Client {
         // Smoothed: from one frame alone, a quick frame gave the next a long budget, which made
         // it slow, and so on.
         self.rest += (dt - self.spent - self.rest) * 0.1;
-        self.budget = std::time::Duration::from_secs_f64(((FRAME_TARGET - self.rest) / 2.0).clamp(MIN_BUDGET, MAX_BUDGET));
+        self.budget =
+            std::time::Duration::from_secs_f64(((FRAME_TARGET - self.rest) / 2.0).clamp(MIN_BUDGET, MAX_BUDGET));
         let t = Instant::now();
         self.receive();
         self.spent = t.elapsed().as_secs_f64();
@@ -958,7 +1010,9 @@ impl Client {
         let spectator = self.mode == GameMode::Spectator;
         // In a screen the number keys belong to it (swapping slots with the hotbar).
         if !spectator && input.captured {
-            for (i, action) in crate::input::HOTBAR.into_iter().enumerate().take(content().game.player_layout.hotbar as usize) {
+            for (i, action) in
+                crate::input::HOTBAR.into_iter().enumerate().take(content().game.player_layout.hotbar as usize)
+            {
                 if input.pressed(action) {
                     self.selected = i;
                 }
@@ -966,9 +1020,12 @@ impl Client {
         }
         if input.scroll != 0.0 {
             if spectator {
-                self.player.fly_speed = (self.player.fly_speed * if input.scroll > 0.0 { 1.25 } else { 0.8 }).clamp(0.1, 10.0);
+                self.player.fly_speed =
+                    (self.player.fly_speed * if input.scroll > 0.0 { 1.25 } else { 0.8 }).clamp(0.1, 10.0);
             } else {
-                self.selected = (self.selected as i32 - input.scroll.signum() as i32).rem_euclid(content().game.player_layout.hotbar.max(1) as i32) as usize;
+                self.selected = (self.selected as i32 - input.scroll.signum() as i32)
+                    .rem_euclid(content().game.player_layout.hotbar.max(1) as i32)
+                    as usize;
             }
         }
         if old != self.selected {
@@ -984,7 +1041,8 @@ impl Client {
         let eye_target = self.player.dims().2;
         self.player.eye += (eye_target - self.player.eye) * k;
         let moving = input.held("core:forward");
-        let fov_target = if self.player.flying { 1.1 } else { 1.0 } + if self.player.sprint && moving && !sneaking { 0.15 } else { 0.0 };
+        let fov_target = if self.player.flying { 1.1 } else { 1.0 }
+            + if self.player.sprint && moving && !sneaking { 0.15 } else { 0.0 };
         self.player.fov_mul += (fov_target - self.player.fov_mul) * k as f32;
         if input.pressed("core:perspective") && input.captured {
             self.view = (self.view + 1) % 3;
@@ -1011,7 +1069,11 @@ impl Client {
             }
         }
         // A use swings only when the server says it did something (`ToClient::Swing`).
-        if input.captured && !spectator && (input.pressed("core:attack") || (input.held("core:attack") && self.breaking.is_some())) && self.hand_swing.is_none() {
+        if input.captured
+            && !spectator
+            && (input.pressed("core:attack") || (input.held("core:attack") && self.breaking.is_some()))
+            && self.hand_swing.is_none()
+        {
             self.hand_swing = Some(0.0);
         }
         if input.pressed("core:drop") && !spectator {
@@ -1038,7 +1100,9 @@ impl Client {
                 ambient_steps += 1;
                 // A rider is where it is on its body: if moves arrived late and the body's past
                 // changed, the rider moves with it, not over the deck.
-                if let Some(e) = self.player.riding.and_then(|(b, _, now)| self.entities.get(&b).map(|e| e.pose(self.body_tick(self.body_clock)) + now)) {
+                if let Some(e) = self.player.riding.and_then(|(b, _, now)| {
+                    self.entities.get(&b).map(|e| e.pose(self.body_tick(self.body_clock)) + now)
+                }) {
                     self.player.pos = e;
                 }
                 self.player.prev = self.player.pos;
@@ -1066,7 +1130,14 @@ impl Client {
                             None => aabb,
                         };
                         let blocks = built.map(|s| (s as &dyn physics::Blocks, crate::server::structure_origin(now)));
-                        bodies.push(physics::Body { id, aabb, delta, carry: k.carry_height as f64, crushes: false, blocks });
+                        bodies.push(physics::Body {
+                            id,
+                            aabb,
+                            delta,
+                            carry: k.carry_height as f64,
+                            crushes: false,
+                            blocks,
+                        });
                     } else if k.is(weft_abi::entity_flags::PUSHABLE) && e.item.is_empty() && e.dying.is_none() {
                         let d = self.player.pos - e.pos;
                         let ((ehw, eh, _), (hw, h, _)) = (e.dims(), self.player.dims());
@@ -1089,7 +1160,9 @@ impl Client {
                 }
                 let entities = &self.entities;
                 let p = &self.player;
-                self.player.riding = p.support.and_then(|b| entities.get(&b).map(|e| (b, p.prev - e.pose(at - 1.0), p.pos - e.pose(at))));
+                self.player.riding = p
+                    .support
+                    .and_then(|b| entities.get(&b).map(|e| (b, p.prev - e.pose(at - 1.0), p.pos - e.pose(at))));
                 if crate::log::on(crate::log::Channel::Physics, log::Level::Trace) {
                     let p = &self.player;
                     let feet = p.pos.floor().as_ivec3() - glam::IVec3::Y;
@@ -1116,7 +1189,9 @@ impl Client {
                 let hotbar = &self.inventory[..content().game.player_layout.hotbar as usize];
                 // Already in the hotbar: select it. Otherwise creative fills an empty slot first.
                 let slot = hotbar.iter().position(|s| s.item == item && !s.is_empty()).or_else(|| {
-                    (self.mode == GameMode::Creative && !hotbar[self.selected].is_empty()).then(|| hotbar.iter().position(|s| s.is_empty())).flatten()
+                    (self.mode == GameMode::Creative && !hotbar[self.selected].is_empty())
+                        .then(|| hotbar.iter().position(|s| s.is_empty()))
+                        .flatten()
                 });
                 if let Some(i) = slot.filter(|&i| i != self.selected) {
                     self.selected = i;
@@ -1197,7 +1272,13 @@ impl Client {
                     self.conn.send(ToServer::Interact(id));
                 } else if let Some(hit) = self.target {
                     let sneak = self.player.sneak;
-                    self.conn.send(ToServer::Use { pos: hit.block, face: hit.face, look: look.as_vec3().to_array(), sneak, frame: hit.frame });
+                    self.conn.send(ToServer::Use {
+                        pos: hit.block,
+                        face: hit.face,
+                        look: look.as_vec3().to_array(),
+                        sneak,
+                        frame: hit.frame,
+                    });
                 } else {
                     self.conn.send(ToServer::UseItem { target: None });
                 }
@@ -1230,7 +1311,8 @@ impl Client {
         pulls.clear();
         pulls.extend(self.entities.iter().filter_map(|(&id, e)| {
             let (_, by, _) = e.pulled?;
-            let to = if by == self.player_id { self.smooth_pos() } else { self.entities.get(&by).map_or(e.pos, |t| t.pos) };
+            let to =
+                if by == self.player_id { self.smooth_pos() } else { self.entities.get(&by).map_or(e.pos, |t| t.pos) };
             Some((id, to))
         }));
         for &(id, to) in &pulls {
@@ -1248,7 +1330,12 @@ impl Client {
         let mut frames = std::mem::take(&mut self.frames);
         frames.clear();
         let at = self.body_tick(shown);
-        frames.extend(self.entities.iter().filter(|(_, e)| c.game.entities[e.kind as usize].is(weft_abi::entity_flags::SOLID)).map(|(&id, e)| (id, e.pose(at))));
+        frames.extend(
+            self.entities
+                .iter()
+                .filter(|(_, e)| c.game.entities[e.kind as usize].is(weft_abi::entity_flags::SOLID))
+                .map(|(&id, e)| (id, e.pose(at))),
+        );
         for e in self.entities.values_mut().filter(|e| e.pulled.is_none()) {
             let before = e.pos;
             let body = e.rel_target.and_then(|t| frames.iter().find(|f| f.0 == e.frame).map(|f| (f.1, t)));
@@ -1289,14 +1376,29 @@ impl Client {
                     let at = pos.as_dvec3() + self.frame_origin(frame) + DVec3::splat(0.5) + (normal * 0.55).as_dvec3();
                     let spread = (glam::Vec3::splat(0.45) * (glam::Vec3::ONE - normal.abs())).to_array();
                     let velocity = (normal * 0.6).to_array();
-                    self.particles.spawn(&weft_abi::ParticleBurst { kind, pos: at.to_array(), spread, velocity, speed: 0.4, count: 1, block: hit.state, ..weft_abi::ParticleBurst::DEFAULT }, &self.world);
+                    self.particles.spawn(
+                        &weft_abi::ParticleBurst {
+                            kind,
+                            pos: at.to_array(),
+                            spread,
+                            velocity,
+                            speed: 0.4,
+                            count: 1,
+                            block: hit.state,
+                            ..weft_abi::ParticleBurst::DEFAULT
+                        },
+                        &self.world,
+                    );
                 }
             }
         }
         self.particles.update(dt as f32, &self.world);
         self.creature_sounds(dt as f32, moved);
         self.hurt_flash = (self.hurt_flash - dt as f32).max(0.0);
-        self.hotbar = self.inventory[..content().game.player_layout.hotbar as usize].iter().map(|s| if s.is_empty() { 0 } else { s.item | (s.count.min(255) << 24) }).collect();
+        self.hotbar = self.inventory[..content().game.player_layout.hotbar as usize]
+            .iter()
+            .map(|s| if s.is_empty() { 0 } else { s.item | (s.count.min(255) << 24) })
+            .collect();
 
         let center: IVec3 = (self.player.pos.floor().as_ivec3()) >> 4;
         // Wide enough for every column the server keeps sent (view radius + 2).
@@ -1347,7 +1449,12 @@ impl Client {
             self.drawn_frames.insert(id);
         }
         let entities = &self.entities;
-        let gone: Vec<u64> = self.drawn_frames.iter().copied().filter(|id| !entities.get(id).is_some_and(|e| e.structure.is_some())).collect();
+        let gone: Vec<u64> = self
+            .drawn_frames
+            .iter()
+            .copied()
+            .filter(|id| !entities.get(id).is_some_and(|e| e.structure.is_some()))
+            .collect();
         for id in gone {
             self.render.remove_frame(id);
             self.drawn_frames.remove(&id);
@@ -1372,7 +1479,11 @@ impl Client {
         let kinds = self.ambient_kinds.get_or_insert_with(|| {
             let comp = c.components.id(weft_abi::comp::AMBIENT_PARTICLE);
             (0..c.states.len() as u32)
-                .map(|s| comp.and_then(|id| c.components.text(crate::components::BLOCK, s, id)).and_then(|name| c.game.particle_names.get(name).copied()).unwrap_or(u32::MAX))
+                .map(|s| {
+                    comp.and_then(|id| c.components.text(crate::components::BLOCK, s, id))
+                        .and_then(|name| c.game.particle_names.get(name).copied())
+                        .unwrap_or(u32::MAX)
+                })
                 .collect()
         });
         if kinds.iter().all(|&k| k == u32::MAX) {
@@ -1381,11 +1492,22 @@ impl Client {
         let center = self.player.pos.floor().as_ivec3();
         for _ in 0..TRIES {
             let r = self.rng.next();
-            let p = center + IVec3::new((r % 33) as i32 - 16, ((r >> 8) % 33) as i32 - 16, ((r >> 16) % 33) as i32 - 16);
+            let p =
+                center + IVec3::new((r % 33) as i32 - 16, ((r >> 8) % 33) as i32 - 16, ((r >> 16) % 33) as i32 - 16);
             let kind = kinds.get(self.world.block(p) as usize).copied().unwrap_or(u32::MAX);
             if kind != u32::MAX {
                 let pos = [p.x as f64 + 0.5, p.y as f64 + 0.9, p.z as f64 + 0.5];
-                self.particles.spawn(&weft_abi::ParticleBurst { kind, pos, spread: [0.3, 0.2, 0.3], speed: 0.3, count: 1, ..weft_abi::ParticleBurst::DEFAULT }, &self.world);
+                self.particles.spawn(
+                    &weft_abi::ParticleBurst {
+                        kind,
+                        pos,
+                        spread: [0.3, 0.2, 0.3],
+                        speed: 0.3,
+                        count: 1,
+                        ..weft_abi::ParticleBurst::DEFAULT
+                    },
+                    &self.world,
+                );
             }
         }
     }
@@ -1402,7 +1524,18 @@ impl Client {
             if let Some(&kind) = c.game.particle_names.get(weft_abi::particle::POOF) {
                 let (w, h) = (k.width * 0.5, k.height * 0.5);
                 let at = (pos + DVec3::Y * h as f64).to_array();
-                self.particles.spawn(&weft_abi::ParticleBurst { kind, pos: at, spread: [w, h, w], velocity: [0.0, 0.4, 0.0], speed: 0.8, count: 20, ..weft_abi::ParticleBurst::DEFAULT }, &self.world);
+                self.particles.spawn(
+                    &weft_abi::ParticleBurst {
+                        kind,
+                        pos: at,
+                        spread: [w, h, w],
+                        velocity: [0.0, 0.4, 0.0],
+                        speed: 0.8,
+                        count: 20,
+                        ..weft_abi::ParticleBurst::DEFAULT
+                    },
+                    &self.world,
+                );
             }
             return;
         }
@@ -1412,13 +1545,24 @@ impl Client {
         let Some(e) = self.entities.get_mut(&a.entity) else { return };
         if a.walked >= e.next_step {
             e.next_step = a.walked + 1.6;
-            let sound = if k.sounds[3] != u32::MAX { k.sounds[3] } else { self.world.block_or_air((pos - DVec3::Y * 0.2).floor().as_ivec3()).map_or(u32::MAX, |s| c.states[s as usize].sounds[2]) };
+            let sound = if k.sounds[3] != u32::MAX {
+                k.sounds[3]
+            } else {
+                self.world
+                    .block_or_air((pos - DVec3::Y * 0.2).floor().as_ivec3())
+                    .map_or(u32::MAX, |s| c.states[s as usize].sounds[2])
+            };
             if sound != u32::MAX {
                 self.sounds.push(Play { sound, pos: Some(pos), volume: 0.2, pitch: 0.0 });
             }
         }
         if k.sounds[2] != u32::MAX && self.chance() < a.dt / 12.0 {
-            self.sounds.push(Play { sound: k.sounds[2], pos: Some(pos + DVec3::Y * k.eye as f64), volume: 1.0, pitch: 0.0 });
+            self.sounds.push(Play {
+                sound: k.sounds[2],
+                pos: Some(pos + DVec3::Y * k.eye as f64),
+                volume: 1.0,
+                pitch: 0.0,
+            });
         }
     }
 
@@ -1427,7 +1571,9 @@ impl Client {
     fn creature_sounds(&mut self, dt: f32, moved: f32) {
         use crate::audio::Play;
         let c = content();
-        let below = |w: &world::ClientWorld, p: DVec3| w.block_or_air((p - DVec3::Y * 0.2).floor().as_ivec3()).map_or(u32::MAX, |s| c.states[s as usize].sounds[2]);
+        let below = |w: &world::ClientWorld, p: DVec3| {
+            w.block_or_air((p - DVec3::Y * 0.2).floor().as_ivec3()).map_or(u32::MAX, |s| c.states[s as usize].sounds[2])
+        };
         if self.player.on_ground && !self.player.flying && self.mode != GameMode::Spectator {
             self.next_step -= moved;
             if self.next_step <= 0.0 {
@@ -1443,7 +1589,12 @@ impl Client {
                 // Vanilla knocks every four ticks while mining.
                 self.hit_sound = 0.2;
                 let sound = c.states[hit.state as usize].sounds[3];
-                self.sounds.push(Play { sound, pos: Some(hit.block.as_dvec3() + self.frame_origin(hit.frame) + DVec3::splat(0.5)), volume: 0.4, pitch: 0.0 });
+                self.sounds.push(Play {
+                    sound,
+                    pos: Some(hit.block.as_dvec3() + self.frame_origin(hit.frame) + DVec3::splat(0.5)),
+                    volume: 0.4,
+                    pitch: 0.0,
+                });
             }
         }
         self.sounds.retain(|p| p.sound != u32::MAX);
@@ -1454,7 +1605,11 @@ impl Client {
         let c = content();
         let cam = self.camera();
         let eye = cam.pos.floor().as_ivec3();
-        let liquid = self.world.block_or_air(eye).and_then(|s| c.states[s as usize].liquid).map(|l| c.liquids[l as usize].temperature);
+        let liquid = self
+            .world
+            .block_or_air(eye)
+            .and_then(|s| c.states[s as usize].liquid)
+            .map(|l| c.liquids[l as usize].temperature);
         crate::audio::Listener {
             pos: cam.pos,
             yaw: cam.yaw,
@@ -1550,7 +1705,11 @@ impl Client {
         let structures: Vec<(u64, DVec3, &dyn physics::Blocks)> = self
             .entities
             .iter()
-            .filter_map(|(&id, e)| e.structure.as_deref().map(|s| (id, crate::server::structure_origin(e.pose(now)), s as &dyn physics::Blocks)))
+            .filter_map(|(&id, e)| {
+                e.structure
+                    .as_deref()
+                    .map(|s| (id, crate::server::structure_origin(e.pose(now)), s as &dyn physics::Blocks))
+            })
             .collect();
         physics::pick(content(), &|p| world.block_or_air(p), &structures, eye, look, reach, false)
     }
@@ -1573,7 +1732,13 @@ impl Client {
     }
 
     pub fn camera(&self) -> Camera {
-        Camera { pos: self.smooth_pos() + DVec3::Y * self.player.eye, yaw: self.player.yaw, pitch: self.player.pitch, fov: self.fov * self.player.fov_mul, bob: (Vec3::ZERO, 0.0, 0.0) }
+        Camera {
+            pos: self.smooth_pos() + DVec3::Y * self.player.eye,
+            yaw: self.player.yaw,
+            pitch: self.player.pitch,
+            fov: self.fov * self.player.fov_mul,
+            bob: (Vec3::ZERO, 0.0, 0.0),
+        }
     }
 
     /// The camera with view bobbing, for drawing (aiming uses the steady one).
@@ -1605,7 +1770,8 @@ impl Client {
         let c = content();
         let world = &self.world;
         let block = |p: IVec3| world.block_or_air(p);
-        let dist = physics::raycast(c, &block, eye.pos, back, 4.0, false).map_or(4.0, |h| ((h.block.as_dvec3() + DVec3::splat(0.5) - eye.pos).length() - 0.8).clamp(0.3, 4.0));
+        let dist = physics::raycast(c, &block, eye.pos, back, 4.0, false)
+            .map_or(4.0, |h| ((h.block.as_dvec3() + DVec3::splat(0.5) - eye.pos).length() - 0.8).clamp(0.3, 4.0));
         cam.pos = eye.pos + back * dist;
         cam
     }
@@ -1613,7 +1779,10 @@ impl Client {
     /// The local player as an entity, for third person.
     fn self_entity(&self) -> ClientEntity {
         let w = &content().game.player_layout.worn;
-        let worn: Vec<u32> = self.inventory.get(w.start as usize..w.end as usize).map_or(Vec::new(), |s| s.iter().filter(|s| !s.is_empty()).map(|s| s.item).collect());
+        let worn: Vec<u32> = self
+            .inventory
+            .get(w.start as usize..w.end as usize)
+            .map_or(Vec::new(), |s| s.iter().filter(|s| !s.is_empty()).map(|s| s.item).collect());
         ClientEntity {
             kind: content().game.player_kind,
             pos: self.smooth_pos(),
@@ -1700,13 +1869,23 @@ impl Client {
         if !d.sky_light {
             return [0.0, 1.0, 0.0, 0.0];
         }
-        let (t, len) = if d.day_length == 0 { (d.fixed_time as f64, 24000.0) } else { ((self.world.time % d.day_length as u64) as f64, d.day_length as f64) };
+        let (t, len) = if d.day_length == 0 {
+            (d.fixed_time as f64, 24000.0)
+        } else {
+            ((self.world.time % d.day_length as u64) as f64, d.day_length as f64)
+        };
         let a = t / len * std::f64::consts::TAU;
         let v = Vec3::new(a.cos() as f32, a.sin() as f32, 0.35).normalize();
         [v.x, v.y, v.z, v.y.max(0.0)]
     }
 
-    pub fn render(&mut self, gpu: &mut dyn Backend, list: &mut CommandList, frame: &FrameInfo, textures: &GameTextures) {
+    pub fn render(
+        &mut self,
+        gpu: &mut dyn Backend,
+        list: &mut CommandList,
+        frame: &FrameInfo,
+        textures: &GameTextures,
+    ) {
         self.entity_render.local = self.player_id;
         for (entity, png) in std::mem::take(&mut self.entity_render.skin_pending) {
             self.entity_render.set_skin(gpu, entity, &png);
@@ -1714,30 +1893,58 @@ impl Client {
         let cam = self.render_camera();
         let scene = self.scene(&cam, frame);
         while self.scene_bufs.len() < gpu.frames_in_flight() {
-            self.scene_bufs.push(gpu.create_buffer(size_of::<Scene>() as u64, weft_render::usage::STORAGE | weft_render::usage::HOST, "scene"));
+            self.scene_bufs.push(gpu.create_buffer(
+                size_of::<Scene>() as u64,
+                weft_render::usage::STORAGE | weft_render::usage::HOST,
+                "scene",
+            ));
         }
         let scene_buf = self.scene_bufs[frame.slot];
         gpu.mapped(scene_buf)[..size_of::<Scene>()].copy_from_slice(bytemuck::bytes_of(&scene));
         // Opaque blocks, then entities and cutout particles, then what is seen through:
         // translucent blocks, cracks and gizmo fills, blended particles, and the hand.
-        let frames: Vec<(u64, DVec3)> = self.entities.iter().filter(|(_, e)| e.structure.is_some()).map(|(&id, e)| (id, crate::server::structure_origin(e.pos))).collect();
+        let frames: Vec<(u64, DVec3)> = self
+            .entities
+            .iter()
+            .filter(|(_, e)| e.structure.is_some())
+            .map(|(&id, e)| (id, crate::server::structure_origin(e.pos)))
+            .collect();
         self.render.draw(gpu, list, frame, &cam, scene_buf, &frames);
         list.push(weft_render::Cmd::Mark);
         let mut late = std::mem::take(&mut self.late);
         late.clear();
         self.render.draw_translucent(&mut late);
         let me = (self.view != 0 && !self.dead && self.mode != GameMode::Spectator).then(|| self.self_entity());
-        let hand = (self.view == 0 && !self.dead && self.mode != GameMode::Spectator && !self.hide_gui).then(|| entity_render::Hand {
-            stack: self.held(),
-            swing: self.hand_swing,
-            anim: self.self_anim.clone(),
-            age: self.start.elapsed().as_secs_f32(),
+        let hand = (self.view == 0 && !self.dead && self.mode != GameMode::Spectator && !self.hide_gui).then(|| {
+            entity_render::Hand {
+                stack: self.held(),
+                swing: self.hand_swing,
+                anim: self.self_anim.clone(),
+                age: self.start.elapsed().as_secs_f32(),
+            }
         });
         let world = &self.world;
         let light = |p: IVec3| world.light(p);
         let mut hand_late = std::mem::take(&mut self.hand_late);
         hand_late.clear();
-        self.entity_render.draw(gpu, list, frame, &cam, &self.entities, me.as_ref(), hand, textures, &light, &scene, scene_buf, self.target.filter(|_| !self.hide_gui).map(|h| (h, self.frame_origin(h.frame))), self.breaking.map(|(f, p, v)| (p, v, self.frame_origin(f))), &self.gizmo_lines, &self.gizmo_fills, &mut hand_late);
+        self.entity_render.draw(
+            gpu,
+            list,
+            frame,
+            &cam,
+            &self.entities,
+            me.as_ref(),
+            hand,
+            textures,
+            &light,
+            &scene,
+            scene_buf,
+            self.target.filter(|_| !self.hide_gui).map(|h| (h, self.frame_origin(h.frame))),
+            self.breaking.map(|(f, p, v)| (p, v, self.frame_origin(f))),
+            &self.gizmo_lines,
+            &self.gizmo_fills,
+            &mut hand_late,
+        );
         self.particles.draw(gpu, list, &mut late, frame, &cam, textures, scene_buf);
         list.append(&mut late);
         list.append(&mut hand_late);
@@ -1753,7 +1960,13 @@ impl Client {
 /// One 20 Hz tick of player movement with vanilla's numbers (blocks per tick): acceleration
 /// scaled by ground slipperiness, 0.91 air drag, 0.98 vertical drag, 0.08 gravity, 0.42 jump,
 /// so jumps, sprint-jumps and parkur distances match.
-fn step_player(p: &mut LocalPlayer, input: &Input, block: &impl Fn(IVec3) -> Option<u32>, gravity: f64, bodies: &[physics::Body]) {
+fn step_player(
+    p: &mut LocalPlayer,
+    input: &Input,
+    block: &impl Fn(IVec3) -> Option<u32>,
+    gravity: f64,
+    bodies: &[physics::Body],
+) {
     let c = content();
     // The body the player rides moves it first, like on the server.
     let (hw, _, _) = p.dims();
@@ -1810,7 +2023,9 @@ fn step_player(p: &mut LocalPlayer, input: &Input, block: &impl Fn(IVec3) -> Opt
     // Crouch while sneaking; stand up only where the full height fits.
     if sneak && !p.flying && !p.noclip {
         p.crouched = true;
-    } else if p.crouched && (p.noclip || !physics::collides(c, block, physics::Aabb::around(p.pos, hw - 1e-3, p.size[1]))) {
+    } else if p.crouched
+        && (p.noclip || !physics::collides(c, block, physics::Aabb::around(p.pos, hw - 1e-3, p.size[1])))
+    {
         p.crouched = false;
     }
     let height = p.dims().1;

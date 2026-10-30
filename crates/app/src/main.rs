@@ -71,7 +71,11 @@ fn main() {
             }
             other => match other.strip_prefix("--") {
                 Some(name) => {
-                    let v = if args.peek().is_some_and(|n| !n.starts_with("--")) { args.next().unwrap_or_default() } else { "1".into() };
+                    let v = if args.peek().is_some_and(|n| !n.starts_with("--")) {
+                        args.next().unwrap_or_default()
+                    } else {
+                        "1".into()
+                    };
                     extra.push((name.to_string(), v));
                 }
                 None => eprintln!("unknown argument {other}"),
@@ -120,7 +124,9 @@ fn main() {
 }
 
 fn subdirs(dir: &std::path::Path) -> Vec<PathBuf> {
-    let mut v: Vec<PathBuf> = std::fs::read_dir(dir).map(|r| r.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect()).unwrap_or_default();
+    let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
+        .map(|r| r.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect())
+        .unwrap_or_default();
     v.sort();
     v
 }

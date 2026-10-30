@@ -179,7 +179,9 @@ impl Cube {
     pub fn changed_around(&self, old: &Cube) -> Option<u32> {
         let same_blocks = match (&self.blocks, &old.blocks) {
             (Blocks::Uniform(a), Blocks::Uniform(b)) => a == b,
-            (Blocks::Packed { palette: p, bits: b, words: w }, Blocks::Packed { palette: op, bits: ob, words: ow }) => p == op && b == ob && w == ow,
+            (Blocks::Packed { palette: p, bits: b, words: w }, Blocks::Packed { palette: op, bits: ob, words: ow }) => {
+                p == op && b == ob && w == ow
+            }
             _ => false,
         };
         let same_light = match (&self.light, &old.light) {
@@ -190,7 +192,9 @@ impl Cube {
         if same_blocks && same_light {
             return None;
         }
-        if let (Blocks::Uniform(_), Blocks::Uniform(_), Light::Uniform(_), Light::Uniform(_)) = (&self.blocks, &old.blocks, &self.light, &old.light) {
+        if let (Blocks::Uniform(_), Blocks::Uniform(_), Light::Uniform(_), Light::Uniform(_)) =
+            (&self.blocks, &old.blocks, &self.light, &old.light)
+        {
             return Some(ALL_AROUND);
         }
         // Something changed; inside blocks are read by this cube alone, so only the outer

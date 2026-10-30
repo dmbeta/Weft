@@ -52,11 +52,14 @@ pub fn find(c: &Content, block: &impl Fn(IVec3) -> Option<u32>, from: IVec3, to:
     let open = |p: IVec3| {
         block(p).is_some_and(|s| {
             let st = &c.states[s as usize];
-            top(s).is_none() && st.liquid.is_none_or(|l| c.liquids[l as usize].temperature < crate::server::liquid::BURNING)
+            top(s).is_none()
+                && st.liquid.is_none_or(|l| c.liquids[l as usize].temperature < crate::server::liquid::BURNING)
         })
     };
     let room = |p: IVec3| (0..height).all(|k| open(p + IVec3::Y * k));
-    let ground = |p: IVec3| block(p - IVec3::Y).is_some_and(|s| c.states[s as usize].liquid.is_some() || top(s).is_some_and(|t| t >= 0.5));
+    let ground = |p: IVec3| {
+        block(p - IVec3::Y).is_some_and(|s| c.states[s as usize].liquid.is_some() || top(s).is_some_and(|t| t >= 0.5))
+    };
     let standable = |p: IVec3| room(p) && ground(p);
     let wet = |p: IVec3| block(p).is_some_and(|s| c.states[s as usize].liquid.is_some());
     let h = |p: IVec3| (p - to).as_vec3().length();

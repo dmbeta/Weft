@@ -328,23 +328,36 @@ pub(crate) fn raw_pools(ns: &str, pools: &[Pool]) -> RawPools {
     let mut names: Vec<String> = Vec::new();
     for p in pools {
         for e in &p.entries {
-            names.push(if e.item.is_empty() || e.item.starts_with('#') { e.item.clone() } else { qualify(ns, &e.item) });
+            names.push(if e.item.is_empty() || e.item.starts_with('#') {
+                e.item.clone()
+            } else {
+                qualify(ns, &e.item)
+            });
         }
     }
     let mut out = RawPools { conds: Vec::new(), entries: Vec::new(), pools: Vec::new(), _names: Vec::new() };
     let mut cond_index = Vec::new();
     for p in pools {
-        let pc: Vec<abi::LootCond> = p.when.iter().map(|c| {
-            let (kind, value, text) = c.raw();
-            abi::LootCond { kind, value, text: Str::new(text), ..abi::LootCond::DEFAULT }
-        }).collect();
+        let pc: Vec<abi::LootCond> = p
+            .when
+            .iter()
+            .map(|c| {
+                let (kind, value, text) = c.raw();
+                abi::LootCond { kind, value, text: Str::new(text), ..abi::LootCond::DEFAULT }
+            })
+            .collect();
         cond_index.push(out.conds.len());
         out.conds.push(pc);
         for e in &p.entries {
-            out.conds.push(e.when.iter().map(|c| {
-                let (kind, value, text) = c.raw();
-                abi::LootCond { kind, value, text: Str::new(text), ..abi::LootCond::DEFAULT }
-            }).collect());
+            out.conds.push(
+                e.when
+                    .iter()
+                    .map(|c| {
+                        let (kind, value, text) = c.raw();
+                        abi::LootCond { kind, value, text: Str::new(text), ..abi::LootCond::DEFAULT }
+                    })
+                    .collect(),
+            );
         }
     }
     let mut n = 0;
@@ -356,14 +369,28 @@ pub(crate) fn raw_pools(ns: &str, pools: &[Pool]) -> RawPools {
             .enumerate()
             .map(|(ei, e)| {
                 let name = Str::new(&names[n + ei]);
-                abi::LootEntry { item: name, weight: e.weight, min: e.min, max: e.max, conditions: Slice::new(&out.conds[first + 1 + ei]), smelt: Str::new(&e.smelt), ..abi::LootEntry::DEFAULT }
+                abi::LootEntry {
+                    item: name,
+                    weight: e.weight,
+                    min: e.min,
+                    max: e.max,
+                    conditions: Slice::new(&out.conds[first + 1 + ei]),
+                    smelt: Str::new(&e.smelt),
+                    ..abi::LootEntry::DEFAULT
+                }
             })
             .collect();
         n += p.entries.len();
         out.entries.push(entries);
     }
     for (pi, p) in pools.iter().enumerate() {
-        out.pools.push(abi::LootPool { rolls_min: p.rolls.0, rolls_max: p.rolls.1, conditions: Slice::new(&out.conds[cond_index[pi]]), entries: Slice::new(&out.entries[pi]), ..abi::LootPool::DEFAULT });
+        out.pools.push(abi::LootPool {
+            rolls_min: p.rolls.0,
+            rolls_max: p.rolls.1,
+            conditions: Slice::new(&out.conds[cond_index[pi]]),
+            entries: Slice::new(&out.entries[pi]),
+            ..abi::LootPool::DEFAULT
+        });
     }
     out._names = names;
     out
@@ -389,7 +416,8 @@ impl Drop for LootBuilder<'_> {
             return;
         }
         let raw = raw_pools(self.reg.ns, &self.pools);
-        let desc = abi::LootDesc { name: Str::new(&self.name), pools: Slice::new(&raw.pools), ..abi::LootDesc::DEFAULT };
+        let desc =
+            abi::LootDesc { name: Str::new(&self.name), pools: Slice::new(&raw.pools), ..abi::LootDesc::DEFAULT };
         unsafe { (host().reg_loot)(self.reg.raw, &desc) }
     }
 }
@@ -404,7 +432,10 @@ impl LootModBuilder<'_> {
     fn send(&mut self, op: u32, pool: Option<&Pool>, from: &str, to: &str) {
         let pools: Vec<Pool> = pool.into_iter().cloned().collect();
         let raw = raw_pools(self.reg.ns, &pools);
-        let (from, to) = (if from.is_empty() { String::new() } else { qualify(self.reg.ns, from) }, if to.is_empty() { String::new() } else { qualify(self.reg.ns, to) });
+        let (from, to) = (
+            if from.is_empty() { String::new() } else { qualify(self.reg.ns, from) },
+            if to.is_empty() { String::new() } else { qualify(self.reg.ns, to) },
+        );
         let desc = abi::LootModDesc {
             table: Str::new(&self.table),
             op,
@@ -459,14 +490,23 @@ impl<T> SystemBatch<'_, T> {
     }
     /// (entity, its value, ticks to do).
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (u64, &mut T, u32)> {
-        self.ids.iter().copied().zip(self.values.iter_mut()).zip(self.ticks.iter().copied()).map(|((id, v), t)| (id, v, t))
+        self.ids
+            .iter()
+            .copied()
+            .zip(self.values.iter_mut())
+            .zip(self.ticks.iter().copied())
+            .map(|((id, v), t)| (id, v, t))
     }
 }
 
 impl Registry {
     /// A system over a per-entity component (`Registry::entity_component`): once per tick and
     /// region with all values in one slice, no host call per entity.
-    pub fn system<T: Value>(&mut self, comp: &crate::Component<T>, f: impl Fn(&mut SystemBatch<T>) + Send + Sync + 'static) {
+    pub fn system<T: Value>(
+        &mut self,
+        comp: &crate::Component<T>,
+        f: impl Fn(&mut SystemBatch<T>) + Send + Sync + 'static,
+    ) {
         let cb = callback(move |a: &mut abi::SystemArgs| {
             if a.stride as usize != size_of::<T>() || a.count == 0 {
                 return;
@@ -490,7 +530,9 @@ impl Registry {
             if stride != size_of::<T>() {
                 return;
             }
-            let values = (0..a.count as usize).map(|i| unsafe { std::ptr::read_unaligned(a.data.add(i * stride) as *const T) }).collect();
+            let values = (0..a.count as usize)
+                .map(|i| unsafe { std::ptr::read_unaligned(a.data.add(i * stride) as *const T) })
+                .collect();
             f(&EventBatch { world: World::from_raw(a.world), values });
         });
         unsafe { (host().reg_event_handler)(self.raw, Str::new(event.name()), Str::new(&T::schema()), cb) }
@@ -499,7 +541,11 @@ impl Registry {
     /// Answers `question` (`question::*` or a mod's own) before it happens.
     pub fn intercept(&mut self, question: &Question, f: impl Fn(&Ask) -> Verdict + Send + Sync + 'static) {
         let cb = callback(move |a: &mut abi::InterceptArgs| {
-            let ask = Ask { world: World::from_raw(a.world), question: unsafe { std::mem::transmute::<&str, &'static str>(a.question.as_str()) }, query: a.query };
+            let ask = Ask {
+                world: World::from_raw(a.world),
+                question: unsafe { std::mem::transmute::<&str, &'static str>(a.question.as_str()) },
+                query: a.query,
+            };
             let v = f(&ask);
             unsafe {
                 (*a.query).verdict = match v {
@@ -515,7 +561,8 @@ impl Registry {
     /// A step on value `chain` (`chain::*` or a mod's own) at `stage` (`stage::*`).
     pub fn modify(&mut self, chain: &Chain, stage: u32, f: impl Fn(&mut Modify) + Send + Sync + 'static) {
         let cb = callback(move |a: &mut abi::ModifyArgs| {
-            let mut m = Modify { world: World::from_raw(a.world), query: unsafe { *a.ctx }, base: a.base, value: a.value };
+            let mut m =
+                Modify { world: World::from_raw(a.world), query: unsafe { *a.ctx }, base: a.base, value: a.value };
             f(&mut m);
             a.value = m.value;
         });
@@ -541,7 +588,6 @@ impl Registry {
         unsafe { (host().reg_stack_component)(self.raw, Str::new(c.name()), Str::new(&T::schema()), flags) }
     }
 }
-
 
 impl World {
     /// In `ticks` ticks `event` fires with `value` (a calm-down, a hunger pulse). The timer is
@@ -591,7 +637,9 @@ impl World {
 
     /// Adds or replaces modifier `id` on an attribute for `ticks` (0 = until removed).
     pub fn add_modifier(&self, entity: u64, attr: &Attribute, id: &str, op: u32, amount: f64, ticks: u64) {
-        unsafe { (host().attribute_modifier)(self.raw(), entity, Str::new(attr.name()), Str::new(id), op, amount, ticks) }
+        unsafe {
+            (host().attribute_modifier)(self.raw(), entity, Str::new(attr.name()), Str::new(id), op, amount, ticks)
+        }
     }
 
     pub fn remove_modifier(&self, entity: u64, attr: &Attribute, id: &str) {
@@ -600,7 +648,13 @@ impl World {
 
     pub fn roll_loot(&self, table: &dyn LootSource, ctx: &LootCtx) -> Vec<ItemStack> {
         let table = table.table_name();
-        let c = abi::LootCtx { tool: ctx.tool, killer: ctx.killer, by_player: ctx.by_player as u32, on_fire: ctx.on_fire as u32, mined: ctx.mined };
+        let c = abi::LootCtx {
+            tool: ctx.tool,
+            killer: ctx.killer,
+            by_player: ctx.by_player as u32,
+            on_fire: ctx.on_fire as u32,
+            mined: ctx.mined,
+        };
         let mut buf = vec![ItemStack::EMPTY; 16];
         let n = unsafe { (host().roll_loot)(self.raw(), Str::new(table), &c, buf.as_mut_ptr(), buf.len()) };
         if n > buf.len() {

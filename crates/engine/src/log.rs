@@ -82,7 +82,8 @@ impl Filter {
                 Some((t, l)) => (t.trim(), l.trim()),
                 None => ("all", item),
             };
-            let level: LevelFilter = level.parse().map_err(|_| format!("unknown level '{level}' (off, error, warn, info, debug, trace)"))?;
+            let level: LevelFilter =
+                level.parse().map_err(|_| format!("unknown level '{level}' (off, error, warn, info, debug, trace)"))?;
             if target == "all" || target == "*" {
                 self.default = level;
             } else {
@@ -120,7 +121,10 @@ fn short(target: &str) -> &str {
 }
 
 fn is_ours(target: &str) -> bool {
-    target.starts_with("weft") || target.starts_with("mod:") || target == "vulkan" || CHANNELS.iter().any(|c| c.0 == target)
+    target.starts_with("weft")
+        || target.starts_with("mod:")
+        || target == "vulkan"
+        || CHANNELS.iter().any(|c| c.0 == target)
 }
 
 /// `verbose` is `--verbose` (debug for everything of ours), `spec` the `--log` filters.
@@ -132,7 +136,8 @@ pub fn init(file: Option<&Path>, verbose: bool, spec: &str) {
         }
         std::fs::File::create(p).ok()
     });
-    let mut filter = Filter { default: if verbose { LevelFilter::Debug } else { LevelFilter::Info }, rules: Vec::new() };
+    let mut filter =
+        Filter { default: if verbose { LevelFilter::Debug } else { LevelFilter::Info }, rules: Vec::new() };
     let bad = filter.apply(spec).err();
     let logger = LOGGER.get_or_init(|| Logger {
         start: Instant::now(),
@@ -238,7 +243,8 @@ impl log::Log for Logger {
 /// Keeps the previous `latest.log` under the time it was last written, and only the newest few.
 fn rotate(dir: &Path, latest: &Path) {
     if let Ok(meta) = std::fs::metadata(latest) {
-        let when = meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
+        let when =
+            meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
         let stamp = stamp(when);
         let mut to = dir.join(format!("{stamp}.log"));
         let mut n = 1;
@@ -249,7 +255,9 @@ fn rotate(dir: &Path, latest: &Path) {
         let _ = std::fs::rename(latest, to);
     }
     let mut old: Vec<std::path::PathBuf> = std::fs::read_dir(dir)
-        .map(|r| r.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "log") && p != latest).collect())
+        .map(|r| {
+            r.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "log") && p != latest).collect()
+        })
         .unwrap_or_default();
     old.sort();
     let extra = old.len().saturating_sub(KEEP_LOGS);
@@ -303,13 +311,10 @@ fn local_offset() -> i64 {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn local_offset() -> i64 {
-    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()) as libc::time_t;
+    let secs =
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()) as libc::time_t;
     let mut tm: libc::tm = unsafe { std::mem::zeroed() };
-    if unsafe { libc::localtime_r(&secs, &mut tm) }.is_null() {
-        0
-    } else {
-        tm.tm_gmtoff as i64
-    }
+    if unsafe { libc::localtime_r(&secs, &mut tm) }.is_null() { 0 } else { tm.tm_gmtoff as i64 }
 }
 
 #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]

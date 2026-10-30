@@ -182,11 +182,16 @@ pub mod terrain {
     /// and the push constants.
     pub fn prelude() -> String {
         let mut s = wgsl();
-        s.push_str(&format!("const ONE: i32 = {};
-", weft_noise::fixed::ONE));
+        s.push_str(&format!(
+            "const ONE: i32 = {};
+",
+            weft_noise::fixed::ONE
+        ));
         for (i, (name, _)) in SEEDS.iter().enumerate() {
-            s.push_str(&format!("const S_{name}: u32 = {i}u;
-"));
+            s.push_str(&format!(
+                "const S_{name}: u32 = {i}u;
+"
+            ));
         }
         s.push_str(concat!(
             "// The description (`terrain_gpu::describe`).
@@ -236,8 +241,18 @@ pub const CORNERS: [[[i32; 3]; 4]; 6] = [
 /// corner (`corner_light`).
 #[inline]
 pub fn face_record(pos: [i32; 3], dir: u32, ao: u32, tint: u32, tex: u32, biome: u32, light: [u32; 4]) -> [u32; 4] {
-    let w0 = pos[0] as u32 | (pos[1] as u32) << face::Y_SHIFT | (pos[2] as u32) << face::Z_SHIFT | dir << face::DIR_SHIFT | ao << face::AO_SHIFT | tint << face::TINT_SHIFT;
-    [w0, tex | biome << face::BIOME_SHIFT, light[0] | light[1] << face::CORNER_SHIFT, light[2] | light[3] << face::CORNER_SHIFT]
+    let w0 = pos[0] as u32
+        | (pos[1] as u32) << face::Y_SHIFT
+        | (pos[2] as u32) << face::Z_SHIFT
+        | dir << face::DIR_SHIFT
+        | ao << face::AO_SHIFT
+        | tint << face::TINT_SHIFT;
+    [
+        w0,
+        tex | biome << face::BIOME_SHIFT,
+        light[0] | light[1] << face::CORNER_SHIFT,
+        light[2] | light[3] << face::CORNER_SHIFT,
+    ]
 }
 
 /// The direction of a face record.
@@ -262,7 +277,11 @@ pub fn quad_pos(p: [f32; 3]) -> u32 {
 /// A quad's uv word: `uv` (u0, v0, u1, v1) in 1/16, tint kind and flags.
 #[inline]
 pub fn quad_uv(uv: [u32; 4], tint: u32) -> u32 {
-    uv[0] | uv[1] << quad::UV_BITS | uv[2] << (2 * quad::UV_BITS) | uv[3] << (3 * quad::UV_BITS) | tint << quad::TINT_SHIFT
+    uv[0]
+        | uv[1] << quad::UV_BITS
+        | uv[2] << (2 * quad::UV_BITS)
+        | uv[3] << (3 * quad::UV_BITS)
+        | tint << quad::TINT_SHIFT
 }
 
 /// A distant terrain record (`lod_face`): the `dir` face of a box at `pos` in the tile, `size`
@@ -271,7 +290,10 @@ pub fn quad_uv(uv: [u32; 4], tint: u32) -> u32 {
 pub fn lod_record(dir: u32, pos: [i32; 3], size: [i32; 3], tex: u32, tint: u32, biome: u32) -> [u32; 4] {
     let h = lod_face::HALF_SHIFT;
     [
-        pos[0] as u32 | (pos[2] as u32) << lod_face::Z_SHIFT | dir << lod_face::DIR_SHIFT | tint << lod_face::TINT_SHIFT,
+        pos[0] as u32
+            | (pos[2] as u32) << lod_face::Z_SHIFT
+            | dir << lod_face::DIR_SHIFT
+            | tint << lod_face::TINT_SHIFT,
         tex | biome << face::BIOME_SHIFT,
         (pos[1] as u32 & lod_face::HALF_MASK) | (size[1] as u32) << h,
         size[0] as u32 | (size[2] as u32) << h,
@@ -280,7 +302,11 @@ pub fn lod_record(dir: u32, pos: [i32; 3], size: [i32; 3], tex: u32, tint: u32, 
 
 /// The WGSL side of the records above: `CORNERS` and their decoders.
 fn records() -> String {
-    let corners: Vec<String> = CORNERS.iter().flatten().map(|c| format!("vec3({:.1}, {:.1}, {:.1})", c[0] as f32, c[1] as f32, c[2] as f32)).collect();
+    let corners: Vec<String> = CORNERS
+        .iter()
+        .flatten()
+        .map(|c| format!("vec3({:.1}, {:.1}, {:.1})", c[0] as f32, c[1] as f32, c[2] as f32))
+        .collect();
     let mut s = format!("var<private> CORNERS: array<vec3<f32>, 24> = array<vec3<f32>, 24>({});\n", corners.join(", "));
     s.push_str(concat!(
         "fn face_pos(w0: u32) -> vec3<f32> {\n",
@@ -320,7 +346,15 @@ fn records() -> String {
 
 /// A host-visible buffer per frame in flight (`slots`), holding at least `needed` elements of
 /// `stride` bytes; a slot too small is replaced by one grown to the next power of two.
-pub fn frame_buffer(gpu: &mut dyn weft_render::Backend, slots: &mut Vec<(weft_render::BufferId, u32)>, slot: usize, needed: u32, stride: u64, usage: u32, label: &str) -> weft_render::BufferId {
+pub fn frame_buffer(
+    gpu: &mut dyn weft_render::Backend,
+    slots: &mut Vec<(weft_render::BufferId, u32)>,
+    slot: usize,
+    needed: u32,
+    stride: u64,
+    usage: u32,
+    label: &str,
+) -> weft_render::BufferId {
     use weft_render::usage::HOST;
     while slots.len() < gpu.frames_in_flight() {
         slots.push((gpu.create_buffer(stride * 1024, usage | HOST, label), 1024));
@@ -644,7 +678,20 @@ fn solid_at(p: vec3<i32>) -> bool {
 
 /// Every GPU struct as WGSL.
 fn structs() -> String {
-    [Scene::wgsl(), Globals::wgsl(), GpuBox::wgsl(), Instance::wgsl(), GpuCuboid::wgsl(), GpuCorner::wgsl(), GpuBone::wgsl(), GpuParticle::wgsl(), Quad::wgsl(), Screen::wgsl(), Pass::wgsl()].concat()
+    [
+        Scene::wgsl(),
+        Globals::wgsl(),
+        GpuBox::wgsl(),
+        Instance::wgsl(),
+        GpuCuboid::wgsl(),
+        GpuCorner::wgsl(),
+        GpuBone::wgsl(),
+        GpuParticle::wgsl(),
+        Quad::wgsl(),
+        Screen::wgsl(),
+        Pass::wgsl(),
+    ]
+    .concat()
 }
 
 /// What goes in front of an engine shader (or a pack's replacement of it): the constants, every
@@ -682,7 +729,10 @@ mod tests {
         assert_eq!(f[1] & face::TEX_MASK, 1234);
         assert_eq!(corner_light([200, 3, 15, 16]), 15 | 3 << 4 | 15 << 8 | 15 << 12);
         let q = quad_pos([-2.0, 0.5, 61.9375]);
-        assert_eq!([q & quad::POS_MASK, (q >> quad::POS_BITS) & quad::POS_MASK, q >> (2 * quad::POS_BITS)], [0, 40, 1023]);
+        assert_eq!(
+            [q & quad::POS_MASK, (q >> quad::POS_BITS) & quad::POS_MASK, q >> (2 * quad::POS_BITS)],
+            [0, 40, 1023]
+        );
         let l = lod_record(4, [2047, -300, 5], [16, 7, 32], 9, 3, 2);
         assert_eq!(l[0] & lod_face::POS_MASK, 2047);
         assert_eq!((l[0] >> lod_face::Z_SHIFT) & lod_face::POS_MASK, 5);
@@ -701,7 +751,9 @@ mod tests {
             l[3]
         );
         let module = naga::front::wgsl::parse_str(&src).expect("records parse");
-        naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::all()).validate(&module).expect("records validate");
+        naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::all())
+            .validate(&module)
+            .expect("records validate");
     }
 
     /// The terrain prelude parses, and the header has room for every seed.

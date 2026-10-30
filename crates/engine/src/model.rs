@@ -84,7 +84,10 @@ pub fn role_of(name: &str, legs: usize) -> u32 {
 
 /// Every part's role from its name.
 pub fn assign_roles(parts: &mut [Part]) {
-    let legs = parts.iter().filter(|p| p.name.to_ascii_lowercase().strip_prefix("leg").is_some_and(|i| i.parse::<u32>().is_ok())).count();
+    let legs = parts
+        .iter()
+        .filter(|p| p.name.to_ascii_lowercase().strip_prefix("leg").is_some_and(|i| i.parse::<u32>().is_ok()))
+        .count();
     for p in parts {
         p.role = role_of(&p.name, legs);
     }
@@ -128,11 +131,13 @@ pub fn load_geo(src: &str) -> Result<Geo, String> {
     let size = |k: &str| desc.get(k).and_then(Value::as_u64).map(|v| v as u32);
     let texture = size("texture_width").zip(size("texture_height")).map(|(w, h)| [w, h]);
     let tex = texture.map_or([64.0, 64.0], |t| [t[0] as f32, t[1] as f32]);
-    let names: Vec<String> = bones.iter().map(|b| b.get("name").and_then(Value::as_str).unwrap_or("").to_string()).collect();
+    let names: Vec<String> =
+        bones.iter().map(|b| b.get("name").and_then(Value::as_str).unwrap_or("").to_string()).collect();
     let mut parts = Vec::new();
     for b in bones {
         let name = b.get("name").and_then(Value::as_str).unwrap_or("").to_string();
-        let parent = b.get("parent").and_then(Value::as_str).and_then(|p| names.iter().position(|n| n == p)).map(|i| i as u32);
+        let parent =
+            b.get("parent").and_then(Value::as_str).and_then(|p| names.iter().position(|n| n == p)).map(|i| i as u32);
         let pivot = vec3(b.get("pivot")).unwrap_or([0.0; 3]);
         let rest = angles(vec3(b.get("rotation")).unwrap_or([0.0; 3]));
         let bone_mirror = b.get("mirror").and_then(Value::as_bool).unwrap_or(false);
@@ -154,7 +159,11 @@ pub fn load_geo(src: &str) -> Result<Geo, String> {
                         let Some(f) = faces.get(face) else { continue };
                         let uv = vec2(f.get("uv")).unwrap_or([0.0; 2]);
                         let sz = vec2(f.get("uv_size")).unwrap_or([0.0; 2]);
-                        rects[i] = if face == "down" { [uv[0], uv[1] + sz[1], sz[0], -sz[1]] } else { [uv[0], uv[1], sz[0], sz[1]] };
+                        rects[i] = if face == "down" {
+                            [uv[0], uv[1] + sz[1], sz[0], -sz[1]]
+                        } else {
+                            [uv[0], uv[1], sz[0], sz[1]]
+                        };
                     }
                     cub.faces = Some(rects);
                 }
@@ -267,7 +276,11 @@ pub fn load_animations(src: &str) -> Result<Vec<Animation>, String> {
                             let (pre, post, smooth) = match f {
                                 Value::Object(o) => {
                                     let post = vec3(o.get("post")).or_else(|| vec3(o.get("pre")))?;
-                                    (vec3(o.get("pre")).unwrap_or(post), post, o.get("lerp_mode").and_then(Value::as_str) == Some("catmullrom"))
+                                    (
+                                        vec3(o.get("pre")).unwrap_or(post),
+                                        post,
+                                        o.get("lerp_mode").and_then(Value::as_str) == Some("catmullrom"),
+                                    )
                                 }
                                 other => {
                                     let v = vec3(Some(other))?;
@@ -277,7 +290,9 @@ pub fn load_animations(src: &str) -> Result<Vec<Animation>, String> {
                             Some(Key { time, pre, post, smooth })
                         })
                         .collect(),
-                    constant => vec3(Some(constant)).map(|v| vec![Key { time: 0.0, pre: v, post: v, smooth: false }]).unwrap_or_default(),
+                    constant => vec3(Some(constant))
+                        .map(|v| vec![Key { time: 0.0, pre: v, post: v, smooth: false }])
+                        .unwrap_or_default(),
                 };
                 keys.sort_by(|a, b| a.time.total_cmp(&b.time));
                 longest = longest.max(keys.last().map_or(0.0, |k| k.time));
@@ -326,7 +341,10 @@ impl Channel {
             let (p1, p2) = (a.post, b.pre);
             std::array::from_fn(|j| {
                 let (p0, p1, p2, p3) = (p0[j], p1[j], p2[j], p3[j]);
-                0.5 * (2.0 * p1 + (p2 - p0) * f + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * f * f + (3.0 * p1 - p0 - 3.0 * p2 + p3) * f * f * f)
+                0.5 * (2.0 * p1
+                    + (p2 - p0) * f
+                    + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * f * f
+                    + (3.0 * p1 - p0 - 3.0 * p2 + p3) * f * f * f)
             })
         } else {
             std::array::from_fn(|j| a.post[j] + (b.pre[j] - a.post[j]) * f)
@@ -346,7 +364,9 @@ impl Bound {
         let bones = parts
             .iter()
             .map(|p| {
-                let find = |prop: Prop| anim.channels.iter().position(|c| c.prop == prop && c.bone.eq_ignore_ascii_case(&p.name));
+                let find = |prop: Prop| {
+                    anim.channels.iter().position(|c| c.prop == prop && c.bone.eq_ignore_ascii_case(&p.name))
+                };
                 [find(Prop::Rotation), find(Prop::Position), find(Prop::Scale)]
             })
             .collect();
@@ -424,7 +444,10 @@ pub fn pose(parts: &[Part], root: Mat4, m: &Motion, out: &mut Vec<Mat4>) {
             }
         }
         let pivot = Vec3::from_array(p.pivot);
-        let local = Mat4::from_translation(offset + pivot) * Mat4::from_quat(Quat::from_euler(EulerRot::ZYX, rot.z, rot.y, rot.x)) * Mat4::from_scale(scale) * Mat4::from_translation(-pivot);
+        let local = Mat4::from_translation(offset + pivot)
+            * Mat4::from_quat(Quat::from_euler(EulerRot::ZYX, rot.z, rot.y, rot.x))
+            * Mat4::from_scale(scale)
+            * Mat4::from_translation(-pivot);
         let parent = p.parent.and_then(|q| out.get(q as usize)).copied().unwrap_or(root);
         out.push(parent * local);
     }
@@ -436,8 +459,14 @@ mod tests {
 
     #[test]
     fn roles_from_names() {
-        assert_eq!((role_of("rightArm", 0), role_of("left_leg", 0), role_of("body", 0)), (role::ARM_LEFT, role::LEG_RIGHT, role::STATIC));
-        assert_eq!([0, 1, 2, 3].map(|i| role_of(&format!("leg{i}"), 4)), [role::LEG_RIGHT, role::LEG_LEFT, role::LEG_FRONT_RIGHT, role::LEG_FRONT_LEFT]);
+        assert_eq!(
+            (role_of("rightArm", 0), role_of("left_leg", 0), role_of("body", 0)),
+            (role::ARM_LEFT, role::LEG_RIGHT, role::STATIC)
+        );
+        assert_eq!(
+            [0, 1, 2, 3].map(|i| role_of(&format!("leg{i}"), 4)),
+            [role::LEG_RIGHT, role::LEG_LEFT, role::LEG_FRONT_RIGHT, role::LEG_FRONT_LEFT]
+        );
         // A spider's eight: each left leg and its right twin sweep opposite, and so do neighbors.
         let (a, b) = (role::LEG_SWEEP_A, role::LEG_SWEEP_B);
         assert_eq!([0, 1, 2, 3].map(|i| role_of(&format!("leg{i}"), 8)), [a, b, b, a]);

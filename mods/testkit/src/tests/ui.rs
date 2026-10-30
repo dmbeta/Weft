@@ -8,14 +8,25 @@ use crate::runner::{R, T};
 pub async fn screens(t: T) -> R {
     t.screen("core:title").await?;
     t.shot("title").await?;
-    t.laid_out(&["text:Singleplayer", "text:Multiplayer", "text:Mods", "text:Settings", "id:profile", "text:Quit Game", "text:About Test Mod"]);
+    t.laid_out(&[
+        "text:Singleplayer",
+        "text:Multiplayer",
+        "text:Mods",
+        "text:Settings",
+        "id:profile",
+        "text:Quit Game",
+        "text:About Test Mod",
+    ]);
     // A mod's button in the main menu opens its own screen, with no world around.
     t.check(t.click_ui("text:About Test Mod", 0), "the test mod's main menu button");
     t.screen("testmod:about").await?;
     t.c().close_screen();
     t.screen("core:title").await?;
     for (screen, texts) in [
-        (&screens::SETTINGS, &["text:View distance", "text:Language", "text:Controls", "text:Shader Packs", "text:Done"][..]),
+        (
+            &screens::SETTINGS,
+            &["text:View distance", "text:Language", "text:Controls", "text:Shader Packs", "text:Done"][..],
+        ),
         (&screens::LANGUAGE, &["text:English", "text:Done"][..]),
         (&screens::CONTROLS, &["text:Reset All", "text:Done"][..]),
         (&screens::WORLDS, &["text:Create New World", "id:saves_folder"][..]),
@@ -52,7 +63,10 @@ pub async fn screens(t: T) -> R {
     let [x, y, w, h] = t.c().ui_rect("slider").ok_or("no slider")?;
     t.c().cursor(x + w * 0.75, y + h / 2.0);
     t.c().click(0, 0.1);
-    t.until("the slider moved", Duration::from_secs(3), |t| (70..=80).any(|v| t.c().ui_rect(&format!("text:Volume: {v}")).is_some())).await?;
+    t.until("the slider moved", Duration::from_secs(3), |t| {
+        (70..=80).any(|v| t.c().ui_rect(&format!("text:Volume: {v}")).is_some())
+    })
+    .await?;
     t.check(t.c().ui_rect("text:Field of view here: 70").is_some(), "a mod's screen reads the settings");
     let coal = Item::lookup("base:coal").ok_or("no coal")?;
     t.check(t.c().ui_rect(&format!("icon:{coal}")).is_some(), "the item on the mod's screen");
@@ -75,7 +89,15 @@ pub async fn hud_editor(t: T) -> R {
     t.screen("core:hud_editor").await?;
     t.frames(4).await?;
     t.shot("editor").await?;
-    t.laid_out(&["id:hud:core:hotbar", "id:hud:core:crosshair", "id:hud:core:chat", "id:hud:core:held_name", "id:hud:base:health", "id:hud:base:food", "id:hud_tools"]);
+    t.laid_out(&[
+        "id:hud:core:hotbar",
+        "id:hud:core:crosshair",
+        "id:hud:core:chat",
+        "id:hud:core:held_name",
+        "id:hud:base:health",
+        "id:hud:base:food",
+        "id:hud_tools",
+    ]);
     // A drag takes the hotbar to the top left corner.
     let [x, y, w, h] = rect(&t, "core:hotbar").ok_or("no hotbar in the editor")?;
     t.c().cursor(x + w / 2.0, y + h / 2.0);
@@ -87,7 +109,10 @@ pub async fn hud_editor(t: T) -> R {
     t.shot("dragging").await?;
     t.secs(0.5).await?;
     let moved = rect(&t, "core:hotbar").ok_or("no hotbar after the drag")?;
-    t.check((moved[0] + moved[2] / 2.0 - 0.25).abs() < 0.02 && (moved[1] + moved[3] / 2.0 - 0.2).abs() < 0.02, format!("the hotbar under the cursor: {moved:?}"));
+    t.check(
+        (moved[0] + moved[2] / 2.0 - 0.25).abs() < 0.02 && (moved[1] + moved[3] / 2.0 - 0.2).abs() < 0.02,
+        format!("the hotbar under the cursor: {moved:?}"),
+    );
     let saved = std::fs::read_to_string(&file).unwrap_or_default();
     t.check(saved.contains("core:hotbar = at"), format!("saved: {saved:?}"));
     // The right button hides what is under it.
@@ -115,7 +140,10 @@ pub async fn hud_editor(t: T) -> R {
     t.no_screen().await?;
     t.frames(3).await?;
     let back = rect(&t, "core:hotbar").ok_or("no hotbar after the reset")?;
-    t.check((back[0] - before[0]).abs() < 0.001 && (back[1] - before[1]).abs() < 0.001, format!("the hotbar back in place: {back:?} {before:?}"));
+    t.check(
+        (back[0] - before[0]).abs() < 0.001 && (back[1] - before[1]).abs() < 0.001,
+        format!("the hotbar back in place: {back:?} {before:?}"),
+    );
     t.check(rect(&t, "core:crosshair").is_some(), "the crosshair back");
     Ok(())
 }
@@ -317,17 +345,29 @@ pub async fn chat(t: T) -> R {
     t.check(crate::runner::PROBES.with(|p| p.get()) == probes, "the testkit:probe key fired while typing in the chat");
     t.c().key("Backspace", 0.0);
     t.frames(2).await?;
-    for (typed, want) in [("/give @p birch_lo", "/give @p base:birch_log"), ("/giz", "/gizmo"), ("/gizmo cu", "/gizmo cubes"), ("/gizmo testm", "/gizmo testmod:energy"), ("/gizmo pro", "/gizmo probe"), ("/probe al", "/probe alpha"), ("/rule mob", "/rule core:mob_spawning")] {
+    for (typed, want) in [
+        ("/give @p birch_lo", "/give @p base:birch_log"),
+        ("/giz", "/gizmo"),
+        ("/gizmo cu", "/gizmo cubes"),
+        ("/gizmo testm", "/gizmo testmod:energy"),
+        ("/gizmo pro", "/gizmo probe"),
+        ("/probe al", "/probe alpha"),
+        ("/rule mob", "/rule core:mob_spawning"),
+    ] {
         t.c().type_text(typed);
         t.frames(2).await?;
         t.c().key("Tab", 0.0);
         t.frames(3).await?;
         let text = t.c().input_text();
-        t.check(text.starts_with(want) || (typed.starts_with("/give") && text.contains("birch_log")), format!("Tab completed {typed} to '{text}', want {want}"));
+        t.check(
+            text.starts_with(want) || (typed.starts_with("/give") && text.contains("birch_log")),
+            format!("Tab completed {typed} to '{text}', want {want}"),
+        );
         if typed.starts_with("/give") {
             t.c().key("Enter", 0.0);
             t.no_screen().await?;
-            t.until("logs given", Duration::from_secs(5), |t| t.c().inventory_slot(0).item == id("base:birch_log")).await?;
+            t.until("logs given", Duration::from_secs(5), |t| t.c().inventory_slot(0).item == id("base:birch_log"))
+                .await?;
             t.press("core:chat");
             t.screen("core:chat").await?;
             continue;
@@ -364,7 +404,11 @@ pub async fn chat(t: T) -> R {
 
     // Replies travel as a key and arguments: the client words them, and again after a language
     // change. The engine's, a mod's and a parse error alike.
-    let replies = [("/time query", "time is", "время"), ("/feed 5", "food set to 5", "сытость теперь 5"), ("/give @p base:nothing", "usage: /give", "использование: /give")];
+    let replies = [
+        ("/time query", "time is", "время"),
+        ("/feed 5", "food set to 5", "сытость теперь 5"),
+        ("/give @p base:nothing", "usage: /give", "использование: /give"),
+    ];
     for (line, _, _) in replies {
         t.cmd(line).await?;
     }
@@ -488,9 +532,15 @@ pub async fn recipe_viewer(t: T) -> R {
     t.c().click(0, 0.05);
     t.screen("core:recipes").await?;
     t.frames(3).await?;
-    t.check(t.c().ui_rect("text:Recipes").is_some() && t.c().ui_rect("id:tab:base:crafting").is_some(), "the arrow shows the crafting recipes");
+    t.check(
+        t.c().ui_rect("text:Recipes").is_some() && t.c().ui_rect("id:tab:base:crafting").is_some(),
+        "the arrow shows the crafting recipes",
+    );
     // The crafting table opens the crafting menu, so it is the station of its recipes.
-    t.check(t.c().ui_rect(&format!("icon:{}", id("base:crafting_table"))).is_some(), "the crafting table shown as the station");
+    t.check(
+        t.c().ui_rect(&format!("icon:{}", id("base:crafting_table"))).is_some(),
+        "the crafting table shown as the station",
+    );
     t.shot("arrow").await?;
     t.c().close_screen();
     t.c().close_screen();
@@ -538,7 +588,10 @@ pub async fn inventory_hotkeys(t: T) -> R {
     t.frames(3).await?;
     hover(21)?;
     t.secs(0.8).await?;
-    t.check(t.slot("me", 20).await?.1 == 0 && t.slot("me", 21).await?.1 == 0, "shift-sweeping moved both cobblestone stacks to the hotbar");
+    t.check(
+        t.slot("me", 20).await?.1 == 0 && t.slot("me", 21).await?.1 == 0,
+        "shift-sweeping moved both cobblestone stacks to the hotbar",
+    );
     Ok(())
 }
 

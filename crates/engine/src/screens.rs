@@ -4,13 +4,13 @@
 
 use std::rc::Rc;
 
+use crate::app::Running;
 use crate::app::{Ctx, Request};
 use crate::input::{Input, Key};
 use crate::settings::Settings;
 use crate::ui::lang::Lang;
 use crate::ui::text::{self, Arg, Span};
 use crate::ui::{Justify, Kind, NodeId, Style, Ui, desc};
-use crate::app::Running;
 use weft_abi as abi;
 
 pub struct BuildCx<'a> {
@@ -166,25 +166,36 @@ impl Screen for ModList {
         };
         frame(ui, cx, "mods.title", |ui| {
             ui.container(Style::row().gap(6.0), |ui| {
-                let list = ui.panel("well", Style::default().pad(4.0).gap(2.0).w(160.0).h(tall).scroll().stretch(), |ui| {
-                    for (i, m) in mods.iter().enumerate() {
-                        let s = self.selected.clone();
-                        let b = ui.button("button", Style::row().min_h(22.0).pad_xy(4.0, 2.0).gap(4.0).stretch().justify(Justify::Start), Rc::new(move |c: &mut Ctx| {
-                            s.set(i);
-                            c.requests.push(Request::Rebuild);
-                        }), |ui| {
-                            match icon(&m.id) {
-                                Some(t) => drop(ui.add(Kind::Image { texture: t, color: 0xFFFFFFFF }, Style::default().size(16.0, 16.0))),
-                                None => drop(ui.add(Kind::Container { class: None }, Style::default().size(16.0, 16.0))),
+                let list =
+                    ui.panel("well", Style::default().pad(4.0).gap(2.0).w(160.0).h(tall).scroll().stretch(), |ui| {
+                        for (i, m) in mods.iter().enumerate() {
+                            let s = self.selected.clone();
+                            let b = ui.button(
+                                "button",
+                                Style::row().min_h(22.0).pad_xy(4.0, 2.0).gap(4.0).stretch().justify(Justify::Start),
+                                Rc::new(move |c: &mut Ctx| {
+                                    s.set(i);
+                                    c.requests.push(Request::Rebuild);
+                                }),
+                                |ui| {
+                                    match icon(&m.id) {
+                                        Some(t) => drop(ui.add(
+                                            Kind::Image { texture: t, color: 0xFFFFFFFF },
+                                            Style::default().size(16.0, 16.0),
+                                        )),
+                                        None => drop(
+                                            ui.add(Kind::Container { class: None }, Style::default().size(16.0, 16.0)),
+                                        ),
+                                    }
+                                    ui.text(mod_name(cx.lang, &m.id), "button");
+                                },
+                            );
+                            if let Kind::Button { selected, .. } = &mut ui.nodes[b].kind {
+                                *selected = i == sel;
                             }
-                            ui.text(mod_name(cx.lang, &m.id), "button");
-                        });
-                        if let Kind::Button { selected, .. } = &mut ui.nodes[b].kind {
-                            *selected = i == sel;
+                            ui.set_id(b, &format!("mod:{}", m.id));
                         }
-                        ui.set_id(b, &format!("mod:{}", m.id));
-                    }
-                });
+                    });
                 ui.set_id(list, "mod_list");
                 let Some(m) = mods.get(sel) else { return };
                 let key = |k: &str| format!("mod.{}.{k}", m.id);
@@ -195,7 +206,13 @@ impl Screen for ModList {
                         }
                         ui.container(Style::default().gap(1.0), |ui| {
                             ui.text(mod_name(cx.lang, &m.id), "default");
-                            label(ui, cx, "mods.version", &[Arg::Text(m.version.clone()), Arg::Text(m.id.clone())], "dim");
+                            label(
+                                ui,
+                                cx,
+                                "mods.version",
+                                &[Arg::Text(m.version.clone()), Arg::Text(m.id.clone())],
+                                "dim",
+                            );
                         });
                     });
                     for (k, line) in [("authors", "mods.authors"), ("url", "mods.url")] {
@@ -204,7 +221,8 @@ impl Screen for ModList {
                         }
                     }
                     if !m.deps.is_empty() {
-                        let deps: Vec<String> = m.deps.iter().map(|d| text::Name::Mod(d.clone()).text(cx.lang)).collect();
+                        let deps: Vec<String> =
+                            m.deps.iter().map(|d| text::Name::Mod(d.clone()).text(cx.lang)).collect();
                         label(ui, cx, "mods.deps", &[Arg::Text(deps.join(", "))], "dim");
                     }
                     ui.add(Kind::Container { class: None }, Style::default().h(4.0));
@@ -219,7 +237,9 @@ impl Screen for ModList {
             ui.container(Style::row().gap(6.0), |ui| {
                 let id = mods.get(sel).map(|m| m.id.clone()).unwrap_or_default();
                 let has_settings = c.game.configs.iter().any(|d| on_config_screen(d, Some(&id)));
-                let b = button(ui, cx, "mods.settings", &[], 120.0, move |c| c.requests.push(Request::Open(Box::new(ConfigScreen { ns: Some(id.clone()) }))));
+                let b = button(ui, cx, "mods.settings", &[], 120.0, move |c| {
+                    c.requests.push(Request::Open(Box::new(ConfigScreen { ns: Some(id.clone()) })))
+                });
                 if let Kind::Button { enabled, .. } = &mut ui.nodes[b].kind {
                     *enabled = has_settings;
                 }
@@ -325,7 +345,14 @@ pub fn label(ui: &mut Ui, cx: &BuildCx, key: &str, args: &[Arg], class: &str) ->
     ui.text(cx.t(key, args), class)
 }
 
-pub fn button(ui: &mut Ui, cx: &BuildCx, key: &str, args: &[Arg], width: f32, action: impl Fn(&mut Ctx) + 'static) -> NodeId {
+pub fn button(
+    ui: &mut Ui,
+    cx: &BuildCx,
+    key: &str,
+    args: &[Arg],
+    width: f32,
+    action: impl Fn(&mut Ctx) + 'static,
+) -> NodeId {
     let spans = cx.t(key, args);
     ui.button("button", Style::default().min_w(width).min_h(20.0).pad_xy(6.0, 4.0), Rc::new(action), |ui| {
         let t = ui.text(spans, "button");
@@ -338,12 +365,24 @@ pub fn button(ui: &mut Ui, cx: &BuildCx, key: &str, args: &[Arg], width: f32, ac
 /// A menu button with an icon (class `icon`, 9x9 like a glyph and its shadow) at its left edge;
 /// the label stays in the middle, so labels line up whatever the icons.
 #[allow(clippy::too_many_arguments)]
-pub fn icon_button(ui: &mut Ui, cx: &BuildCx, class: &str, icon: &str, key: &str, args: &[Arg], width: f32, action: impl Fn(&mut Ctx) + 'static) -> NodeId {
+pub fn icon_button(
+    ui: &mut Ui,
+    cx: &BuildCx,
+    class: &str,
+    icon: &str,
+    key: &str,
+    args: &[Arg],
+    width: f32,
+    action: impl Fn(&mut Ctx) + 'static,
+) -> NodeId {
     let spans = cx.t(key, args);
     let icon = cx.look.texture(icon, "");
     ui.button(class, Style::default().min_w(width).min_h(20.0).pad_xy(6.0, 4.0), Rc::new(action), |ui| {
         if let Some(texture) = icon {
-            ui.add(Kind::Image { texture, color: 0xFFFFFFFF }, Style::default().w(9.0).h(9.0).at(-1.0, 6.0, [0.0, 0.5]));
+            ui.add(
+                Kind::Image { texture, color: 0xFFFFFFFF },
+                Style::default().w(9.0).h(9.0).at(-1.0, 6.0, [0.0, 0.5]),
+            );
         }
         let t = ui.text(spans, "button");
         if let Some(t) = ui.text_mut(t) {
@@ -389,25 +428,48 @@ impl Screen for Title {
             ui.panel("sidebar", Style::default().w(180.0).pad(12.0).gap(4.0).stretch(), |ui| {
                 // The `logo` texture across the bar: whole multiples of its pixels while it fits.
                 if let Some(logo) = cx.look.texture("logo", "") {
-                    let size = cx.assets.read(&logo, "textures", "png").and_then(|b| crate::assets::decode_png(&b)).map_or([1.0, 1.0], |i| [i.width as f32, i.height as f32]);
+                    let size = cx
+                        .assets
+                        .read(&logo, "textures", "png")
+                        .and_then(|b| crate::assets::decode_png(&b))
+                        .map_or([1.0, 1.0], |i| [i.width as f32, i.height as f32]);
                     let k = if size[0] <= 156.0 { (156.0 / size[0]).floor() } else { 156.0 / size[0] };
-                    ui.add(Kind::Image { texture: logo, color: 0xFFFFFFFF }, Style::default().w(size[0] * k).h(size[1] * k));
+                    ui.add(
+                        Kind::Image { texture: logo, color: 0xFFFFFFFF },
+                        Style::default().w(size[0] * k).h(size[1] * k),
+                    );
                 }
                 ui.spacer();
-                icon_button(ui, cx, "button", "menu_singleplayer", "menu.singleplayer", &[], 156.0, |c| open(c, "core:worlds"));
+                icon_button(ui, cx, "button", "menu_singleplayer", "menu.singleplayer", &[], 156.0, |c| {
+                    open(c, "core:worlds")
+                });
                 // The profile is a square beside Multiplayer: the face of the player's skin.
                 ui.container(Style::row().gap(4.0).stretch(), |ui| {
-                    let mp = icon_button(ui, cx, "button", "menu_multiplayer", "menu.multiplayer", &[], 132.0, |c| open(c, "core:multiplayer"));
+                    let mp = icon_button(ui, cx, "button", "menu_multiplayer", "menu.multiplayer", &[], 132.0, |c| {
+                        open(c, "core:multiplayer")
+                    });
                     ui.nodes[mp].style.grow = 1.0;
                     let face = face_texture(cx);
-                    let p = ui.button("button", Style::default().w(20.0).h(20.0), Rc::new(|c: &mut Ctx| open(c, "core:profile")), |ui| {
-                        ui.add(Kind::Image { texture: face, color: 0xFFFFFFFF }, Style::default().w(8.0).h(8.0).at(6.0, 6.0, [0.0, 0.0]));
-                    });
+                    let p = ui.button(
+                        "button",
+                        Style::default().w(20.0).h(20.0),
+                        Rc::new(|c: &mut Ctx| open(c, "core:profile")),
+                        |ui| {
+                            ui.add(
+                                Kind::Image { texture: face, color: 0xFFFFFFFF },
+                                Style::default().w(8.0).h(8.0).at(6.0, 6.0, [0.0, 0.0]),
+                            );
+                        },
+                    );
                     ui.nodes[p].tooltip = Some(cx.t("menu.profile", &[]));
                     ui.set_id(p, "profile");
                 });
-                icon_button(ui, cx, "button", "menu_mods", "menu.mods", &[Arg::Int(cx.mods as i64)], 156.0, |c| open(c, "core:mods"));
-                icon_button(ui, cx, "button", "menu_settings", "menu.settings", &[], 156.0, |c| open(c, "core:settings"));
+                icon_button(ui, cx, "button", "menu_mods", "menu.mods", &[Arg::Int(cx.mods as i64)], 156.0, |c| {
+                    open(c, "core:mods")
+                });
+                icon_button(ui, cx, "button", "menu_settings", "menu.settings", &[], 156.0, |c| {
+                    open(c, "core:settings")
+                });
                 parts(ui, cx, "core:title", "buttons");
                 ui.add(Kind::Container { class: None }, Style::default().h(6.0));
                 let quit = button(ui, cx, "menu.quit", &[], 156.0, |c| c.requests.push(Request::Quit));
@@ -415,16 +477,25 @@ impl Screen for Title {
                     *class = "button_quit".into();
                 }
                 ui.add(Kind::Container { class: None }, Style::default().h(6.0));
-                label(ui, cx, "menu.version", &[Arg::Text(env!("CARGO_PKG_VERSION").into()), Arg::Int(cx.mods as i64)], "dim");
+                label(
+                    ui,
+                    cx,
+                    "menu.version",
+                    &[Arg::Text(env!("CARGO_PKG_VERSION").into()), Arg::Int(cx.mods as i64)],
+                    "dim",
+                );
             });
-            ui.container(Style::default().grow().pad(16.0).gap(8.0).justify(Justify::End).align(crate::ui::Align::End), |ui| {
-                if cx.lang.has("menu.news") && !cx.lang.get("menu.news").is_empty() {
-                    ui.panel("news", Style::default().pad(8.0).w(150.0), |ui| {
-                        ui.text(cx.t("menu.news", &[]), "default");
-                    });
-                }
-                parts(ui, cx, "core:title", "side");
-            });
+            ui.container(
+                Style::default().grow().pad(16.0).gap(8.0).justify(Justify::End).align(crate::ui::Align::End),
+                |ui| {
+                    if cx.lang.has("menu.news") && !cx.lang.get("menu.news").is_empty() {
+                        ui.panel("news", Style::default().pad(8.0).w(150.0), |ui| {
+                            ui.text(cx.t("menu.news", &[]), "default");
+                        });
+                    }
+                    parts(ui, cx, "core:title", "side");
+                },
+            );
         });
     }
 }
@@ -447,8 +518,12 @@ impl Screen for Pause {
         desc::build(ui, cx, |d| {
             desc::frame(d, cx.in_game, "menu.paused", |d| {
                 d.button("menu.resume", &[], 200.0, false, |r| r.handle(vec![Request::Close]));
-                d.button("menu.multiplayer", &[], 200.0, false, |r| r.handle(vec![Request::Screen("core:multiplayer".into())]));
-                d.button("menu.settings", &[], 200.0, false, |r| r.handle(vec![Request::Screen("core:settings".into())]));
+                d.button("menu.multiplayer", &[], 200.0, false, |r| {
+                    r.handle(vec![Request::Screen("core:multiplayer".into())])
+                });
+                d.button("menu.settings", &[], 200.0, false, |r| {
+                    r.handle(vec![Request::Screen("core:settings".into())])
+                });
                 d.parts("core:pause", "buttons");
                 d.button("menu.save_quit", &[], 200.0, false, |r| r.handle(vec![Request::LeaveWorld]));
             });
@@ -499,7 +574,11 @@ impl Screen for SettingsScreen {
                     d.slider("settings.fov", "core:fov", 1.0);
                     d.slider("settings.sensitivity", "core:sensitivity", 100.0);
                     d.slider("settings.brightness", "core:brightness", 100.0);
-                    let scale = if s.gui_scale() == 0 { Arg::Key("settings.gui_scale.auto".into()) } else { Arg::Int(s.gui_scale() as i64) };
+                    let scale = if s.gui_scale() == 0 {
+                        Arg::Key("settings.gui_scale.auto".into())
+                    } else {
+                        Arg::Int(s.gui_scale() as i64)
+                    };
                     d.button("settings.gui_scale", &[scale], 300.0, false, |r| {
                         // Auto, then every scale the window can actually show.
                         let max = crate::settings::max_gui_scale(r.stats.window);
@@ -511,11 +590,21 @@ impl Screen for SettingsScreen {
                         r.handle(vec![Request::Rebuild]);
                     });
 
-                    let row = abi::UiNode { row: 1, gap: 6.0, justify: abi::ui_justify::CENTER, align: abi::ui_align::CENTER, self_align: abi::ui_align::STRETCH, ..desc::node(abi::ui_kind::CONTAINER) };
+                    let row = abi::UiNode {
+                        row: 1,
+                        gap: 6.0,
+                        justify: abi::ui_justify::CENTER,
+                        align: abi::ui_align::CENTER,
+                        self_align: abi::ui_align::STRETCH,
+                        ..desc::node(abi::ui_kind::CONTAINER)
+                    };
                     for [(a, sa), (b, sb)] in [
                         [("settings.language", "core:language"), ("settings.controls", "core:controls")],
                         [("settings.sound", "core:sound"), ("settings.mods", "core:mod_settings")],
-                        [("settings.resource_packs", "core:resource_packs"), ("settings.shader_packs", "core:shader_packs")],
+                        [
+                            ("settings.resource_packs", "core:resource_packs"),
+                            ("settings.shader_packs", "core:shader_packs"),
+                        ],
                     ] {
                         d.open(&row, |d| {
                             d.button(a, &[], 147.0, true, screen(sa));
@@ -549,7 +638,13 @@ impl Screen for ModSettings {
 
     fn build(&mut self, ui: &mut Ui, cx: &BuildCx) {
         let c = crate::content::content();
-        let mut namespaces: Vec<&str> = c.game.configs.iter().filter_map(|d| d.name.split_once(':').map(|x| x.0).filter(|ns| on_config_screen(d, Some(ns)))).filter(|ns| *ns != "core").collect();
+        let mut namespaces: Vec<&str> = c
+            .game
+            .configs
+            .iter()
+            .filter_map(|d| d.name.split_once(':').map(|x| x.0).filter(|ns| on_config_screen(d, Some(ns))))
+            .filter(|ns| *ns != "core")
+            .collect();
         namespaces.dedup();
         frame(ui, cx, "settings.mods", |ui| {
             if namespaces.is_empty() {
@@ -558,7 +653,9 @@ impl Screen for ModSettings {
             for ns in namespaces {
                 let name = Arg::Name(text::Name::Mod(ns.to_string()));
                 let ns = ns.to_string();
-                button(ui, cx, "settings.mods.entry", &[name], 220.0, move |c| c.requests.push(Request::Open(Box::new(ConfigScreen { ns: Some(ns.clone()) }))));
+                button(ui, cx, "settings.mods.entry", &[name], 220.0, move |c| {
+                    c.requests.push(Request::Open(Box::new(ConfigScreen { ns: Some(ns.clone()) })))
+                });
             }
             button(ui, cx, "menu.done", &[], 200.0, |c| c.requests.push(Request::Close));
         });
@@ -599,76 +696,104 @@ impl Screen for ConfigScreen {
             if let Some(ns) = ns {
                 label(ui, cx, "settings.mods.of", &[Arg::Name(text::Name::Mod(ns.to_string()))], "default");
             }
-            let list = ui.panel("panel", Style::default().pad(8.0).gap(6.0).stretch().w(320.0).h(0.0).grow().min_h(40.0).scroll(), |ui| {
-                let mut listed: Vec<_> = c.game.configs.iter().enumerate().filter(|(_, d)| on_config_screen(d, ns)).collect();
-                listed.sort_by_key(|(_, d)| d.name != "core:volume_master");
-                for (id, d) in listed {
-                    let id = id as u32;
-                    let key = text::lang_key("config", &d.name);
-                    let locked = d.synced() && cx.remote;
-                    let show = |d: &crate::config::ConfigDef, key: &str, v: f64| -> Arg {
-                        match d.kind {
-                            ck::BOOL => on_off(v != 0.0),
-                            ck::CHOICE => {
-                                let choice = d.choices.get(v as usize).cloned().unwrap_or_default();
-                                Arg::Key(format!("{key}.{choice}"))
+            let list = ui.panel(
+                "panel",
+                Style::default().pad(8.0).gap(6.0).stretch().w(320.0).h(0.0).grow().min_h(40.0).scroll(),
+                |ui| {
+                    let mut listed: Vec<_> =
+                        c.game.configs.iter().enumerate().filter(|(_, d)| on_config_screen(d, ns)).collect();
+                    listed.sort_by_key(|(_, d)| d.name != "core:volume_master");
+                    for (id, d) in listed {
+                        let id = id as u32;
+                        let key = text::lang_key("config", &d.name);
+                        let locked = d.synced() && cx.remote;
+                        let show = |d: &crate::config::ConfigDef, key: &str, v: f64| -> Arg {
+                            match d.kind {
+                                ck::BOOL => on_off(v != 0.0),
+                                ck::CHOICE => {
+                                    let choice = d.choices.get(v as usize).cloned().unwrap_or_default();
+                                    Arg::Key(format!("{key}.{choice}"))
+                                }
+                                _ => Arg::Text(d.show(v)),
                             }
-                            _ => Arg::Text(d.show(v)),
-                        }
-                    };
-                    let row = match d.kind {
-                        ck::BOOL | ck::CHOICE => {
-                            let (key2, d2) = (key.clone(), d.clone());
-                            let (kind, count) = (d.kind, d.choices.len().max(1) as f64);
-                            let b = ui.button(
-                                "button",
-                                Style::default().min_h(20.0).pad_xy(6.0, 4.0).stretch(),
-                                Rc::new(move |_: &mut Ctx| {
-                                    let v = crate::config::get(id);
-                                    let next = if kind == ck::BOOL { 1.0 - v } else { (v + 1.0) % count };
-                                    crate::config::set(id, next);
-                                }),
-                                |ui| {
-                                    let (k, d3) = (key2.clone(), d2.clone());
-                                    ui.text_bound("button", Box::new(move |_: &Ctx| ("settings.config_value".into(), vec![Arg::Key(k.clone()), show(&d3, &k, crate::config::get(id))])));
-                                },
-                            );
-                            if let Kind::Button { enabled, .. } = &mut ui.nodes[b].kind {
-                                *enabled = !locked;
-                            }
-                            b
-                        }
-                        _ => ui.container(Style::default().gap(2.0).stretch(), |ui| {
-                            let (k, d2) = (key.clone(), d.clone());
-                            ui.text_bound("default", Box::new(move |_: &Ctx| ("settings.config_value".into(), vec![Arg::Key(k.clone()), show(&d2, &k, crate::config::get(id))])));
-                            if !locked {
-                                let (min, range) = (d.min, (d.max - d.min).max(1e-9));
-                                ui.add(
-                                    Kind::Slider {
-                                        value: 0.0,
-                                        bind: Box::new(move |_: &Ctx| ((crate::config::get(id) - min) / range) as f32),
-                                        on_change: Rc::new(move |_: &mut Ctx, f: f32| crate::config::set(id, min + f as f64 * range)),
+                        };
+                        let row = match d.kind {
+                            ck::BOOL | ck::CHOICE => {
+                                let (key2, d2) = (key.clone(), d.clone());
+                                let (kind, count) = (d.kind, d.choices.len().max(1) as f64);
+                                let b = ui.button(
+                                    "button",
+                                    Style::default().min_h(20.0).pad_xy(6.0, 4.0).stretch(),
+                                    Rc::new(move |_: &mut Ctx| {
+                                        let v = crate::config::get(id);
+                                        let next = if kind == ck::BOOL { 1.0 - v } else { (v + 1.0) % count };
+                                        crate::config::set(id, next);
+                                    }),
+                                    |ui| {
+                                        let (k, d3) = (key2.clone(), d2.clone());
+                                        ui.text_bound(
+                                            "button",
+                                            Box::new(move |_: &Ctx| {
+                                                (
+                                                    "settings.config_value".into(),
+                                                    vec![Arg::Key(k.clone()), show(&d3, &k, crate::config::get(id))],
+                                                )
+                                            }),
+                                        );
                                     },
-                                    Style::default().h(20.0).stretch(),
                                 );
+                                if let Kind::Button { enabled, .. } = &mut ui.nodes[b].kind {
+                                    *enabled = !locked;
+                                }
+                                b
                             }
-                        }),
-                    };
-                    let tip = format!("{key}.tooltip");
-                    let mut spans = if cx.lang.has(&tip) { cx.t(&tip, &[]) } else { Vec::new() };
-                    for (on, note) in [(locked, "settings.config_synced"), (d.flags & weft_abi::config_flags::RESTART != 0, "settings.config_restart")] {
-                        if on {
-                            if !spans.is_empty() {
-                                spans.push(Span::text("\n", None));
+                            _ => ui.container(Style::default().gap(2.0).stretch(), |ui| {
+                                let (k, d2) = (key.clone(), d.clone());
+                                ui.text_bound(
+                                    "default",
+                                    Box::new(move |_: &Ctx| {
+                                        (
+                                            "settings.config_value".into(),
+                                            vec![Arg::Key(k.clone()), show(&d2, &k, crate::config::get(id))],
+                                        )
+                                    }),
+                                );
+                                if !locked {
+                                    let (min, range) = (d.min, (d.max - d.min).max(1e-9));
+                                    ui.add(
+                                        Kind::Slider {
+                                            value: 0.0,
+                                            bind: Box::new(move |_: &Ctx| {
+                                                ((crate::config::get(id) - min) / range) as f32
+                                            }),
+                                            on_change: Rc::new(move |_: &mut Ctx, f: f32| {
+                                                crate::config::set(id, min + f as f64 * range)
+                                            }),
+                                        },
+                                        Style::default().h(20.0).stretch(),
+                                    );
+                                }
+                            }),
+                        };
+                        let tip = format!("{key}.tooltip");
+                        let mut spans = if cx.lang.has(&tip) { cx.t(&tip, &[]) } else { Vec::new() };
+                        for (on, note) in [
+                            (locked, "settings.config_synced"),
+                            (d.flags & weft_abi::config_flags::RESTART != 0, "settings.config_restart"),
+                        ] {
+                            if on {
+                                if !spans.is_empty() {
+                                    spans.push(Span::text("\n", None));
+                                }
+                                spans.extend(cx.t(note, &[]));
                             }
-                            spans.extend(cx.t(note, &[]));
+                        }
+                        if !spans.is_empty() {
+                            ui.nodes[row].tooltip = Some(spans);
                         }
                     }
-                    if !spans.is_empty() {
-                        ui.nodes[row].tooltip = Some(spans);
-                    }
-                }
-            });
+                },
+            );
             ui.set_id(list, "config");
             button(ui, cx, "menu.done", &[], 200.0, |c| c.requests.push(Request::Close));
         });
@@ -700,11 +825,16 @@ impl Screen for LanguageScreen {
                 for (code, name) in cx.languages {
                     let code = code.clone();
                     let selected = code == cx.lang.code;
-                    let b = ui.button("button", Style::default().min_h(20.0).pad_xy(6.0, 4.0).stretch(), Rc::new(move |c: &mut Ctx| {
-                        c.settings.set_text("language", &code);
-                    }), |ui| {
-                        ui.text(text::plain(name), "button");
-                    });
+                    let b = ui.button(
+                        "button",
+                        Style::default().min_h(20.0).pad_xy(6.0, 4.0).stretch(),
+                        Rc::new(move |c: &mut Ctx| {
+                            c.settings.set_text("language", &code);
+                        }),
+                        |ui| {
+                            ui.text(text::plain(name), "button");
+                        },
+                    );
                     if let Kind::Button { selected: sel, .. } = &mut ui.nodes[b].kind {
                         *sel = selected;
                     }
@@ -775,47 +905,74 @@ impl Screen for Controls {
             if let Some(a) = &waiting {
                 label(ui, cx, "controls.press", &[Arg::Name(text::Name::Key(a.clone()))], "default");
             }
-            let list = ui.panel("panel", Style::default().pad(8.0).gap(3.0).stretch().w(380.0).h(0.0).grow().min_h(60.0).scroll(), |ui| {
-                let s = cx.settings;
-                for (name, on) in [("invert_y", s.invert_y()), ("toggle_sneak", s.toggle_sneak()), ("toggle_sprint", s.toggle_sprint())] {
-                    let spans = cx.t(&format!("settings.{name}"), &[on_off(on)]);
-                    ui.button("button", Style::default().min_h(20.0).pad_xy(6.0, 4.0).stretch(), Rc::new(move |c: &mut Ctx| {
-                        c.settings.set(name, !on as u8 as f64);
-                        c.requests.push(Request::Rebuild);
-                    }), |ui| {
-                        ui.text(spans, "button");
-                    });
-                }
-                for b in &cx.input.binds {
-                    let action = b.action.clone();
-                    let name = text::Name::Key(b.action.clone());
-                    let clash: Vec<String> = conflicts
-                        .iter()
-                        .filter_map(|(x, y)| if *x == b.action { Some(y.clone()) } else if *y == b.action { Some(x.clone()) } else { None })
-                        .collect();
-                    ui.container(Style::row().gap(6.0).self_align(crate::ui::Align::Stretch), |ui| {
-                        let n = ui.text(name.spans(cx.lang, Some(cx.input)), "default");
-                        ui.nodes[n].style.grow = 1.0;
-                        if !clash.is_empty() {
-                            let names: Vec<String> = clash.iter().map(|c| text::Name::Key(c.clone()).text(cx.lang)).collect();
-                            ui.text(cx.t("controls.conflict", &[Arg::Text(names.join(", "))]), "default");
-                        }
-                        let a2 = action.clone();
-                        let kb = ui.button("button", Style::default().min_w(70.0).h(20.0).pad_xy(4.0, 0.0), Rc::new(move |c: &mut Ctx| {
-                            if let Some(s) = c.screen::<Controls>() {
-                                s.waiting = Some(a2.clone());
+            let list = ui.panel(
+                "panel",
+                Style::default().pad(8.0).gap(3.0).stretch().w(380.0).h(0.0).grow().min_h(60.0).scroll(),
+                |ui| {
+                    let s = cx.settings;
+                    for (name, on) in [
+                        ("invert_y", s.invert_y()),
+                        ("toggle_sneak", s.toggle_sneak()),
+                        ("toggle_sprint", s.toggle_sprint()),
+                    ] {
+                        let spans = cx.t(&format!("settings.{name}"), &[on_off(on)]);
+                        ui.button(
+                            "button",
+                            Style::default().min_h(20.0).pad_xy(6.0, 4.0).stretch(),
+                            Rc::new(move |c: &mut Ctx| {
+                                c.settings.set(name, !on as u8 as f64);
+                                c.requests.push(Request::Rebuild);
+                            }),
+                            |ui| {
+                                ui.text(spans, "button");
+                            },
+                        );
+                    }
+                    for b in &cx.input.binds {
+                        let action = b.action.clone();
+                        let name = text::Name::Key(b.action.clone());
+                        let clash: Vec<String> = conflicts
+                            .iter()
+                            .filter_map(|(x, y)| {
+                                if *x == b.action {
+                                    Some(y.clone())
+                                } else if *y == b.action {
+                                    Some(x.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        ui.container(Style::row().gap(6.0).self_align(crate::ui::Align::Stretch), |ui| {
+                            let n = ui.text(name.spans(cx.lang, Some(cx.input)), "default");
+                            ui.nodes[n].style.grow = 1.0;
+                            if !clash.is_empty() {
+                                let names: Vec<String> =
+                                    clash.iter().map(|c| text::Name::Key(c.clone()).text(cx.lang)).collect();
+                                ui.text(cx.t("controls.conflict", &[Arg::Text(names.join(", "))]), "default");
                             }
-                            c.requests.push(Request::Rebuild);
-                        }), |ui| {
-                            ui.text(text::plain(&text::display_chord(cx.lang, b.key)), "button");
+                            let a2 = action.clone();
+                            let kb = ui.button(
+                                "button",
+                                Style::default().min_w(70.0).h(20.0).pad_xy(4.0, 0.0),
+                                Rc::new(move |c: &mut Ctx| {
+                                    if let Some(s) = c.screen::<Controls>() {
+                                        s.waiting = Some(a2.clone());
+                                    }
+                                    c.requests.push(Request::Rebuild);
+                                }),
+                                |ui| {
+                                    ui.text(text::plain(&text::display_chord(cx.lang, b.key)), "button");
+                                },
+                            );
+                            if let Kind::Button { selected, .. } = &mut ui.nodes[kb].kind {
+                                *selected = waiting.as_deref() == Some(action.as_str());
+                            }
+                            ui.set_id(kb, &format!("bind:{action}"));
                         });
-                        if let Kind::Button { selected, .. } = &mut ui.nodes[kb].kind {
-                            *selected = waiting.as_deref() == Some(action.as_str());
-                        }
-                        ui.set_id(kb, &format!("bind:{action}"));
-                    });
-                }
-            });
+                    }
+                },
+            );
             ui.set_id(list, "controls");
             ui.container(Style::row().gap(6.0), |ui| {
                 button(ui, cx, "controls.reset", &[], 120.0, |c| c.requests.push(Request::ResetBinds));
@@ -839,15 +996,19 @@ impl Screen for Message {
     fn build(&mut self, ui: &mut Ui, cx: &BuildCx) {
         let (title, args) = (self.title.clone(), self.args.clone());
         ui.root_style(Style::default().stretch());
-        ui.panel(if cx.in_game { "overlay" } else { "background" }, Style::default().grow().center().pad(12.0).gap(10.0), |ui| {
-            label(ui, cx, &title, &args, "title");
-            let in_game = cx.in_game;
-            button(ui, cx, "menu.back", &[], 200.0, move |c| {
-                c.requests.push(Request::Close);
-                if !in_game {
-                    open(c, "core:title");
-                }
-            });
-        });
+        ui.panel(
+            if cx.in_game { "overlay" } else { "background" },
+            Style::default().grow().center().pad(12.0).gap(10.0),
+            |ui| {
+                label(ui, cx, &title, &args, "title");
+                let in_game = cx.in_game;
+                button(ui, cx, "menu.back", &[], 200.0, move |c| {
+                    c.requests.push(Request::Close);
+                    if !in_game {
+                        open(c, "core:title");
+                    }
+                });
+            },
+        );
     }
 }

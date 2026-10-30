@@ -22,7 +22,12 @@ const MAX_FRAME: usize = 64 << 20;
 fn runtime() -> &'static tokio::runtime::Runtime {
     static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
     RT.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread().worker_threads(2).thread_name("net").enable_all().build().expect("tokio runtime")
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .thread_name("net")
+            .enable_all()
+            .build()
+            .expect("tokio runtime")
     })
 }
 
@@ -32,7 +37,12 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 pub fn identity(run_dir: &Path) -> Result<SecretKey, String> {
     let path = run_dir.join("config").join("identity.key");
     match std::fs::read_to_string(&path) {
-        Ok(s) => return s.trim().parse::<SecretKey>().map_err(|_| format!("{} is not a key; fix or delete it", path.display())),
+        Ok(s) => {
+            return s
+                .trim()
+                .parse::<SecretKey>()
+                .map_err(|_| format!("{} is not a key; fix or delete it", path.display()));
+        }
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(format!("reading {}: {e}", path.display())),
         Err(_) => {}
     }
@@ -86,7 +96,14 @@ pub fn content_hash() -> u64 {
     for n in c.biomes.iter().map(|b| &b.name).chain(c.dims.iter().map(|d| &d.name)) {
         eat(n);
     }
-    for n in c.game.sounds.iter().map(|s| &s.name).chain(c.game.particles.iter().map(|p| &p.name)).chain(c.game.configs.iter().map(|k| &k.name)) {
+    for n in c
+        .game
+        .sounds
+        .iter()
+        .map(|s| &s.name)
+        .chain(c.game.particles.iter().map(|p| &p.name))
+        .chain(c.game.configs.iter().map(|k| &k.name))
+    {
         eat(n);
     }
     for a in &c.game.attributes {
@@ -105,7 +122,8 @@ fn relay_mode(settings: &Settings) -> RelayMode {
 }
 
 async fn endpoint(settings: &Settings, accept: bool) -> Result<Endpoint, String> {
-    let mut b = Endpoint::builder(presets::N0).secret_key(identity(&settings.run_dir)?).relay_mode(relay_mode(settings));
+    let mut b =
+        Endpoint::builder(presets::N0).secret_key(identity(&settings.run_dir)?).relay_mode(relay_mode(settings));
     if accept {
         b = b.alpns(vec![ALPN.to_vec()]);
     }
@@ -199,7 +217,10 @@ pub fn stop_hosting() {
     *HOSTING.lock() = None;
 }
 
-async fn accept(incoming: iroh::endpoint::Incoming, connect: crossbeam_channel::Sender<ServerConn>) -> Result<(), String> {
+async fn accept(
+    incoming: iroh::endpoint::Incoming,
+    connect: crossbeam_channel::Sender<ServerConn>,
+) -> Result<(), String> {
     let conn = incoming.await.map_err(|e| e.to_string())?;
     let peer = conn.remote_id();
     let (mut send, mut recv) = conn.accept_bi().await.map_err(|e| e.to_string())?;
@@ -242,7 +263,11 @@ async fn accept(incoming: iroh::endpoint::Incoming, connect: crossbeam_channel::
 
 /// Forwards a crossbeam channel into a stream. The channel is read on a blocking thread because
 /// the engine side is synchronous.
-async fn pump_out<T: Send + crate::net::Message + 'static>(rx: crossbeam_channel::Receiver<T>, mut send: iroh::endpoint::SendStream, encode: fn(&T) -> Vec<u8>) {
+async fn pump_out<T: Send + crate::net::Message + 'static>(
+    rx: crossbeam_channel::Receiver<T>,
+    mut send: iroh::endpoint::SendStream,
+    encode: fn(&T) -> Vec<u8>,
+) {
     let (tx, mut arx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
     std::thread::Builder::new()
         .name("net-out".into())
@@ -270,7 +295,8 @@ async fn pump_out<T: Send + crate::net::Message + 'static>(rx: crossbeam_channel
 /// on a machine with Radmin VPN and Hyper-V). The relay always gets through; iroh moves the
 /// connection to a direct path afterwards when one works.
 async fn connect(settings: &Settings, addr: EndpointAddr) -> Result<(Endpoint, iroh::endpoint::Connection), String> {
-    let relayed = EndpointAddr::from_parts(addr.id, addr.relay_urls().cloned().map(TransportAddr::Relay).collect::<Vec<_>>());
+    let relayed =
+        EndpointAddr::from_parts(addr.id, addr.relay_urls().cloned().map(TransportAddr::Relay).collect::<Vec<_>>());
     let attempts = [(addr, Duration::from_secs(3)), (relayed, Duration::from_secs(20))];
     let mut last = String::new();
     for (i, (addr, wait)) in attempts.into_iter().enumerate() {

@@ -1,6 +1,9 @@
 use crate::abi::{self, ItemStack, Slice, Str};
 use crate::component::{Component, ENERGY, Value};
-use crate::content::{Block, Biome, Entity, EntityCategory, EquipmentSlot, GizmoGroup, HudElement, Menu, Pending, RecipeKind, Screen, TintKind};
+use crate::content::{
+    Biome, Block, Entity, EntityCategory, EquipmentSlot, GizmoGroup, HudElement, Menu, Pending, RecipeKind, Screen,
+    TintKind,
+};
 use crate::ui::{Ui, ui_callback};
 use crate::{Registry, World, callback, host, qualify};
 
@@ -11,7 +14,6 @@ pub const EYE_SHARE: f32 = 0.85;
 
 /// The engine's player kind, for hooks and components on players.
 pub static PLAYER: Entity = Entity::named("core:player");
-
 
 // ---------------------------------------------------------------- world helpers
 
@@ -105,7 +107,8 @@ impl World {
     /// hit (-X, +X, -Y, +Y, -Z, +Z) and state.
     pub fn look_at(&self, id: u64, max: f64, liquids: bool) -> Option<LookAt> {
         let (mut pos, mut face, mut frame) = ([0; 3], 0, 0);
-        let s = unsafe { (host().entity_look_at)(self.raw(), id, max, liquids as u32, &mut pos, &mut face, &mut frame) };
+        let s =
+            unsafe { (host().entity_look_at)(self.raw(), id, max, liquids as u32, &mut pos, &mut face, &mut frame) };
         (s != 0).then_some(LookAt { pos, face, state: s - 1, frame })
     }
     pub fn damage(&self, id: u64, amount: f32, source: u64, cause: u32) -> bool {
@@ -208,13 +211,44 @@ impl World {
     /// The translation `key` with `args` at `pos`, in each viewer's language.
     /// `size` times as big as menu text.
     #[allow(clippy::too_many_arguments)]
-    pub fn draw_text(&self, group: &GizmoGroup, pos: [f64; 3], key: &str, args: &[crate::Arg], color: u32, size: f32, ticks: u32) {
+    pub fn draw_text(
+        &self,
+        group: &GizmoGroup,
+        pos: [f64; 3],
+        key: &str,
+        args: &[crate::Arg],
+        color: u32,
+        size: f32,
+        ticks: u32,
+    ) {
         self.gizmo(group, abi::gizmo_kind::LABEL, pos, [size as f64, 0.0, 0.0], color, ticks, key, args);
     }
     #[allow(clippy::too_many_arguments)]
-    fn gizmo(&self, group: &GizmoGroup, kind: u32, a: [f64; 3], b: [f64; 3], color: u32, ticks: u32, key: &str, args: &[crate::Arg]) {
+    fn gizmo(
+        &self,
+        group: &GizmoGroup,
+        kind: u32,
+        a: [f64; 3],
+        b: [f64; 3],
+        color: u32,
+        ticks: u32,
+        key: &str,
+        args: &[crate::Arg],
+    ) {
         let raw = crate::ui::raw_args(args);
-        unsafe { (host().gizmo)(self.raw(), Str::new(group.name()), kind, &a, &b, color, ticks, Str::new(key), abi::Slice::new(&raw)) }
+        unsafe {
+            (host().gizmo)(
+                self.raw(),
+                Str::new(group.name()),
+                kind,
+                &a,
+                &b,
+                color,
+                ticks,
+                Str::new(key),
+                abi::Slice::new(&raw),
+            )
+        }
     }
 }
 
@@ -251,7 +285,11 @@ impl Inventory {
     pub fn find_group(&self, name: &str) -> Option<InventoryGroup> {
         let mut out = [0u32; 2];
         let found = unsafe { (host().inventory_group)(self.world.raw(), self.owner, Str::new(name), &mut out) } != 0;
-        found.then(|| InventoryGroup { inv: Inventory { world: self.world, owner: self.owner }, start: out[0], len: out[1] })
+        found.then(|| InventoryGroup {
+            inv: Inventory { world: self.world, owner: self.owner },
+            start: out[0],
+            len: out[1],
+        })
     }
 }
 
@@ -361,7 +399,9 @@ fn tick_cb(f: impl Fn(&EntityTick) + Send + Sync + 'static) -> abi::Callback {
 }
 
 fn event_cb(f: impl Fn(&mut EntityEvent) + Send + Sync + 'static) -> abi::Callback {
-    callback(move |a: &mut abi::EntityEventArgs| f(unsafe { &mut *(a as *mut abi::EntityEventArgs as *mut EntityEvent) }))
+    callback(move |a: &mut abi::EntityEventArgs| {
+        f(unsafe { &mut *(a as *mut abi::EntityEventArgs as *mut EntityEvent) })
+    })
 }
 
 /// A model part (a bone): its name, pivot, boxes, free-form triangles, and the part it hangs
@@ -419,8 +459,15 @@ pub fn sphere(center: [f32; 3], radius: f32, rings: u32, segments: u32, uv: [f32
     let (rings, segments) = (rings.max(2), segments.max(3));
     let at = |i: u32, j: u32| {
         let (theta, phi) = (PI * i as f32 / rings as f32, TAU * j as f32 / segments as f32);
-        let pos = [center[0] + radius * theta.sin() * phi.cos(), center[1] + radius * theta.cos(), center[2] + radius * theta.sin() * phi.sin()];
-        abi::MeshVertex { pos, uv: [uv[0] + uv[2] * j as f32 / segments as f32, uv[1] + uv[3] * i as f32 / rings as f32] }
+        let pos = [
+            center[0] + radius * theta.sin() * phi.cos(),
+            center[1] + radius * theta.cos(),
+            center[2] + radius * theta.sin() * phi.sin(),
+        ];
+        abi::MeshVertex {
+            pos,
+            uv: [uv[0] + uv[2] * j as f32 / segments as f32, uv[1] + uv[3] * i as f32 / rings as f32],
+        }
     };
     let mut out = Vec::new();
     for i in 0..rings {
@@ -461,8 +508,12 @@ pub fn biped(arms_forward: bool) -> Model {
     Model::from(vec![
         Part::new("head", [0.0, 24.0, 0.0]).cube([-4.0, 0.0, -4.0], [8.0, 8.0, 8.0], [0.0, 0.0]),
         Part::new("body", [0.0, 24.0, 0.0]).cube([-4.0, -12.0, -2.0], [8.0, 12.0, 4.0], [16.0, 16.0]),
-        Part::new("rightArm", [-6.0, 22.0, 0.0]).cube([-2.0, -10.0, -2.0], [4.0, 12.0, 4.0], [40.0, 16.0]).rotation(arms, 0.0, 0.0),
-        Part::new("leftArm", [6.0, 22.0, 0.0]).cube([-2.0, -10.0, -2.0], [4.0, 12.0, 4.0], [40.0, 16.0]).rotation(arms, 0.0, 0.0),
+        Part::new("rightArm", [-6.0, 22.0, 0.0])
+            .cube([-2.0, -10.0, -2.0], [4.0, 12.0, 4.0], [40.0, 16.0])
+            .rotation(arms, 0.0, 0.0),
+        Part::new("leftArm", [6.0, 22.0, 0.0])
+            .cube([-2.0, -10.0, -2.0], [4.0, 12.0, 4.0], [40.0, 16.0])
+            .rotation(arms, 0.0, 0.0),
         Part::new("rightLeg", [-2.0, 12.0, 0.0]).cube([-2.0, -12.0, -2.0], [4.0, 12.0, 4.0], [0.0, 16.0]),
         Part::new("leftLeg", [2.0, 12.0, 0.0]).cube([-2.0, -12.0, -2.0], [4.0, 12.0, 4.0], [0.0, 16.0]),
     ])
@@ -477,9 +528,19 @@ pub fn spider() -> Model {
         Part::new("body", [0.0, 9.0, 9.0]).cube([-5.0, -4.0, -6.0], [10.0, 8.0, 12.0], [0.0, 12.0]),
     ];
     // (z, sideways splay, fan) back to front, a left leg then its right twin: leg0, leg1 ...
-    for (i, (z, splay, fan)) in [(2.0, 1.0, 2.0), (1.0, 0.74, 1.0), (0.0, 0.74, -1.0), (-1.0, 1.0, -2.0)].into_iter().enumerate() {
-        parts.push(Part::new(&format!("leg{}", i * 2), [-4.0, 9.0, z]).cube([-15.0, -1.0, -1.0], [16.0, 2.0, 2.0], [18.0, 0.0]).rotation(0.0, fan * Q / 2.0, splay * Q));
-        parts.push(Part::new(&format!("leg{}", i * 2 + 1), [4.0, 9.0, z]).cube([-1.0, -1.0, -1.0], [16.0, 2.0, 2.0], [18.0, 0.0]).rotation(0.0, -fan * Q / 2.0, -splay * Q));
+    for (i, (z, splay, fan)) in
+        [(2.0, 1.0, 2.0), (1.0, 0.74, 1.0), (0.0, 0.74, -1.0), (-1.0, 1.0, -2.0)].into_iter().enumerate()
+    {
+        parts.push(
+            Part::new(&format!("leg{}", i * 2), [-4.0, 9.0, z])
+                .cube([-15.0, -1.0, -1.0], [16.0, 2.0, 2.0], [18.0, 0.0])
+                .rotation(0.0, fan * Q / 2.0, splay * Q),
+        );
+        parts.push(
+            Part::new(&format!("leg{}", i * 2 + 1), [4.0, 9.0, z])
+                .cube([-1.0, -1.0, -1.0], [16.0, 2.0, 2.0], [18.0, 0.0])
+                .rotation(0.0, -fan * Q / 2.0, -splay * Q),
+        );
     }
     Model::from(parts)
 }
@@ -498,7 +559,11 @@ pub fn quadruped(body: [f32; 3], leg: f32, head: [f32; 3]) -> Model {
     ];
     let mut parts = vec![
         Part::new("body", [0.0, y, 0.0]).cube([-bw / 2.0, 0.0, -bl / 2.0], [bw, bh, bl], [0.0, 32.0]),
-        Part::new("head", [0.0, y + bh * 0.75, -bl / 2.0]).cube([-head[0] / 2.0, -head[1] / 2.0, -head[2]], head, [0.0, 0.0]),
+        Part::new("head", [0.0, y + bh * 0.75, -bl / 2.0]).cube(
+            [-head[0] / 2.0, -head[1] / 2.0, -head[2]],
+            head,
+            [0.0, 0.0],
+        ),
     ];
     for (name, pivot) in legs {
         parts.push(Part::new(name, pivot).cube([-2.0, -leg, -2.0], [4.0, leg, 4.0], [0.0, 16.0]));
@@ -599,7 +664,11 @@ impl EntityBuilder<'_> {
     }
     pub fn health(mut self, h: f32) -> Self {
         self.components.retain(|p| p.name != abi::attribute::MAX_HEALTH);
-        self.components.push(Pending::value(abi::attribute::MAX_HEALTH, "f64".into(), crate::component::pod_bytes(&(h as f64))));
+        self.components.push(Pending::value(
+            abi::attribute::MAX_HEALTH,
+            "f64".into(),
+            crate::component::pod_bytes(&(h as f64)),
+        ));
         self
     }
     pub fn speed(mut self, s: f32) -> Self {
@@ -735,7 +804,15 @@ impl EntityBuilder<'_> {
 }
 
 fn raw_part(p: &Part) -> abi::ModelPart {
-    abi::ModelPart { pivot: p.pivot, cuboids: Slice::new(&p.boxes), rest: p.rest, name: Str::new(&p.name), parent: p.parent, mesh: Slice::new(&p.mesh), ..abi::ModelPart::DEFAULT }
+    abi::ModelPart {
+        pivot: p.pivot,
+        cuboids: Slice::new(&p.boxes),
+        rest: p.rest,
+        name: Str::new(&p.name),
+        parent: p.parent,
+        mesh: Slice::new(&p.mesh),
+        ..abi::ModelPart::DEFAULT
+    }
 }
 
 impl Registry {
@@ -753,11 +830,7 @@ impl Drop for EntityBuilder<'_> {
         if std::thread::panicking() {
             return;
         }
-        let parts: Vec<abi::ModelPart> = self
-            .parts
-            .iter()
-            .map(raw_part)
-            .collect();
+        let parts: Vec<abi::ModelPart> = self.parts.iter().map(raw_part).collect();
         let mut scratch = Vec::new();
         let values = crate::content::raw_values_pub(&self.components, &mut scratch);
         let desc = abi::EntityDesc {
@@ -874,7 +947,19 @@ pub struct Slots {
 
 impl Slots {
     pub fn grid(cols: u32, rows: u32) -> Slots {
-        Slots { owner: None, start: u32::MAX, cols, rows, flags: 0, accepts: String::new(), limit: 0, size: 0.0, background: String::new(), tooltip: String::new(), priority: 0 }
+        Slots {
+            owner: None,
+            start: u32::MAX,
+            cols,
+            rows,
+            flags: 0,
+            accepts: String::new(),
+            limit: 0,
+            size: 0.0,
+            background: String::new(),
+            tooltip: String::new(),
+            priority: 0,
+        }
     }
     pub fn row(n: u32) -> Slots {
         Slots::grid(n, 1)
@@ -1034,7 +1119,12 @@ impl MenuBuilder<'_> {
     /// The player's equipment slots, here among the groups, each named like its slot
     /// (`ui.equipment()` draws them).
     pub fn equipment(mut self) -> Self {
-        self.groups.push("", EQUIPMENT_GROUP, Slots { owner: Some(abi::slot_owner::PLAYER_EQUIPMENT), ..Slots::single() }, abi::slot_owner::PLAYER_EQUIPMENT);
+        self.groups.push(
+            "",
+            EQUIPMENT_GROUP,
+            Slots { owner: Some(abi::slot_owner::PLAYER_EQUIPMENT), ..Slots::single() },
+            abi::slot_owner::PLAYER_EQUIPMENT,
+        );
         self
     }
     /// Recipes of this kind are made here: clicking an `arrow` bar of the screen shows them.
@@ -1128,7 +1218,15 @@ impl Registry {
     }
 
     pub fn menu<'a>(&'a mut self, menu: &'static Menu) -> MenuBuilder<'a> {
-        MenuBuilder { name: menu.name().to_string(), reg: self, handle: Some(menu), desc: abi::MenuDesc::DEFAULT, groups: GroupList::new(), entity: String::new(), recipes: Vec::new() }
+        MenuBuilder {
+            name: menu.name().to_string(),
+            reg: self,
+            handle: Some(menu),
+            desc: abi::MenuDesc::DEFAULT,
+            groups: GroupList::new(),
+            entity: String::new(),
+            recipes: Vec::new(),
+        }
     }
 
     /// The player inventory as named groups, one of them `.hotbar()`:
@@ -1167,7 +1265,9 @@ impl Registry {
     /// `attach` with another starting value (a battery's capacity).
     pub fn attach_with<T: Value>(&mut self, kind: &Entity, component: &Component<T>, value: T) {
         let bytes = crate::component::pod_bytes(&value);
-        unsafe { (host().reg_attach_value)(self.raw, Str::new(kind.name()), Str::new(component.name()), Slice::new(&bytes)) }
+        unsafe {
+            (host().reg_attach_value)(self.raw, Str::new(kind.name()), Str::new(component.name()), Slice::new(&bytes))
+        }
     }
 
     /// Chat command `/name` run on the server; `usage` declares its arguments (`<name:type>`,
@@ -1180,7 +1280,12 @@ impl Registry {
 
     /// Like `command`, but runs on the client that types it (`cmd.client()`), never on the
     /// server: for what only the player's own game has (views, local settings, debug output).
-    pub fn client_command(&mut self, name: &str, usage: &str, f: impl Fn(&mut crate::ClientCommand) + Send + Sync + 'static) {
+    pub fn client_command(
+        &mut self,
+        name: &str,
+        usage: &str,
+        f: impl Fn(&mut crate::ClientCommand) + Send + Sync + 'static,
+    ) {
         let cb = crate::command::client_cb(f);
         unsafe { (host().reg_client_command)(self.raw, Str::new(name), Str::new(usage), cb) }
     }
@@ -1200,14 +1305,24 @@ impl Registry {
 
     /// A new branch of an existing server command, handled here: `r.command_branch("time",
     /// "dawn", |cmd| ..)` makes `/time dawn` this mod's. Earlier alternatives win when both fit.
-    pub fn command_branch(&mut self, command: &str, usage: &str, f: impl Fn(&mut crate::ServerCommand) + Send + Sync + 'static) {
+    pub fn command_branch(
+        &mut self,
+        command: &str,
+        usage: &str,
+        f: impl Fn(&mut crate::ServerCommand) + Send + Sync + 'static,
+    ) {
         let cb = crate::command::server_cb(f);
         unsafe { (host().reg_command_branch)(self.raw, Str::new(command), Str::new(usage), 0, cb) }
     }
 
     /// The same for a client command (`/gizmo`, `/log`, a mod's `client_command`): `r.
     /// client_command_branch("gizmo", "clear", |cmd| ..)`.
-    pub fn client_command_branch(&mut self, command: &str, usage: &str, f: impl Fn(&mut crate::ClientCommand) + Send + Sync + 'static) {
+    pub fn client_command_branch(
+        &mut self,
+        command: &str,
+        usage: &str,
+        f: impl Fn(&mut crate::ClientCommand) + Send + Sync + 'static,
+    ) {
         let cb = crate::command::client_cb(f);
         unsafe { (host().reg_command_branch)(self.raw, Str::new(command), Str::new(usage), 1, cb) }
     }
@@ -1215,7 +1330,13 @@ impl Registry {
     /// Adds to place `area` of `screen` without replacing the screen: a button in the main menu is
     /// `r.screen_part(&screens::TITLE, "buttons", 0, |ui| ..)`. Lower `order` comes first. The
     /// engine's places: `TITLE` `buttons` and `side`, `PAUSE` `buttons`, `SETTINGS` `buttons`.
-    pub fn screen_part(&mut self, screen: &Screen, area: &str, order: i32, f: impl Fn(&mut Ui) + Send + Sync + 'static) {
+    pub fn screen_part(
+        &mut self,
+        screen: &Screen,
+        area: &str,
+        order: i32,
+        f: impl Fn(&mut Ui) + Send + Sync + 'static,
+    ) {
         let cb = crate::ui::ui_callback(f);
         unsafe { (host().reg_screen_part)(self.raw, Str::new(screen.name()), Str::new(area), order, cb) }
     }
@@ -1224,11 +1345,22 @@ impl Registry {
     /// screen's handle (`screens::PAUSE`) replaces that one. How it behaves is declared on it,
     /// the same properties the engine's screens have: `r.screen(&screens::PAUSE, build).pauses()`.
     pub fn screen<'a>(&'a mut self, screen: &Screen, f: impl Fn(&mut Ui) + Send + Sync + 'static) -> ScreenBuilder<'a> {
-        ScreenBuilder { raw: self.raw, name: screen.name().to_string(), desc: abi::ScreenDesc { build: ui_callback(f), ..abi::ScreenDesc::DEFAULT }, _p: std::marker::PhantomData }
+        ScreenBuilder {
+            raw: self.raw,
+            name: screen.name().to_string(),
+            desc: abi::ScreenDesc { build: ui_callback(f), ..abi::ScreenDesc::DEFAULT },
+            _p: std::marker::PhantomData,
+        }
     }
 
     /// HUD element at `anchor` (`hud_anchor::*`); `order` 0 sits nearest the anchor's edge.
-    pub fn hud_element(&mut self, element: &HudElement, anchor: &str, order: i32, f: impl Fn(&mut Ui) + Send + Sync + 'static) {
+    pub fn hud_element(
+        &mut self,
+        element: &HudElement,
+        anchor: &str,
+        order: i32,
+        f: impl Fn(&mut Ui) + Send + Sync + 'static,
+    ) {
         unsafe { (host().reg_hud_element)(self.raw, Str::new(element.name()), Str::new(anchor), order, ui_callback(f)) }
     }
 
@@ -1253,23 +1385,72 @@ impl Registry {
 
     /// Registers a recipe kind this mod owns, and how the recipe viewer shows it.
     pub fn recipe_kind<'a>(&'a mut self, kind: &RecipeKind) -> RecipeKindBuilder<'a> {
-        RecipeKindBuilder { raw: self.raw, name: kind.name().to_string(), input_grid: [0; 2], output_grid: [0; 2], info: String::new(), info_values: Vec::new(), display: abi::Callback::NONE, _p: std::marker::PhantomData }
+        RecipeKindBuilder {
+            raw: self.raw,
+            name: kind.name().to_string(),
+            input_grid: [0; 2],
+            output_grid: [0; 2],
+            info: String::new(),
+            info_values: Vec::new(),
+            display: abi::Callback::NONE,
+            _p: std::marker::PhantomData,
+        }
     }
 
     /// Shaped recipe: `pattern` rows use the characters in `keys`; ingredients are item names or
     /// `#tag`. More results and data with the builder it returns.
-    pub fn shaped<'a>(&'a mut self, kind: &RecipeKind, output: &str, count: u32, pattern: &[&str], keys: &[(char, &str)]) -> RecipeBuilder<'a> {
+    pub fn shaped<'a>(
+        &'a mut self,
+        kind: &RecipeKind,
+        output: &str,
+        count: u32,
+        pattern: &[&str],
+        keys: &[(char, &str)],
+    ) -> RecipeBuilder<'a> {
         let keys = keys.iter().map(|(c, n)| (*c, self.ingredient(n))).collect();
         let output = self.ingredient(output);
-        RecipeBuilder { kind: kind.name().to_string(), pattern: pattern.iter().map(|p| p.to_string()).collect(), keys, inputs: Vec::new(), counts: Vec::new(), output, count, time: 0, outputs: Vec::new(), values: Vec::new(), flags: 0, reg: self }
+        RecipeBuilder {
+            kind: kind.name().to_string(),
+            pattern: pattern.iter().map(|p| p.to_string()).collect(),
+            keys,
+            inputs: Vec::new(),
+            counts: Vec::new(),
+            output,
+            count,
+            time: 0,
+            outputs: Vec::new(),
+            values: Vec::new(),
+            flags: 0,
+            reg: self,
+        }
     }
 
     /// Shapeless recipe or a processing recipe (inputs used up over `time` ticks). Inputs are
     /// items, `#tags` or `fluid:<liquid>`.
-    pub fn shapeless<'a>(&'a mut self, kind: &RecipeKind, output: &str, count: u32, inputs: &[&str], time: u32) -> RecipeBuilder<'a> {
+    pub fn shapeless<'a>(
+        &'a mut self,
+        kind: &RecipeKind,
+        output: &str,
+        count: u32,
+        inputs: &[&str],
+        time: u32,
+    ) -> RecipeBuilder<'a> {
         let inputs = inputs.iter().map(|n| self.ingredient(n)).collect();
         let output = self.ingredient(output);
-        RecipeBuilder { kind: kind.name().to_string(), pattern: Vec::new(), keys: Vec::new(), inputs, counts: Vec::new(), output, count, time, outputs: Vec::new(), values: Vec::new(), flags: 0, reg: self }
+        RecipeBuilder {
+            kind: kind.name().to_string(),
+            pattern: Vec::new(),
+            keys: Vec::new(),
+            inputs,
+            counts: Vec::new(),
+            output,
+            count,
+            time,
+            outputs: Vec::new(),
+            values: Vec::new(),
+            flags: 0,
+            reg: self,
+        }
     }
 
     fn ingredient(&self, n: &str) -> String {
@@ -1332,9 +1513,14 @@ impl Drop for RecipeBuilder<'_> {
             return;
         }
         let pattern: Vec<Str> = self.pattern.iter().map(|p| Str::new(p)).collect();
-        let keys: Vec<abi::RecipeKey> = self.keys.iter().map(|(c, n)| abi::RecipeKey { ch: *c as u32, item: Str::new(n) }).collect();
+        let keys: Vec<abi::RecipeKey> =
+            self.keys.iter().map(|(c, n)| abi::RecipeKey { ch: *c as u32, item: Str::new(n) }).collect();
         let inputs: Vec<Str> = self.inputs.iter().map(|n| Str::new(n)).collect();
-        let outputs: Vec<abi::RecipeOutput> = self.outputs.iter().map(|(n, c, ch)| abi::RecipeOutput { item: Str::new(n), count: *c, chance: *ch }).collect();
+        let outputs: Vec<abi::RecipeOutput> = self
+            .outputs
+            .iter()
+            .map(|(n, c, ch)| abi::RecipeOutput { item: Str::new(n), count: *c, chance: *ch })
+            .collect();
         let mut scratch = Vec::new();
         let values = crate::content::raw_values_pub(&self.values, &mut scratch);
         let desc = abi::RecipeDesc {
@@ -1449,13 +1635,23 @@ impl Recipe {
     /// A value given with `RecipeBuilder::value`.
     pub fn value<T: Value>(&self, comp: &Component<T>) -> Option<T> {
         let mut buf = vec![0u8; std::mem::size_of::<T>()];
-        let n = unsafe { (host().recipe_value)(Str::new(&self.kind), self.index, Str::new(comp.name()), buf.as_mut_ptr(), buf.len() as u32) };
+        let n = unsafe {
+            (host().recipe_value)(
+                Str::new(&self.kind),
+                self.index,
+                Str::new(comp.name()),
+                buf.as_mut_ptr(),
+                buf.len() as u32,
+            )
+        };
         (n as usize == buf.len()).then(|| unsafe { std::ptr::read_unaligned(buf.as_ptr() as *const T) })
     }
     /// Takes its inputs out of `stacks` (the ones `recipe_find` was given); false, and nothing
     /// taken, if they are not all there.
     pub fn consume(&self, stacks: &mut [ItemStack]) -> bool {
-        unsafe { (host().recipe_consume)(Str::new(&self.kind), self.index, stacks.as_mut_ptr(), stacks.len() as u32) != 0 }
+        unsafe {
+            (host().recipe_consume)(Str::new(&self.kind), self.index, stacks.as_mut_ptr(), stacks.len() as u32) != 0
+        }
     }
 }
 
@@ -1471,7 +1667,12 @@ pub struct SpawnBuilder<'a> {
 impl Registry {
     pub fn spawn<'a>(&'a mut self, entity: &Entity) -> SpawnBuilder<'a> {
         let entity = entity.name().to_string();
-        SpawnBuilder { raw: self.raw, names: [entity, String::new(), String::new(), String::new()], desc: abi::SpawnDesc::DEFAULT, _p: std::marker::PhantomData }
+        SpawnBuilder {
+            raw: self.raw,
+            names: [entity, String::new(), String::new(), String::new()],
+            desc: abi::SpawnDesc::DEFAULT,
+            _p: std::marker::PhantomData,
+        }
     }
 }
 
@@ -1520,7 +1721,13 @@ impl Drop for SpawnBuilder<'_> {
             return;
         }
         let [entity, biome, ground, dimension] = &self.names;
-        let desc = abi::SpawnDesc { entity: Str::new(entity), biome: Str::new(biome), ground: Str::new(ground), dimension: Str::new(dimension), ..self.desc };
+        let desc = abi::SpawnDesc {
+            entity: Str::new(entity),
+            biome: Str::new(biome),
+            ground: Str::new(ground),
+            dimension: Str::new(dimension),
+            ..self.desc
+        };
         unsafe { (host().reg_spawn)(self.raw, &desc) }
     }
 }
@@ -1555,12 +1762,24 @@ pub struct MachineBuilder<'a> {
 impl Registry {
     /// The machine's entity kind is named like its block: `Entity::named("furnace")`.
     pub fn machine<'a>(&'a mut self, block: &'static Block, menu: &'static Menu) -> MachineBuilder<'a> {
-        MachineBuilder { block_handle: block, reg: self, menu, block: None, groups: Vec::new(), recipes: Vec::new(), with: Vec::new(), screen: None }
+        MachineBuilder {
+            block_handle: block,
+            reg: self,
+            menu,
+            block: None,
+            groups: Vec::new(),
+            recipes: Vec::new(),
+            with: Vec::new(),
+            screen: None,
+        }
     }
 }
 
 impl MachineBuilder<'_> {
-    pub fn block(mut self, f: impl for<'r> FnOnce(crate::BlockBuilder<'r>) -> crate::BlockBuilder<'r> + 'static) -> Self {
+    pub fn block(
+        mut self,
+        f: impl for<'r> FnOnce(crate::BlockBuilder<'r>) -> crate::BlockBuilder<'r> + 'static,
+    ) -> Self {
         self.block = Some(Box::new(f));
         self
     }
@@ -1675,7 +1894,9 @@ impl ScreenBuilder<'_> {
     /// Keys pressed while it is on top, by their settings name (`Enter`, `KeyE`), before
     /// Escape and the other global keys.
     pub fn on_key(mut self, f: impl Fn(&crate::ClientView, &str) + Send + Sync + 'static) -> Self {
-        self.desc.on_key = crate::callback(move |a: &mut abi::ScreenKeyArgs| f(&crate::ClientView::from_raw(a.client), unsafe { a.key.as_str() }));
+        self.desc.on_key = crate::callback(move |a: &mut abi::ScreenKeyArgs| {
+            f(&crate::ClientView::from_raw(a.client), unsafe { a.key.as_str() })
+        });
         self
     }
 }

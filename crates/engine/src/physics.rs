@@ -77,14 +77,19 @@ impl Body<'_> {
         }
         match self.blocks {
             None => f(self.aabb),
-            Some((blocks, origin)) => each_solid(c, &|p| Some(blocks.block(p)), area.shifted(-origin), |b| f(b.shifted(origin))),
+            Some((blocks, origin)) => {
+                each_solid(c, &|p| Some(blocks.block(p)), area.shifted(-origin), |b| f(b.shifted(origin)))
+            }
         }
     }
 
     /// The highest top of its solid boxes under a box with feet at `pos`, at most `reach` below
     /// the feet (and not above them).
     fn top_below(&self, c: &Content, pos: DVec3, half_width: f64, reach: f64) -> Option<f64> {
-        let area = Aabb { min: DVec3::new(pos.x - half_width, pos.y - reach - 1e-3, pos.z - half_width), max: DVec3::new(pos.x + half_width, pos.y + 1e-3, pos.z + half_width) };
+        let area = Aabb {
+            min: DVec3::new(pos.x - half_width, pos.y - reach - 1e-3, pos.z - half_width),
+            max: DVec3::new(pos.x + half_width, pos.y + 1e-3, pos.z + half_width),
+        };
         let mut top: Option<f64> = None;
         self.solids(c, area, |b| {
             let inside = b.min.x < area.max.x && b.max.x > area.min.x && b.min.z < area.max.z && b.max.z > area.min.z;
@@ -131,7 +136,11 @@ pub fn ride(pos: DVec3, half_width: f64, support: &mut Option<u64>, bodies: &[Bo
 /// The body under a box with feet at `pos`, its top at most `reach` below the feet: the frame
 /// a position put there belongs to.
 pub fn body_below(c: &Content, pos: DVec3, half_width: f64, bodies: &[Body<'_>], reach: f64) -> Option<u64> {
-    bodies.iter().filter_map(|b| b.top_below(c, pos, half_width, reach).map(|t| (b.id, t))).max_by(|a, b| a.1.total_cmp(&b.1)).map(|b| b.0)
+    bodies
+        .iter()
+        .filter_map(|b| b.top_below(c, pos, half_width, reach).map(|t| (b.id, t)))
+        .max_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|b| b.0)
 }
 
 /// The body whose top a box with feet at `pos` rests on.
@@ -144,12 +153,26 @@ pub fn standing_on(c: &Content, pos: DVec3, half_width: f64, bodies: &[Body<'_>]
 /// (like vanilla's shulker boxes): a body that showed up around a rider, or a rider put on a
 /// deck the client draws ahead of the server, must not stay stuck in it. The body it rides and
 /// `skip` (itself) do not push.
-pub fn push(c: &Content, pos: DVec3, half_width: f64, height: f64, bodies: &[Body<'_>], skip: u64, support: Option<u64>) -> (DVec3, bool) {
+pub fn push(
+    c: &Content,
+    pos: DVec3,
+    half_width: f64,
+    height: f64,
+    bodies: &[Body<'_>],
+    skip: u64,
+    support: Option<u64>,
+) -> (DVec3, bool) {
     let me = Aabb::around(pos, half_width, height);
     let (mut shift, mut crushes) = (DVec3::ZERO, false);
     for b in bodies.iter().filter(|b| b.id != skip && Some(b.id) != support && b.delta != DVec3::ZERO) {
         let d = b.delta.abs();
-        let axis = if d.y >= d.x && d.y >= d.z { 1 } else if d.x >= d.z { 0 } else { 2 };
+        let axis = if d.y >= d.x && d.y >= d.z {
+            1
+        } else if d.x >= d.z {
+            0
+        } else {
+            2
+        };
         let up = b.delta[axis] > 0.0;
         b.solids(c, me, |s| {
             if s.intersects(&me) {
@@ -283,7 +306,8 @@ pub fn move_box_with(
                 continue;
             }
             for s in &solids {
-                let overlap = (0..3).filter(|&a| a != axis).all(|a| b.min[a] < s.max[a] - 1e-7 && b.max[a] > s.min[a] + 1e-7);
+                let overlap =
+                    (0..3).filter(|&a| a != axis).all(|a| b.min[a] < s.max[a] - 1e-7 && b.max[a] > s.min[a] + 1e-7);
                 if !overlap {
                     continue;
                 }
@@ -339,7 +363,15 @@ pub struct Hit {
 /// the world's blocks and of moving structures (`(entity, where its block (0, 0, 0) is, its
 /// blocks)`), by where the ray enters it. The client's crosshair, the server's and mods'
 /// `look_at` all ask this.
-pub fn pick(c: &Content, world: &impl Fn(IVec3) -> Option<u32>, structures: &[(u64, DVec3, &dyn Blocks)], eye: DVec3, dir: DVec3, reach: f64, liquids: bool) -> Option<Hit> {
+pub fn pick(
+    c: &Content,
+    world: &impl Fn(IVec3) -> Option<u32>,
+    structures: &[(u64, DVec3, &dyn Blocks)],
+    eye: DVec3,
+    dir: DVec3,
+    reach: f64,
+    liquids: bool,
+) -> Option<Hit> {
     let mut best = raycast(c, world, eye, dir, reach, liquids);
     for &(id, origin, blocks) in structures {
         let block = |p: IVec3| Some(blocks.block(p));
@@ -375,7 +407,14 @@ pub fn ray_aabb(o: DVec3, d: DVec3, b: &Aabb, max: f64) -> Option<f64> {
 /// Amanatides-Woo traversal. Blocks are hit where the ray crosses their selection boxes; blocks
 /// the ray starts inside are skipped.
 /// First targetable block along the ray; with `liquids` liquids stop it too.
-pub fn raycast(c: &Content, block: &impl Fn(IVec3) -> Option<u32>, origin: DVec3, dir: DVec3, max: f64, liquids: bool) -> Option<Hit> {
+pub fn raycast(
+    c: &Content,
+    block: &impl Fn(IVec3) -> Option<u32>,
+    origin: DVec3,
+    dir: DVec3,
+    max: f64,
+    liquids: bool,
+) -> Option<Hit> {
     let dir = dir.normalize();
     let mut p = origin.floor().as_ivec3();
     let step = dir.signum().as_ivec3();
@@ -391,7 +430,8 @@ pub fn raycast(c: &Content, block: &impl Fn(IVec3) -> Option<u32>, origin: DVec3
             let s = &c.states[state as usize];
             if s.flags & bf::NOT_TARGETABLE == 0 || (liquids && s.liquid.is_some()) {
                 let local = origin - p.as_dvec3();
-                let best = s.selection.iter().filter_map(|b| ray_box(local, dir, b, max)).min_by(|a, b| a.0.total_cmp(&b.0));
+                let best =
+                    s.selection.iter().filter_map(|b| ray_box(local, dir, b, max)).min_by(|a, b| a.0.total_cmp(&b.0));
                 if let Some((dist, face)) = best {
                     return Some(Hit { frame: 0, block: p, face, state, dist });
                 }
@@ -485,12 +525,25 @@ pub struct Walked {
 /// ladders, liquids and steps from the blocks it is in, with vanilla's numbers. `vel` is blocks
 /// per tick; a player differs only in where `ctl` comes from.
 #[allow(clippy::too_many_arguments)]
-pub fn walk(c: &Content, block: &impl Fn(IVec3) -> Option<u32>, bodies: &[Body<'_>], skip: u64, pos: &mut DVec3, vel: &mut DVec3, on_ground: bool, ctl: &Control, f: &Frame) -> Walked {
+pub fn walk(
+    c: &Content,
+    block: &impl Fn(IVec3) -> Option<u32>,
+    bodies: &[Body<'_>],
+    skip: u64,
+    pos: &mut DVec3,
+    vel: &mut DVec3,
+    on_ground: bool,
+    ctl: &Control,
+    f: &Frame,
+) -> Walked {
     let feet = pos.floor().as_ivec3();
     let flags = |q: IVec3| block(q).map_or(0, |s| c.states[s as usize].flags);
     let liquid = in_liquid(c, block, *pos, 0.0) || in_liquid(c, block, *pos, (f.height * 0.5).min(1.0));
     let drag = block(feet).map_or(1.0, |s| c.states[s as usize].drag as f64);
-    let slip_at = |y: f64| block(IVec3::new(feet.x, (y - 0.5).floor() as i32, feet.z)).map_or(0.6, |s| c.states[s as usize].friction as f64);
+    let slip_at = |y: f64| {
+        block(IVec3::new(feet.x, (y - 0.5).floor() as i32, feet.z))
+            .map_or(0.6, |s| c.states[s as usize].friction as f64)
+    };
     let accelerate = |vel: &mut DVec3, k: f64| {
         let len2 = ctl.wish.length_squared();
         if len2 > 1e-7 {
@@ -539,7 +592,8 @@ pub fn walk(c: &Content, block: &impl Fn(IVec3) -> Option<u32>, bodies: &[Body<'
         }
     }
     let before = *pos;
-    let r = move_box_with(c, block, bodies, skip, *pos, f.half_width, f.height, *vel, if on_ground { f.step } else { 0.0 });
+    let r =
+        move_box_with(c, block, bodies, skip, *pos, f.half_width, f.height, *vel, if on_ground { f.step } else { 0.0 });
     *pos = r.pos;
     for i in 0..3 {
         if r.hit[i] {

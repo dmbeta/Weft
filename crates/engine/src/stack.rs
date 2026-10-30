@@ -74,7 +74,9 @@ pub fn with(data: u32, comp: u32, bytes: Option<&[u8]>) -> u32 {
 }
 
 pub fn u32_of(stack: &ItemStack, comp: Option<u32>) -> u32 {
-    comp.and_then(|c| value(stack.data, c)).filter(|b| b.len() >= 4).map_or(0, |b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    comp.and_then(|c| value(stack.data, c))
+        .filter(|b| b.len() >= 4)
+        .map_or(0, |b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
 }
 
 /// Damage taken (the `damage` stack component), 0 for a fresh stack.
@@ -129,17 +131,25 @@ pub fn to_names(data: u32) -> Vec<(String, Vec<u8>)> {
 
 /// `damage=05000000,mymod:charge=10270000` for text files; empty for plain stacks.
 pub fn to_text(data: u32) -> String {
-    to_names(data).iter().map(|(n, b)| format!("{n}={}", b.iter().map(|x| format!("{x:02x}")).collect::<String>())).collect::<Vec<_>>().join(",")
+    to_names(data)
+        .iter()
+        .map(|(n, b)| format!("{n}={}", b.iter().map(|x| format!("{x:02x}")).collect::<String>()))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 pub fn from_text(s: &str) -> u32 {
-    let unhex = |h: &str| (0..h.len() / 2).filter_map(|i| u8::from_str_radix(&h[i * 2..i * 2 + 2], 16).ok()).collect::<Vec<u8>>();
+    let unhex = |h: &str| {
+        (0..h.len() / 2).filter_map(|i| u8::from_str_radix(&h[i * 2..i * 2 + 2], 16).ok()).collect::<Vec<u8>>()
+    };
     from_names(s.split(',').filter_map(|kv| kv.split_once('=')).map(|(k, v)| (k.to_string(), unhex(v))).collect())
 }
 
 pub fn from_names(list: Vec<(String, Vec<u8>)>) -> u32 {
     let Some(c) = crate::content::try_content() else { return 0 };
-    intern(list.into_iter().filter_map(|(name, b)| c.components.id(&name).map(|id| (id, b.into_boxed_slice()))).collect())
+    intern(
+        list.into_iter().filter_map(|(name, b)| c.components.id(&name).map(|id| (id, b.into_boxed_slice()))).collect(),
+    )
 }
 
 #[cfg(test)]

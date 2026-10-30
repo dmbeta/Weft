@@ -125,7 +125,6 @@ impl Assets {
         }
         out
     }
-
 }
 
 fn walk(dir: &Path, f: &mut impl FnMut(&Path)) {
@@ -148,18 +147,21 @@ pub struct Image {
 
 pub fn decode_png(bytes: &[u8]) -> Option<Image> {
     let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
-    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16 | png::Transformations::ALPHA);
+    decoder.set_transformations(
+        png::Transformations::EXPAND | png::Transformations::STRIP_16 | png::Transformations::ALPHA,
+    );
     let mut reader = decoder.read_info().ok()?;
     let mut buf = vec![0; reader.output_buffer_size()?];
     let info = reader.next_frame(&mut buf).ok()?;
     let (w, h) = (info.width, info.height);
     let rgba = match info.color_type {
         png::ColorType::Rgba => buf[..(w * h * 4) as usize].to_vec(),
-        png::ColorType::GrayscaleAlpha => buf[..(w * h * 2) as usize]
-            .chunks_exact(2)
-            .flat_map(|p| [p[0], p[0], p[0], p[1]])
-            .collect(),
-        png::ColorType::Rgb => buf[..(w * h * 3) as usize].chunks_exact(3).flat_map(|p| [p[0], p[1], p[2], 255]).collect(),
+        png::ColorType::GrayscaleAlpha => {
+            buf[..(w * h * 2) as usize].chunks_exact(2).flat_map(|p| [p[0], p[0], p[0], p[1]]).collect()
+        }
+        png::ColorType::Rgb => {
+            buf[..(w * h * 3) as usize].chunks_exact(3).flat_map(|p| [p[0], p[1], p[2], 255]).collect()
+        }
         png::ColorType::Grayscale => buf[..(w * h) as usize].iter().flat_map(|&g| [g, g, g, 255]).collect(),
         png::ColorType::Indexed => return None,
     };
@@ -210,13 +212,16 @@ pub struct LoadedTexture {
 /// its red channel times alpha. Same size and frames as the texture, and from the same pack or
 /// mod. One byte per texel.
 pub fn emission_mask(assets: &Assets, name: &str) -> Option<Image> {
-    let read = |suffix: &str| assets.beside(name, "textures", "png", suffix).and_then(|p| std::fs::read(p).ok()).and_then(|b| decode_png(&b));
+    let read = |suffix: &str| {
+        assets.beside(name, "textures", "png", suffix).and_then(|p| std::fs::read(p).ok()).and_then(|b| decode_png(&b))
+    };
     if let Some(mut img) = read("_e") {
         img.rgba = img.rgba.chunks_exact(4).map(|p| (p[0] as u32 * p[3] as u32 / 255) as u8).collect();
         return Some(img);
     }
     let mut img = read("_s")?;
-    img.rgba = img.rgba.chunks_exact(4).map(|p| if p[3] == 255 { 0 } else { (p[3] as u32 * 255 / 254) as u8 }).collect();
+    img.rgba =
+        img.rgba.chunks_exact(4).map(|p| if p[3] == 255 { 0 } else { (p[3] as u32 * 255 / 254) as u8 }).collect();
     Some(img)
 }
 
@@ -277,7 +282,8 @@ pub fn parse_anim(src: &str, frame_count: u32, first: u32) -> Anim {
 /// A texture by name: animated ones are vertical strips of square frames (`.anim` next to it
 /// says how they play). A missing or malformed file gives the magenta checker and a warning.
 pub fn load_texture(assets: &Assets, name: &str) -> LoadedTexture {
-    let img = (name != "core:missing").then(|| assets.read(name, "textures", "png").and_then(|b| decode_png(&b))).flatten();
+    let img =
+        (name != "core:missing").then(|| assets.read(name, "textures", "png").and_then(|b| decode_png(&b))).flatten();
     let img = match img {
         Some(img) if img.height >= img.width && img.width > 0 && img.height % img.width == 0 => img,
         Some(img) => {
@@ -294,7 +300,9 @@ pub fn load_texture(assets: &Assets, name: &str) -> LoadedTexture {
     let size = img.width.next_power_of_two();
     let count = img.height / img.width;
     let frame_bytes = (img.width * img.width * 4) as usize;
-    let frames: Vec<Vec<Vec<u8>>> = (0..count as usize).map(|f| mip_chain(scale_nearest(&img.rgba[f * frame_bytes..(f + 1) * frame_bytes], img.width, size), size)).collect();
+    let frames: Vec<Vec<Vec<u8>>> = (0..count as usize)
+        .map(|f| mip_chain(scale_nearest(&img.rgba[f * frame_bytes..(f + 1) * frame_bytes], img.width, size), size))
+        .collect();
     let mask = emission_mask(assets, name).filter(|m| m.width > 0);
     let glow = (0..count).map(|f| mask.as_ref().map(|m| mask_frame(m, f, size))).collect();
     let meta = assets.read(name, "textures", "anim").map(|b| String::from_utf8_lossy(&b).into_owned());
@@ -327,9 +335,22 @@ pub fn composite_texture(parts: [&LoadedTexture; 4]) -> LoadedTexture {
 /// them is edited, added or removed, so a reload reads only what changed.
 pub fn texture_stamp(assets: &Assets, name: &str) -> u64 {
     let mut h = weft_noise::FNV;
-    for (n, ext) in [(name.to_string(), "png"), (name.to_string(), "anim"), (format!("{name}_e"), "png"), (format!("{name}_s"), "png")] {
+    for (n, ext) in [
+        (name.to_string(), "png"),
+        (name.to_string(), "anim"),
+        (format!("{name}_e"), "png"),
+        (format!("{name}_s"), "png"),
+    ] {
         let meta = assets.path(&n, "textures", ext).and_then(|p| std::fs::metadata(p).ok());
-        let (len, time) = meta.map_or((u64::MAX, 0), |m| (m.len(), m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos() as u64)));
+        let (len, time) = meta.map_or((u64::MAX, 0), |m| {
+            (
+                m.len(),
+                m.modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map_or(0, |d| d.as_nanos() as u64),
+            )
+        });
         for v in [len, time] {
             h = weft_noise::fnv_step(h, v);
         }

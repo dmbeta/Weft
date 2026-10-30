@@ -61,7 +61,16 @@ pub fn load(name: &str, read: &dyn Fn(&str) -> Option<String>) -> Result<Option<
         let Some(parent) = root.get("parent").and_then(Value::as_str) else { break };
         let parent = qualify(&ns, parent);
         let short = parent.split_once(':').map_or(parent.as_str(), |x| x.1);
-        if matches!(short, "block/cube_all" | "block/cube" | "block/cube_column" | "block/cube_bottom_top" | "item/generated" | "item/handheld" | "block/block") {
+        if matches!(
+            short,
+            "block/cube_all"
+                | "block/cube"
+                | "block/cube_column"
+                | "block/cube_bottom_top"
+                | "item/generated"
+                | "item/handheld"
+                | "block/block"
+        ) {
             builtin = Some(short.to_string());
             break;
         }
@@ -85,14 +94,23 @@ pub fn load(name: &str, read: &dyn Fn(&str) -> Option<String>) -> Result<Option<
     if let Some(list) = elements {
         for (i, e) in list.iter().enumerate() {
             let v3 = |k: &str| -> Result<[f32; 3], String> {
-                let a = e.get(k).and_then(Value::as_array).filter(|a| a.len() == 3).ok_or_else(|| format!("model {name}: element {i} without `{k}`"))?;
+                let a = e
+                    .get(k)
+                    .and_then(Value::as_array)
+                    .filter(|a| a.len() == 3)
+                    .ok_or_else(|| format!("model {name}: element {i} without `{k}`"))?;
                 Ok(std::array::from_fn(|j| a[j].as_f64().unwrap_or(0.0) as f32))
             };
             let (from, to) = (v3("from")?, v3("to")?);
             if e.get("rotation").and_then(|r| r.get("angle")).and_then(Value::as_f64).is_some_and(|a| a != 0.0) {
                 log::warn!("model {name}: element {i} is drawn unrotated; rotated elements are not supported");
             }
-            let mut b = FileBox { min: std::array::from_fn(|j| from[j].min(to[j])), max: std::array::from_fn(|j| from[j].max(to[j])), textures: Default::default(), uv: [[NO_FACE, 0.0, 0.0, 0.0]; 6] };
+            let mut b = FileBox {
+                min: std::array::from_fn(|j| from[j].min(to[j])),
+                max: std::array::from_fn(|j| from[j].max(to[j])),
+                textures: Default::default(),
+                uv: [[NO_FACE, 0.0, 0.0, 0.0]; 6],
+            };
             let faces = e.get("faces").and_then(Value::as_object);
             for (d, face) in FACES.iter().enumerate() {
                 let Some(f) = faces.and_then(|f| f.get(*face)) else { continue };
@@ -111,7 +129,9 @@ pub fn load(name: &str, read: &dyn Fn(&str) -> Option<String>) -> Result<Option<
         Some("block/cube_all") => out.cube = Some(std::array::from_fn(|_| t("all"))),
         Some("block/cube") => out.cube = Some(FACES.map(t)),
         Some("block/cube_column") => out.cube = Some([t("side"), t("side"), t("end"), t("end"), t("side"), t("side")]),
-        Some("block/cube_bottom_top") => out.cube = Some([t("side"), t("side"), t("bottom"), t("top"), t("side"), t("side")]),
+        Some("block/cube_bottom_top") => {
+            out.cube = Some([t("side"), t("side"), t("bottom"), t("top"), t("side"), t("side")])
+        }
         Some("item/generated" | "item/handheld") => out.sprite = Some(t("layer0")),
         _ => return Err(format!("model {name}: no elements and no parent the engine knows")),
     }

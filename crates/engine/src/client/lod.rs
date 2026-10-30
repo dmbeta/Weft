@@ -55,7 +55,11 @@ impl TileKey {
     }
 
     fn children(self) -> [TileKey; 4] {
-        std::array::from_fn(|i| TileKey { level: self.level - 1, x: self.x * 2 + (i as i32 & 1), z: self.z * 2 + (i as i32 >> 1) })
+        std::array::from_fn(|i| TileKey {
+            level: self.level - 1,
+            x: self.x * 2 + (i as i32 & 1),
+            z: self.z * 2 + (i as i32 >> 1),
+        })
     }
 
     /// Nearest and farthest horizontal distance from `p` (x, z) to it.
@@ -217,7 +221,16 @@ impl Lod {
 
     /// Picks, asks for and hands the renderer this frame's tiles. `view`: the view radius in
     /// cubes (inside it the real cubes are drawn).
-    pub fn update(&mut self, gpu: &mut dyn weft_render::Backend, render: &mut super::world_render::WorldRenderer, world: &mut super::world::ClientWorld, textures: &super::textures::GameTextures, seed: u64, cam: DVec3, view: i32) {
+    pub fn update(
+        &mut self,
+        gpu: &mut dyn weft_render::Backend,
+        render: &mut super::world_render::WorldRenderer,
+        world: &mut super::world::ClientWorld,
+        textures: &super::textures::GameTextures,
+        seed: u64,
+        cam: DVec3,
+        view: i32,
+    ) {
         let c = content();
         let dim = world.dim;
         self.update_mask(gpu, render, world, cam, view);
@@ -290,7 +303,14 @@ impl Lod {
 
     /// Keeps the mask of columns shown by cubes current: columns that changed, and the ones
     /// coming into the window when the camera moved to another column.
-    fn update_mask(&mut self, gpu: &mut dyn weft_render::Backend, render: &mut super::world_render::WorldRenderer, world: &mut super::world::ClientWorld, cam: DVec3, view: i32) {
+    fn update_mask(
+        &mut self,
+        gpu: &mut dyn weft_render::Backend,
+        render: &mut super::world_render::WorldRenderer,
+        world: &mut super::world::ClientWorld,
+        cam: DVec3,
+        view: i32,
+    ) {
         let half = view + MASK_MARGIN;
         let w = 2 * half + 1;
         let center = IVec2::new((cam.x / 16.0).floor() as i32, (cam.z / 16.0).floor() as i32);

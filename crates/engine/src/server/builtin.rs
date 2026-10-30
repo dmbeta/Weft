@@ -72,7 +72,11 @@ pub const COMMANDS: &[(&str, &str, Handler)] = &[
 fn help(_s: &mut Server, x: &Ctx) -> Vec<Msg> {
     let (c, a) = (x.c, x.a);
     match a.text("command") {
-        Some(n) => c.commands.iter().find(|d| d.name == n).map_or_else(|| say("unknown", vec![text(n)]), |d| say("usage_line", vec![text(&d.name), text(&d.usage)])),
+        Some(n) => c
+            .commands
+            .iter()
+            .find(|d| d.name == n)
+            .map_or_else(|| say("unknown", vec![text(n)]), |d| say("usage_line", vec![text(&d.name), text(&d.usage)])),
         None => c.commands.iter().flat_map(|d| say("usage_line", vec![text(&d.name), text(&d.usage)])).collect(),
     }
 }
@@ -264,7 +268,8 @@ fn regions(s: &mut Server, x: &Ctx) -> Vec<Msg> {
         .iter()
         .filter(|d| !d.regions.is_empty())
         .map(|d| {
-            let sizes: Vec<String> = d.regions.iter().map(|r| format!("{}/{}", r.cubes.len(), r.entities.list.len())).collect();
+            let sizes: Vec<String> =
+                d.regions.iter().map(|r| format!("{}/{}", r.cubes.len(), r.entities.list.len())).collect();
             format!("{}: {} ({})", c.dims[d.id as usize].name, d.regions.len(), sizes.join(" "))
         })
         .collect();
@@ -274,12 +279,23 @@ fn regions(s: &mut Server, x: &Ctx) -> Vec<Msg> {
 /// The world's settings (`config_scope::WORLD`), like vanilla's game rules.
 fn rule(_s: &mut Server, x: &Ctx) -> Vec<Msg> {
     let (c, a) = (x.c, x.a);
-    let rules: Vec<(u32, &crate::config::ConfigDef)> = c.game.configs.iter().enumerate().filter(|(_, d)| d.scope == weft_abi::config_scope::WORLD).map(|(i, d)| (i as u32, d)).collect();
-    let value = |id: u32, d: &crate::config::ConfigDef| say("rule.value", vec![text(&d.name), text(&d.show(crate::config::get(id)))]);
+    let rules: Vec<(u32, &crate::config::ConfigDef)> = c
+        .game
+        .configs
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.scope == weft_abi::config_scope::WORLD)
+        .map(|(i, d)| (i as u32, d))
+        .collect();
+    let value = |id: u32, d: &crate::config::ConfigDef| {
+        say("rule.value", vec![text(&d.name), text(&d.show(crate::config::get(id)))])
+    };
     let Some(name) = a.text("name") else {
         return rules.iter().flat_map(|&(id, d)| value(id, d)).collect();
     };
-    let Some(&(id, d)) = rules.iter().find(|r| r.1.name == name || r.1.name.rsplit(':').next() == Some(name)) else { return say("rule.unknown", vec![text(name)]) };
+    let Some(&(id, d)) = rules.iter().find(|r| r.1.name == name || r.1.name.rsplit(':').next() == Some(name)) else {
+        return say("rule.unknown", vec![text(name)]);
+    };
     if let Some(v) = a.int("value") {
         crate::config::set(id, v as f64);
     }

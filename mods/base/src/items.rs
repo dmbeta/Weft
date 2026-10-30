@@ -53,7 +53,11 @@ pub fn register(r: &mut Registry) {
         ("cooked_beef", 8, 12.8, "cooked_meat/beef"),
         ("rotten_flesh", 4, 0.8, ""),
     ] {
-        let i = r.item(Item::generated(name.into())).set(&FOOD, Food { hunger, saturation }).on_use(crate::player::eat).tab(&crate::tabs::FOOD);
+        let i = r
+            .item(Item::generated(name.into()))
+            .set(&FOOD, Food { hunger, saturation })
+            .on_use(crate::player::eat)
+            .tab(&crate::tabs::FOOD);
         if !tag.is_empty() {
             i.tag(tag);
         }
@@ -67,7 +71,9 @@ pub fn register(r: &mut Registry) {
         // `.tool(kind)` tags it `tools/<kind>`; `<kind>s/<material>` picks its recipe.
         let tool = |r: &mut Registry, kind: &str, damage: f32| {
             r.item(Item::generated(format!("{}_{kind}", m.name)))
-                .tool(kind).tool_level(m.level).mining_speed(m.speed)
+                .tool(kind)
+                .tool_level(m.level)
+                .mining_speed(m.speed)
                 .durability(m.durability)
                 .attack_damage(damage + m.damage)
                 .tag(&format!("{kind}s/{}", m.name))
@@ -83,7 +89,9 @@ pub fn register(r: &mut Registry) {
     }
 
     for (mat, mult, durability) in [("leather", 0u32, 5u32), ("iron", 1, 15), ("gold", 1, 7), ("diamond", 2, 33)] {
-        for (slot, piece, points, dur) in [(0, "helmet", 1, 11), (1, "chestplate", 3, 16), (2, "leggings", 2, 15), (3, "boots", 1, 13)] {
+        for (slot, piece, points, dur) in
+            [(0, "helmet", 1, 11), (1, "chestplate", 3, 16), (2, "leggings", 2, 15), (3, "boots", 1, 13)]
+        {
             let points = points + mult * (if slot == 1 { 3 } else { 1 });
             let tag = ARMOR_SLOTS[slot as usize];
             // Leggings are the inner layer, drawn closer to the body.

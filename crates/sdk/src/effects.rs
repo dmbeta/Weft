@@ -13,7 +13,9 @@
 use std::marker::PhantomData;
 
 use crate::abi::{self, Slice, Str, particle_flags as pf};
-use crate::{Client, ClientView, Music, Particle, Registry, SoundCategory, TextCondition, World, callback, host, qualify};
+use crate::{
+    Client, ClientView, Music, Particle, Registry, SoundCategory, TextCondition, World, callback, host, qualify,
+};
 
 pub struct ParticleBuilder<'a> {
     raw: *mut abi::Registrar,
@@ -115,7 +117,11 @@ impl Registry {
 
     /// `{if:<ns>:<name>}...{/if}` in any text shows its part while `f` says so; asked on the
     /// client every frame such a text is on screen.
-    pub fn text_condition(&mut self, condition: &TextCondition, f: impl Fn(&ClientView) -> bool + Send + Sync + 'static) {
+    pub fn text_condition(
+        &mut self,
+        condition: &TextCondition,
+        f: impl Fn(&ClientView) -> bool + Send + Sync + 'static,
+    ) {
         let cb = callback(move |a: &mut abi::TextConditionArgs| a.result = f(&ClientView::from_raw(a.client)) as u32);
         unsafe { (host().reg_text_condition)(self.raw, Str::new(condition.name()), cb) }
     }
@@ -195,7 +201,9 @@ impl Client {
     /// Turns screen effect `name` (`shaders/post/<name>.wgsl`) on at `strength` (0 turns it off).
     pub fn post_effect(&self, name: &str, strength: f32) -> bool {
         let name = qualify(crate::mod_id(), name);
-        unsafe { (host().client_command)(self.raw(), abi::client_op::POST_EFFECT, Str::new(&name), strength as f64) != 0 }
+        unsafe {
+            (host().client_command)(self.raw(), abi::client_op::POST_EFFECT, Str::new(&name), strength as f64) != 0
+        }
     }
 }
 
@@ -243,7 +251,13 @@ impl Drop for SoundBuilder<'_> {
             return;
         }
         let files: Vec<Str> = self.files.iter().map(|f| Str::new(f)).collect();
-        let desc = abi::SoundDesc { name: Str::new(&self.name), cell: self.handle.map_or(std::ptr::null(), |h| h.cell()), files: Slice::new(&files), category_name: Str::new(&self.category_name), ..self.desc };
+        let desc = abi::SoundDesc {
+            name: Str::new(&self.name),
+            cell: self.handle.map_or(std::ptr::null(), |h| h.cell()),
+            files: Slice::new(&files),
+            category_name: Str::new(&self.category_name),
+            ..self.desc
+        };
         unsafe { (host().reg_sound)(self.raw, &desc) }
     }
 }
@@ -280,7 +294,13 @@ impl Drop for MusicBuilder<'_> {
             return;
         }
         let tracks: Vec<Str> = self.tracks.iter().map(|f| Str::new(f)).collect();
-        let desc = abi::MusicDesc { name: Str::new(&self.name), tracks: Slice::new(&tracks), dimension: Str::new(&self.dimension), when: self.when, ..abi::MusicDesc::DEFAULT };
+        let desc = abi::MusicDesc {
+            name: Str::new(&self.name),
+            tracks: Slice::new(&tracks),
+            dimension: Str::new(&self.dimension),
+            when: self.when,
+            ..abi::MusicDesc::DEFAULT
+        };
         unsafe { (host().reg_music)(self.raw, &desc) }
     }
 }
@@ -288,7 +308,15 @@ impl Drop for MusicBuilder<'_> {
 impl Registry {
     /// A sound event, see `SoundBuilder`; blocks and entities name groups of them with `.sound_group()`.
     pub fn sound<'a>(&'a mut self, sound: &'static crate::Sound) -> SoundBuilder<'a> {
-        SoundBuilder { raw: self.raw, name: sound.name().to_string(), files: Vec::new(), handle: Some(sound), desc: abi::SoundDesc::DEFAULT, category_name: String::new(), _p: PhantomData }
+        SoundBuilder {
+            raw: self.raw,
+            name: sound.name().to_string(),
+            files: Vec::new(),
+            handle: Some(sound),
+            desc: abi::SoundDesc::DEFAULT,
+            category_name: String::new(),
+            _p: PhantomData,
+        }
     }
 
     /// A sound category with its own volume setting (`<ns>:volume_<name>`, in the mod's
@@ -299,7 +327,14 @@ impl Registry {
 
     /// Background music, see `MusicBuilder`.
     pub fn music<'a>(&'a mut self, music: &Music) -> MusicBuilder<'a> {
-        MusicBuilder { raw: self.raw, name: music.name().to_string(), tracks: Vec::new(), dimension: String::new(), when: 0, _p: PhantomData }
+        MusicBuilder {
+            raw: self.raw,
+            name: music.name().to_string(),
+            tracks: Vec::new(),
+            dimension: String::new(),
+            when: 0,
+            _p: PhantomData,
+        }
     }
 }
 

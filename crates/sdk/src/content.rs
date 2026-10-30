@@ -22,7 +22,17 @@ pub mod kind {
             impl HasId for $n {})*
         };
     }
-    kinds!(Block = crate::abi::entry_kind::BLOCK, Item = crate::abi::entry_kind::ITEM, Entity = crate::abi::entry_kind::ENTITY, Biome = crate::abi::entry_kind::BIOME, Dimension = crate::abi::entry_kind::DIMENSION, Menu = crate::abi::entry_kind::MENU, Particle = crate::abi::entry_kind::PARTICLE, Config = crate::abi::entry_kind::CONFIG, Sound = crate::abi::entry_kind::SOUND);
+    kinds!(
+        Block = crate::abi::entry_kind::BLOCK,
+        Item = crate::abi::entry_kind::ITEM,
+        Entity = crate::abi::entry_kind::ENTITY,
+        Biome = crate::abi::entry_kind::BIOME,
+        Dimension = crate::abi::entry_kind::DIMENSION,
+        Menu = crate::abi::entry_kind::MENU,
+        Particle = crate::abi::entry_kind::PARTICLE,
+        Config = crate::abi::entry_kind::CONFIG,
+        Sound = crate::abi::entry_kind::SOUND
+    );
     macro_rules! named_kinds {
         ($($n:ident),*) => {
             $(pub struct $n;
@@ -31,7 +41,26 @@ pub mod kind {
             })*
         };
     }
-    named_kinds!(Key, Screen, HudElement, GizmoGroup, TintKind, EntityCategory, SoundCategory, CreativeTab, Question, Chain, Attribute, RecipeKind, LootTable, TextCondition, Music, EquipmentSlot, Scatter, Template);
+    named_kinds!(
+        Key,
+        Screen,
+        HudElement,
+        GizmoGroup,
+        TintKind,
+        EntityCategory,
+        SoundCategory,
+        CreativeTab,
+        Question,
+        Chain,
+        Attribute,
+        RecipeKind,
+        LootTable,
+        TextCondition,
+        Music,
+        EquipmentSlot,
+        Scatter,
+        Template
+    );
 }
 
 const UNRESOLVED: u32 = u32::MAX - 1;
@@ -57,7 +86,13 @@ pub struct Handle<K: kind::Kind> {
 
 impl<K: kind::Kind> Handle<K> {
     pub const fn named(name: &'static str) -> Self {
-        Handle { id: AtomicU32::new(UNRESOLVED), count: AtomicU32::new(1), name, full: std::sync::OnceLock::new(), _k: PhantomData }
+        Handle {
+            id: AtomicU32::new(UNRESOLVED),
+            count: AtomicU32::new(1),
+            name,
+            full: std::sync::OnceLock::new(),
+            _k: PhantomData,
+        }
     }
 
     /// A handle for a name made at runtime, for families of content built in a loop
@@ -100,7 +135,11 @@ impl<K: kind::HasId> Handle<K> {
             self.id.store(id, Ordering::Relaxed);
         } else {
             // Frozen and still unknown: a typo or a missing mod. Say so once.
-            crate::error!("no {} named {}", abi::entry_kind::NAMES.get(K::KIND as usize).unwrap_or(&"entry"), self.name());
+            crate::error!(
+                "no {} named {}",
+                abi::entry_kind::NAMES.get(K::KIND as usize).unwrap_or(&"entry"),
+                self.name()
+            );
             self.id.store(u32::MAX, Ordering::Relaxed);
         }
         id
@@ -116,7 +155,9 @@ impl<K: kind::HasId> Handle<K> {
     /// The block's state with properties `props` set, the others at their defaults:
     /// `FURNACE.with(&[("lit", "true")])`. `u32::MAX` if the block or a value is unknown.
     pub fn with(&self, props: &[(&str, &str)]) -> u32 {
-        props.iter().fold(self.id(), |s, (k, v)| if s == u32::MAX { s } else { unsafe { (host().state_with)(s, Str::new(k), Str::new(v)) } })
+        props.iter().fold(self.id(), |s, (k, v)| {
+            if s == u32::MAX { s } else { unsafe { (host().state_with)(s, Str::new(k), Str::new(v)) } }
+        })
     }
 
     /// True if `state` belongs to this block.
@@ -282,7 +323,10 @@ fn raw_values(list: &[Pending], scratch: &mut Vec<Vec<u8>>) -> Vec<abi::CompValu
         };
         scratch.push(bytes);
     }
-    list.iter().zip(scratch.iter()).map(|(p, b)| abi::CompValue { name: Str::new(&p.name), schema: Str::new(&p.schema), value: Slice::new(b) }).collect()
+    list.iter()
+        .zip(scratch.iter())
+        .map(|(p, b)| abi::CompValue { name: Str::new(&p.name), schema: Str::new(&p.schema), value: Slice::new(b) })
+        .collect()
 }
 
 /// What `Registry::set_on` applies to; names without a namespace are this mod's.
@@ -345,7 +389,16 @@ impl Registry {
     }
 
     pub fn biome<'a>(&'a mut self, biome: &'static Biome) -> BiomeBuilder<'a> {
-        BiomeBuilder { _p: PhantomData, raw: self.raw, ns: self.ns, name: biome.name().to_string(), handle: Some(biome), rule: crate::terrain::BiomeRule::blank(), tints: Vec::new(), components: Vec::new() }
+        BiomeBuilder {
+            _p: PhantomData,
+            raw: self.raw,
+            ns: self.ns,
+            name: biome.name().to_string(),
+            handle: Some(biome),
+            rule: crate::terrain::BiomeRule::blank(),
+            tints: Vec::new(),
+            components: Vec::new(),
+        }
     }
 
     /// Creative inventory tab named `tab.<ns>.<name>` in the language files, shown with `icon`.
@@ -373,17 +426,39 @@ impl Registry {
     /// A template placed now and then on the surface of `dimension` (the structure is called
     /// like the template, for `World::structure_near`).
     pub fn structure<'a>(&'a mut self, dimension: &Dimension, template: &Template) -> StructureBuilder<'a> {
-        StructureBuilder { raw: self.raw, template: template.name().to_string(), dimension: dimension.name().to_string(), biome: String::new(), desc: abi::StructureDesc::DEFAULT, _p: PhantomData }
+        StructureBuilder {
+            raw: self.raw,
+            template: template.name().to_string(),
+            dimension: dimension.name().to_string(),
+            biome: String::new(),
+            desc: abi::StructureDesc::DEFAULT,
+            _p: PhantomData,
+        }
     }
 
     /// A fixed shape of blocks, drawn in layers of rows (`layer` + `key`) or filled with boxes
     /// (`fill`), checked when the game loads.
     pub fn template<'a>(&'a mut self, template: &Template) -> TemplateBuilder<'a> {
-        TemplateBuilder { raw: self.raw, ns: self.ns, name: template.name().to_string(), layers: Vec::new(), keys: Vec::new(), fills: Vec::new(), _p: PhantomData }
+        TemplateBuilder {
+            raw: self.raw,
+            ns: self.ns,
+            name: template.name().to_string(),
+            layers: Vec::new(),
+            keys: Vec::new(),
+            fills: Vec::new(),
+            _p: PhantomData,
+        }
     }
 
     pub fn dimension<'a>(&'a mut self, dimension: &'static Dimension) -> DimensionBuilder<'a> {
-        DimensionBuilder { raw: self.raw, name: dimension.name().to_string(), handle: Some(dimension), desc: abi::DimensionDesc::DEFAULT, components: Vec::new(), _p: PhantomData }
+        DimensionBuilder {
+            raw: self.raw,
+            name: dimension.name().to_string(),
+            handle: Some(dimension),
+            desc: abi::DimensionDesc::DEFAULT,
+            components: Vec::new(),
+            _p: PhantomData,
+        }
     }
 
     /// Sets a component on blocks and items of any mod, by reference: `r.set("base:coal", &FUEL,
@@ -431,7 +506,13 @@ impl Registry {
         };
         let mut scratch = Vec::new();
         let values = raw_values(std::slice::from_ref(value), &mut scratch);
-        let desc = abi::SetDesc { target_kind: kind, target: Str::new(&name), value: values[0], remove: remove as u32, ..abi::SetDesc::DEFAULT };
+        let desc = abi::SetDesc {
+            target_kind: kind,
+            target: Str::new(&name),
+            value: values[0],
+            remove: remove as u32,
+            ..abi::SetDesc::DEFAULT
+        };
         unsafe { (host().reg_set)(self.raw, &desc) }
     }
 }
@@ -681,7 +762,6 @@ fn block_tex(_ns: &str, t: &str) -> String {
     crate::asset("block", t)
 }
 
-
 impl<'a> State<'a> {
     fn each(&mut self, f: impl Fn(&mut StateDef, &str)) {
         f(self.def, self.ns)
@@ -774,14 +854,25 @@ impl Props {
 fn combinations(props: &[(String, Vec<String>)]) -> Vec<Props> {
     let mut out = vec![Props { values: Vec::new() }];
     for (name, values) in props {
-        out = out.into_iter().flat_map(|p| values.iter().map(move |v| { let mut q = p.clone(); q.values.push((name.clone(), v.clone())); q })).collect();
+        out = out
+            .into_iter()
+            .flat_map(|p| {
+                values.iter().map(move |v| {
+                    let mut q = p.clone();
+                    q.values.push((name.clone(), v.clone()));
+                    q
+                })
+            })
+            .collect();
     }
     out
 }
 
 /// The state index of `p` among `combinations(props)`; values it does not know count as the first.
 fn index_of(props: &[(String, Vec<String>)], p: &Props) -> u32 {
-    props.iter().fold(0, |i, (name, values)| i * values.len() as u32 + values.iter().position(|v| v == p.get(name)).unwrap_or(0) as u32)
+    props.iter().fold(0, |i, (name, values)| {
+        i * values.len() as u32 + values.iter().position(|v| v == p.get(name)).unwrap_or(0) as u32
+    })
 }
 
 impl<'a> BlockBuilder<'a> {
@@ -889,7 +980,6 @@ impl<'a> BlockBuilder<'a> {
         self.retexture.push((crate::asset("item", from), crate::asset("item", to)));
         self
     }
-
 
     /// Grows over time, a step every `mean_seconds` on average (spread like random ticks) while
     /// the light is at least `min_light`: by default to the next state until the last. Timed by
@@ -1048,15 +1138,32 @@ impl Drop for BlockBuilder<'_> {
                 a.state = first + index_of(&props, &p);
             }));
         }
-        let prop_values: Vec<Vec<Str>> = self.props.iter().map(|(_, v)| v.iter().map(|x| Str::new(x)).collect()).collect();
-        let props: Vec<abi::PropDesc> = self.props.iter().zip(&prop_values).map(|((n, _), v)| abi::PropDesc { name: Str::new(n), values: Slice::new(v) }).collect();
+        let prop_values: Vec<Vec<Str>> =
+            self.props.iter().map(|(_, v)| v.iter().map(|x| Str::new(x)).collect()).collect();
+        let props: Vec<abi::PropDesc> = self
+            .props
+            .iter()
+            .zip(&prop_values)
+            .map(|((n, _), v)| abi::PropDesc { name: Str::new(n), values: Slice::new(v) })
+            .collect();
         let boxes: Vec<Vec<abi::ModelBox>> = self
             .states
             .iter()
-            .map(|s| s.boxes.iter().map(|(min, max, t)| abi::ModelBox { min: *min, max: *max, textures: std::array::from_fn(|i| Str::new(&t[i])), ..abi::ModelBox::DEFAULT }).collect())
+            .map(|s| {
+                s.boxes
+                    .iter()
+                    .map(|(min, max, t)| abi::ModelBox {
+                        min: *min,
+                        max: *max,
+                        textures: std::array::from_fn(|i| Str::new(&t[i])),
+                        ..abi::ModelBox::DEFAULT
+                    })
+                    .collect()
+            })
             .collect();
         let mut scratch: Vec<Vec<Vec<u8>>> = vec![Vec::new(); self.states.len()];
-        let state_values: Vec<Vec<abi::CompValue>> = self.states.iter().zip(scratch.iter_mut()).map(|(s, sc)| raw_values(&s.components, sc)).collect();
+        let state_values: Vec<Vec<abi::CompValue>> =
+            self.states.iter().zip(scratch.iter_mut()).map(|(s, sc)| raw_values(&s.components, sc)).collect();
         let states: Vec<abi::StateDesc> = self
             .states
             .iter()
@@ -1120,9 +1227,14 @@ impl Drop for BlockBuilder<'_> {
             drop(item);
         }
         if let Some((item, count)) = self.drops.take() {
-            let pools = if item.is_empty() { vec![] } else { vec![crate::extend::Pool::new().when(crate::extend::Cond::Harvested).items(&item, count, count)] };
+            let pools = if item.is_empty() {
+                vec![]
+            } else {
+                vec![crate::extend::Pool::new().when(crate::extend::Cond::Harvested).items(&item, count, count)]
+            };
             let raw = crate::extend::raw_pools(self.reg.ns, &pools);
-            let desc = abi::LootDesc { name: Str::new(&self.name), pools: Slice::new(&raw.pools), ..abi::LootDesc::DEFAULT };
+            let desc =
+                abi::LootDesc { name: Str::new(&self.name), pools: Slice::new(&raw.pools), ..abi::LootDesc::DEFAULT };
             unsafe { (host().reg_loot)(self.reg.raw, &desc) }
         }
     }
@@ -1183,7 +1295,9 @@ impl ItemBuilder<'_> {
     /// layout, `inflate` pixels out from the body.
     pub fn wearable(self, slot: &EquipmentSlot, inflate: f32, texture: &str) -> Self {
         let tex = crate::asset("entity", texture);
-        self.tag(&format!("worn/{}", slot.name())).set(&c::WORN, abi::Worn { roles: 0, inflate }).set_text(&c::WORN_TEXTURE, &tex)
+        self.tag(&format!("worn/{}", slot.name()))
+            .set(&c::WORN, abi::Worn { roles: 0, inflate })
+            .set_text(&c::WORN_TEXTURE, &tex)
     }
 
     pub fn on_use(mut self, f: impl Fn(&mut ItemUse) -> bool + Send + Sync + 'static) -> Self {
@@ -1278,7 +1392,12 @@ impl Drop for BiomeBuilder<'_> {
         let mut scratch = Vec::new();
         let values = raw_values(&self.components, &mut scratch);
         let names = self.rule.names(self.ns);
-        let desc = abi::BiomeDesc { name: Str::new(&self.name), cell: cell(self.handle), rule: self.rule.desc(&names), components: Slice::new(&values) };
+        let desc = abi::BiomeDesc {
+            name: Str::new(&self.name),
+            cell: cell(self.handle),
+            rule: self.rule.desc(&names),
+            components: Slice::new(&values),
+        };
         unsafe { (host().reg_biome)(self.raw, &desc) }
         for (kind, color) in &self.tints {
             unsafe { (host().reg_biome_tint)(self.raw, Str::new(&self.name), Str::new(kind.name()), *color) }
@@ -1380,7 +1499,12 @@ impl Drop for DimensionBuilder<'_> {
         }
         let mut scratch = Vec::new();
         let values = raw_values(&self.components, &mut scratch);
-        let desc = abi::DimensionDesc { name: Str::new(&self.name), cell: cell(self.handle), components: Slice::new(&values), ..self.desc };
+        let desc = abi::DimensionDesc {
+            name: Str::new(&self.name),
+            cell: cell(self.handle),
+            components: Slice::new(&values),
+            ..self.desc
+        };
         unsafe { (host().reg_dimension)(self.raw, &desc) }
     }
 }
@@ -1430,7 +1554,12 @@ impl Drop for StructureBuilder<'_> {
         if std::thread::panicking() {
             return;
         }
-        let desc = abi::StructureDesc { template: Str::new(&self.template), dimension: Str::new(&self.dimension), biome: Str::new(&self.biome), ..self.desc };
+        let desc = abi::StructureDesc {
+            template: Str::new(&self.template),
+            dimension: Str::new(&self.dimension),
+            biome: Str::new(&self.biome),
+            ..self.desc
+        };
         unsafe { (host().reg_structure)(self.raw, &desc) }
     }
 }
@@ -1492,7 +1621,8 @@ impl Drop for TemplateBuilder<'_> {
                 }
             }
         }
-        let blocks: Vec<abi::StructureBlock> = names.iter().map(|(p, b)| abi::StructureBlock { pos: *p, block: Str::new(b) }).collect();
+        let blocks: Vec<abi::StructureBlock> =
+            names.iter().map(|(p, b)| abi::StructureBlock { pos: *p, block: Str::new(b) }).collect();
         let desc = abi::TemplateDesc { name: Str::new(&self.name), blocks: Slice::new(&blocks) };
         unsafe { (host().reg_template)(self.raw, &desc) }
     }
@@ -1537,7 +1667,10 @@ impl OreBuilder<'_> {
     }
     /// Blocks or `#tags` the ore may replace, space separated.
     pub fn replace(mut self, blocks: &str) -> Self {
-        let names: Vec<String> = blocks.split_whitespace().map(|b| if b.starts_with('#') { b.to_string() } else { qualify(self.ns, b) }).collect();
+        let names: Vec<String> = blocks
+            .split_whitespace()
+            .map(|b| if b.starts_with('#') { b.to_string() } else { qualify(self.ns, b) })
+            .collect();
         self.replace = names.join(" ");
         self
     }
@@ -1548,7 +1681,13 @@ impl Drop for OreBuilder<'_> {
         if std::thread::panicking() {
             return;
         }
-        let desc = abi::OreDesc { dimensions: Str::new(&self.dimensions), block: Str::new(&self.block), replace: Str::new(&self.replace), biome: Str::new(&self.biome), ..self.desc };
+        let desc = abi::OreDesc {
+            dimensions: Str::new(&self.dimensions),
+            block: Str::new(&self.block),
+            replace: Str::new(&self.replace),
+            biome: Str::new(&self.biome),
+            ..self.desc
+        };
         unsafe { (host().reg_ore)(self.raw, &desc) }
     }
 }
@@ -1797,7 +1936,17 @@ impl Drop for LiquidBuilder<'_> {
         let tex = if self.texture.is_empty() { format!("{short}_still") } else { self.texture.clone() };
         let (tint, light, opacity, drag) = (self.tint, self.light, self.opacity, self.drag);
         // The engine makes its 16 states liquid (flags, look, level) from `reg_liquid`.
-        let mut b = self.reg.block(self.handle).texture(&tex).prop("level", 0..=15).unbreakable().light_rgb(light[0], light[1], light[2]).opacity(opacity).drag(drag).no_item().drops_nothing();
+        let mut b = self
+            .reg
+            .block(self.handle)
+            .texture(&tex)
+            .prop("level", 0..=15)
+            .unbreakable()
+            .light_rgb(light[0], light[1], light[2])
+            .opacity(opacity)
+            .drag(drag)
+            .no_item()
+            .drops_nothing();
         if let Some(kind) = tint {
             b = b.tint(kind);
         }
@@ -1809,7 +1958,12 @@ impl Drop for LiquidBuilder<'_> {
         let desc = abi::LiquidDesc { name: Str::new(&self.name), ..self.desc };
         unsafe { (host().reg_liquid)(self.reg.raw, &desc) };
         if let Some((item, empty, tab)) = self.bucket.take() {
-            self.reg.item(item).max_stack(1).set_text(&c::LIQUID, &self.name).set_text(&c::REMAINDER, &empty).tag(&format!("tab/{tab}"));
+            self.reg
+                .item(item)
+                .max_stack(1)
+                .set_text(&c::LIQUID, &self.name)
+                .set_text(&c::REMAINDER, &empty)
+                .tag(&format!("tab/{tab}"));
         }
     }
 }
@@ -1843,11 +1997,17 @@ impl Drop for ReactionBuilder<'_> {
             return;
         }
         let n = &self.names;
-        let desc = abi::ReactionDesc { liquid: Str::new(&n[0]), touching: Str::new(&n[1]), source: Str::new(&n[2]), flowing: Str::new(&n[3]), falls_into: Str::new(&n[4]), ..abi::ReactionDesc::DEFAULT };
+        let desc = abi::ReactionDesc {
+            liquid: Str::new(&n[0]),
+            touching: Str::new(&n[1]),
+            source: Str::new(&n[2]),
+            flowing: Str::new(&n[3]),
+            falls_into: Str::new(&n[4]),
+            ..abi::ReactionDesc::DEFAULT
+        };
         unsafe { (host().reg_liquid_reaction)(self.reg.raw, &desc) }
     }
 }
-
 
 impl Registry {
     /// A liquid the engine flows; see `LiquidBuilder`. Defaults are vanilla water's numbers.
