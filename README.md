@@ -48,13 +48,15 @@ Requires Rust 1.90 or newer. [mise](https://mise.jdx.dev/) pins the toolchain an
 ```sh
 git clone https://github.com/VortexSo4/Weft.git
 cd Weft
-mise install          # installs the Rust toolchain
+mise install          # installs the toolchain and writes the git pre-commit hook
 mise run run:release  # builds the game and all mods, then runs
 ```
 
 Run it from the repository root. Release builds pack each mod in `mods/` into `run/mods/` on start; settings, saves and logs go to `run/`. `mise run run:release -- --dist <dir>` makes a standalone build to share.
 
 Available tasks: `build` (debug), `build:release`, `run` (debug) and `run:release`. Pass game options after `--`, for example `mise run run:release -- --gpu-debug`.
+
+`mise run fmt` formats Rust, Markdown and TOML in place, and `mise run check` reports the same without touching files. The pre-commit hook that `mise install` writes runs `fmt` on every commit and stages what it changed.
 
 Linux also needs ALSA and pkg-config (`sudo apt-get install -y libasound2-dev pkg-config`); macOS and Windows need nothing extra. Your GPU needs a Vulkan driver.
 
@@ -70,7 +72,7 @@ Early. The mod interface and the save format can still change between versions. 
 
 ## Contributing
 
-Issues and pull requests are welcome, for the engine, mods, textures or docs.
+Issues and pull requests are welcome, for the engine, mods, textures or docs. Formatting is handled by `mise run fmt` (see [Build from source](#build-from-source)); the pre-commit hook runs it for you.
 
 ## License - [MPL-2.0](LICENSE)
 

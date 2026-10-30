@@ -1,0 +1,4 @@
+# rustfmt for a codebase written at 120 columns, where a call, a closure, an if/else or a struct
+# literal stays on one line as long as it fits in that width instead of being broken up early.
+max_width = 120
+use_small_heuristics = "Max"

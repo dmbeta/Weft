@@ -1,0 +1,8 @@
+[global]
+flavor = "gfm"
+respect-gitignore = true
+disable = [
+  "MD013", # line length: the docs are wrapped by hand at a width of their own choosing
+  "MD033", # inline HTML: README.md is built out of banner and badge tags
+  "MD041", # first line is a heading: README.md starts with the banner
+]

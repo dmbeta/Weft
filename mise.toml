@@ -1,5 +1,11 @@
 [tools]
 rust = { version = "stable", components = ["rustfmt", "clippy"] }
+rumdl = "latest"
+taplo = "latest"
+
+# Gives every checkout the pre-commit hook, so `mise install` is the only setup step.
+[hooks]
+postinstall = "mise generate git-pre-commit --write"
 
 [tasks.build]
 description = "Build the game and all mods (debug)"
@@ -18,3 +24,48 @@ run = "cargo run --"
 description = "Build then run (release); pass game options after `--`"
 depends = ["build:release"]
 run = "cargo run --release --"
+
+# examples/examplemod is its own cargo workspace, so `--all` at the root does not reach it.
+[tasks."fmt:rust"]
+description = "Format Rust code"
+run = ["cargo fmt --all", "cargo fmt --manifest-path examples/examplemod/Cargo.toml --all"]
+
+[tasks."fmt:md"]
+description = "Format Markdown"
+run = "rumdl fmt"
+
+[tasks."fmt:toml"]
+description = "Format TOML"
+run = "taplo fmt"
+
+[tasks.fmt]
+description = "Format Rust, Markdown and TOML in place"
+depends = ["fmt:rust", "fmt:md", "fmt:toml"]
+
+[tasks."check:rust"]
+description = "Check Rust formatting"
+run = ["cargo fmt --all -- --check", "cargo fmt --manifest-path examples/examplemod/Cargo.toml --all -- --check"]
+
+[tasks."check:md"]
+description = "Check Markdown lint and formatting"
+run = ["rumdl check", "rumdl fmt --check"]
+
+[tasks."check:toml"]
+description = "Check TOML formatting"
+run = "taplo fmt --check"
+
+[tasks.check]
+description = "Check Rust, Markdown and TOML without touching files"
+depends = ["check:rust", "check:md", "check:toml"]
+
+# Run by .git/hooks/pre-commit, which `mise install` writes. Formatting rewrites the working tree,
+# so put those files back in the index; the paths come from git directly because the hook's $STAGED
+# is a single space-joined line.
+[tasks.pre-commit]
+description = "Format everything and restage what it changed"
+depends = ["fmt"]
+run = '''
+git diff --cached --name-only -z | while IFS= read -r -d '' file; do
+  git add -- "$file"
+done
+'''

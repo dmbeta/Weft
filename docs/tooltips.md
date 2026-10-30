@@ -5,14 +5,17 @@ They are written in the language files, so there is no code for the usual case, 
 resource pack can add or change them, and even for things in other mods.
 
 ## Note
+
 The text is a normal translation, so everything from the rich text list below works in it.\
 Examples to copy from: `mods/base/assets/lang/en_us.lang` (`block.base.furnace.tooltip`)\
 and `mods/testmod/assets/lang/en_us.lang` (`item.testmod.rune.tooltip`, with effects and conditions).
 
 ## Quick links
+
 [rich text](#rich-text) | [effects](#effects) | [conditions](#conditions) | [item tooltips](#item-tooltips) | [other tooltips](#other-tooltips) | [adding from outside](#adding-from-outside) | [look](#look) | [limits](#limits)
 
 ## Rich text
+
 Tags in the translation color the text, show keys and icons, hide parts or animate them.\
 They work in any translation, not only in tooltips:
 
@@ -35,11 +38,13 @@ They work in any translation, not only in tooltips:
 Hidden parts (`on_key`, `if`) are basically instant, the text is just laid out again when they change.
 
 ### Effects
+
 `{fx:...}` animates the letters of the text. The engine has `core:rainbow`, `core:wave`, `core:pulse`
 and `core:shake`.
 
 A new one is a file `shaders/fx/<name>.wgsl` in any mod or pack, used as `{fx:mymod:<name>}`.\
 The file has one function that gets a letter and returns it moved and/or tinted. What a letter carries (its offset, color, position in the text and so on) is listed in the [shaders guide](shaders.md#text-effects), so here is just a small example, letters that jump sideways now and then (the real one is `mods/testmod/assets/shaders/fx/glitch.wgsl`):
+
 ```wgsl
 fn effect(g: Glyph) -> Glyph {
     var o = g;
@@ -53,27 +58,32 @@ fn effect(g: Glyph) -> Glyph {
 ```
 
 ### Conditions
+
 `{if:name}` shows text while a condition holds.\
 The engine's are `creative`, `survival`, `spectator`, `debug` and `dev`. Your own are registered in the mod
 and read the client, so they see the local player only:
+
 ```rust
 r.text_condition("charged", |v| v.player_component(&CHARGE).is_some_and(|c| *c > 0));
 ```
+
 then `{if:mymod:charged}Charged!{/if}` in any translation.
 
 ## Item tooltips
+
 Hovering an item or block shows its name, and `<name key>.tooltip` under it if the language has one.\
 The name line is white, the tooltip lines are gray by default (a color you set wins).\
 The same tooltip shows in the inventory, the creative list and the recipe viewer. A block's is
 `block.<modname>.<name>.tooltip`.
 
-```
+```text
 item.examplemod.ruby = Ruby
 item.examplemod.ruby.tooltip = A red gem that smelts {#ffe070}8{/} items.
 ```
 
 A new line is `\n`, or an indented line which continues the previous value on a new line:
-```
+
+```text
 block.examplemod.lamp.tooltip = Glows warmly.
     Does not burn.
 ```
@@ -83,12 +93,14 @@ Damaged tools get a `Durability: 12 / 250` line by themselves (its translation i
 
 Long details usually hide behind the sneak key, so the tooltip stays short until the player wants to read that.\
 `{lang:tooltip.more}` is the ready phrase "Hold <key> for details":
-```
+
+```text
 block.base.furnace.tooltip = Smelts ores and cooks food.
     {on_key:!core:sneak}{lang:tooltip.more}{/on_key}{on_key:core:sneak}Burns {item:base:coal} coal, {item:base:oak_planks} planks or other {#ffe070}fuel{/} in the bottom slot.{/on_key}
 ```
 
 ## Other tooltips
+
 - **Settings:** `config.<mod>.<key>.tooltip` is shown over the setting's row in Mod Settings. Settings that the
   server overrides or that need a restart get a note added by the engine.
 - **Creative tabs:** show their name from `tab.<mod>.<name>`, or the mod's display name when there is no key.
@@ -96,27 +108,34 @@ block.base.furnace.tooltip = Smelts ores and cooks food.
 - **Slots:** a slot group's `tooltip(key)` shows over its empty slots ([machines guide](machines.md#creating-a-machine)).
 
 ## Adding from outside
+
 Translations are one shared table: every `lang/<code>.lang` of every mod and pack is read into it, so the
 key of an item is the same whoever wrote the file.\
 A mod can add a tooltip to an item of another mod just by having the key in its own lang file.
 
 ### Adding a line
+
 The nice way, keeps the original: put your mod's id at the end of the tooltip key.\
 After the item's own tooltip the game adds every `<tooltip key>.<mod id>` it finds, one line group per mod,
 in the mods' load order:
-```
+
+```text
 # mods/mymod/assets/lang/en_us.lang
 item.base.coal.tooltip.mymod = Also burns in my {#ffe070}boiler{/}.
 ```
+
 That way coal shows its own text and your line under it.\
 It works for any item or block and doesn't need the item to have a tooltip of its own.
 Several mods can do it to the same item, they don't interfere with each other.
 
 ### Replacing
+
 Without the id the key is the original's, and your text takes its place:
-```
+
+```text
 item.base.coal.tooltip = Burns, but only in my {#ffe070}boiler{/}.
 ```
+
 - if the same key is in several mods, the one whose mod id sorts last alphabetically wins; for your own items there is no
   conflict, for someone else's it's a replacement: the old text is gone, so `{lang:}` can't pull it
   back in (a key that points to itself shows nothing), the new text has to be written in full
@@ -126,11 +145,13 @@ item.base.coal.tooltip = Burns, but only in my {#ffe070}boiler{/}.
 - other languages work with their own file (`ru_ru.lang`), a missing key falls back to English
 
 ## Look
+
 The box is the class `tooltip`: `gui/tooltip.png` with its `.gui` (base's is a 9-slice), and
 `color.tooltip` in the language files is the default text color, `color.tooltip_dim` the gray of
 the lines under the name. A resource pack replaces the picture or the colors like anything else.
 
 ## Limits
+
 - the text is the same for every stack of an item, so no tooltips like an enchantment or a charge on one
   stack; only conditions (`{if:}`, `{on_key:}`) vary it
 - no tooltips changed by code

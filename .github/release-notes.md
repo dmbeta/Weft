@@ -11,4 +11,3 @@
 **Mods:** put a mod's `.zip` into `run/mods/`. Mods are native libraries and have to be built for your system and the same engine version, see the [modding cheat sheet](https://github.com/VortexSo4/Weft/blob/master/docs/modding.md).
 
 The mod interface and the save format can still change between versions.
-

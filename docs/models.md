@@ -3,7 +3,9 @@
 How things are shaped: blocks and items from boxes, entities from bones, written in code or made in Blockbench, plus keyframe animations, the first-person hand, and armor drawn on the wearer.
 
 ## Note
+
 Examples to copy from:
+
 - `mods/testmod/assets/models/idol.geo.json` and `animations/idol.animation.json`: a model with mesh wings, an idle and a bow
 - `mods/testmod/assets/animations/player.animation.json`: a wave for the player, first-person hand included
 - `mods/testmod/src/looks.rs`: entities with models from code (`wisp`, `orb`) and from a file (`idol`)
@@ -11,6 +13,7 @@ Examples to copy from:
 - `mods/testmod/assets/models/block/pedestal.json` and `models/item/totem.json`: a block and an item shaped by files
 
 ## Blocks and items
+
 A block or item made of boxes takes Blockbench's **Java Block/Item** model: export it as `models/block/<name>.json` or `models/item/<name>.json` in your mod and it is picked up by the name, no code needed. Entities take the **Bedrock Entity** format instead (below). Two formats because the two want different things: a block is boxes whose faces each show some texture and never moves, a mob is bones that turn, swing and play keyframes over one skin. Each format is the one Blockbench made for that job.
 
 From a Java model the engine reads `elements` (`from`, `to`, and `faces` with their `texture` and `uv`), `textures` with `#name` references and `parent`, another model file or one of vanilla's cube parents (`block/cube_all`, `block/cube`, `block/cube_column`, `block/cube_bottom_top`) which give a plain cube its face textures. A face whose `#name` no texture sets shows the block's own texture of that face, so a file can bring only the shape and leave the textures to `.texture(..)` / `.textures(..)` in code. Faces the file leaves out aren't drawn, and rotated elements are drawn unrotated (the log says so).
@@ -22,30 +25,38 @@ For items, `models/item/<name>.json` with `"parent": "item/generated"` and a `la
 A resource pack replaces these files like any other: its `models/block/stone.json` in `base/` redraws stone. Only the drawing changes; what a block collides with, how it is selected and which neighbors it hides stay what the mod gave every player, since a server knows nothing of packs.
 
 ## Quick links
+
 [the basics](#the-basics) | [model in code](#model-in-code) | [model from Blockbench](#model-from-blockbench) | [roles](#roles) | [animations](#animations) | [first person hand](#first-person-hand) | [armor](#armor-and-other-worn-items)
 
 ## The basics
+
 An entity has a size, which is its hitbox, and a model, which is what gets drawn. The two are independent: `.size(0.6, 1.8)` is in blocks, and the model can be bigger or smaller than the box it lives in.
 
 A model is a list of bones. Each one has a pivot (the point it turns around), boxes or loose triangles drawn around that point, and optionally a parent bone it moves with. Everything is measured in model pixels, 16 to a block, with y up from the feet and the model looking along -Z (north).
 
 The skin lives in `textures/entity/<name>.png`, named like the entity, and so do its sounds in `sounds/entity/<name>/`:
+
 ```rust
 static GHOST: Entity = Entity::named("ghost");
 r.entity(&GHOST).size(0.6, 1.8).health(10.0).model(biped(false)).sound("hurt").sound("death");
 ```
+
 `.texture("other")` picks another file under `entity/` (`"base:zombie"` for someone else's). The model says how big a skin its UVs are laid out on, so a resource pack can swap in a skin of twice the resolution and everything still lines up.\
 `.sound("hurt")` plays one of `hurt*.ogg` (or `.wav`) from the entity's sound folder at random, `.sound_variants("hurt", &["groan", "growl"])` names the files. The events the engine plays are `hurt`, `death`, `ambient` and `step`.
 
 ## Model in code
+
 `.model(..)` takes a `Model`, or a `Vec<Part>` laid out on a 64x32 skin (`Model::from(parts).uv(64, 64)` for another size). Three are ready made: `biped(arms_forward)` is the classic humanoid on a 64x32 skin, the player's own model too (`true` holds the arms out like a zombie), `quadruped(body, leg, head)` is an animal on a 64x64 skin with sizes in model pixels, and `spider()` is head, two body parts and eight legs.
 
 For your own, a `Part` starts from a name (it decides the [role](#roles) and is what animations address) and a pivot, and collects boxes with `cube`:
+
 ```rust
 Part::new("wisp", [0.0, 3.0, 0.0])
     .cube([-3.0, -3.0, -3.0], [6.0, 6.0, 6.0], [0.0, 0.0])
 ```
+
 Everything you can do with a part:
+
 - `cube(origin, size, uv)`: a box. `origin` is relative to the pivot, `uv` the top-left corner of its unwrap on the skin
 - `mirrored()`: mirrors the last box's unwrap, handy for an arm that shares its texture with the other one
 - `child_of(index)`: hangs it from the part at that index in the same list
@@ -53,6 +64,7 @@ Everything you can do with a part:
 - `mesh(triangles)`: loose triangles in model pixels, three corners each. `sphere(center, radius, rings, segments, uv)` builds a ball
 
 This is the orb from testmod, a ball with a ring of stones hanging off it:
+
 ```rust
 let ring = Part::new("ring", [0.0, 8.0, 0.0]).child_of(0);
 r.entity(&ORB).texture("orb", 32, 16).model(vec![
@@ -62,6 +74,7 @@ r.entity(&ORB).texture("orb", 32, 16).model(vec![
 ```
 
 ## Model from Blockbench
+
 Make the model as a Bedrock Entity, export it as `<name>.geo.json` and drop it into `assets/models/`. A file named like the entity is picked up on its own (`idol.geo.json` for `idol`), and `.model_file("name")` points at another one. Either way the file replaces any model written in code. Animations work the same way, from `animations/<name>.animation.json`.
 
 The engine reads bones with their `pivot`, `parent` and resting `rotation`, boxes with `origin` (absolute, the way Blockbench writes it), `size`, `uv` (a pair or per face), `mirror` and `inflate`, and `poly_mesh` bones, triangles and quads alike, with normalized uvs if you use them. The geometry's `texture_width` and `texture_height` override the numbers you gave to `.texture(..)`, so the skin can be any size.
@@ -69,6 +82,7 @@ The engine reads bones with their `pivot`, `parent` and resting `rotation`, boxe
 Two things trip people up. A rotated box is drawn unrotated (the log warns about it), so put it in its own bone and rotate the bone. And list parent bones before their children, as Blockbench does. Molang expressions aren't evaluated, only plain numbers.
 
 ## Roles
+
 A role tells the engine what a bone should do on its own, without any keyframes: look where the entity looks, swing while it walks. It comes from the bone's name, in code and in Blockbench files alike (case and `_` don't matter), so the ready made models can be animated and worn on by the same names:
 
 | bone name | role |
@@ -84,7 +98,9 @@ A role tells the engine what a bone should do on its own, without any keyframes:
 The player's model is `biped(false)` set by base (`r.entity_model(&Entity::named("core:player"), ..)` sets any kind's model, the engine's included); its sneaking pose comes from `body`, `head` and the arms and legs.
 
 ## Animations
+
 One file holds any number of animations, and an animation's name is whatever follows the last dot, so `animation.idol.bow` is just `bow`:
+
 ```json
 {
   "format_version": "1.8.0",
@@ -99,35 +115,46 @@ One file holds any number of animations, and an animation's name is whatever fol
   }
 }
 ```
+
 Each bone can carry `rotation` (degrees), `position` (model pixels) and `scale`, as keyframes at times in seconds. A keyframe is a plain `[x, y, z]` or an object with `pre`, `post` and `"lerp_mode": "catmullrom"` when you want a jump or a smooth curve. Between keys the value is linear. `loop` is `true` to repeat, `false` to play once and go back to normal, or `"hold_on_last_frame"` to stay in the last pose.
 
 Keyframes are added on top of a bone's role and resting angle, so even a walking leg can be animated. The angles follow Blockbench's convention: a Bedrock arm turned -90 degrees on x points forward.
 
 ### When they play
+
 `idle` plays all the time and `walk` while the entity moves, with nothing for you to do but name them that way. Any other animation is started from code and everyone who sees the entity sees it:
+
 ```rust
 world.play_animation(entity_id, "bow", false);   // false plays once, true repeats
 world.play_animation(entity_id, "", false);      // back to idle and walk
 ```
+
 The file is found by the entity's name, or by `.animations("name")` when it is called something else.
 
 ### Animations for something that already exists
+
 A file can also be attached to an entity that belongs to someone else, the player for example:
+
 ```rust
 r.set_text_on(Target::Entity("core:player"), &ANIMATIONS, "mymod:player");
 ```
+
 After that the player has the animations of your `animations/player.animation.json`, and `play_animation(player, "wave", false)` plays one.
 
 ## First person hand
+
 In first person all you see is the hand: the boxes of the player model's `rightArm` bone, so a model with another arm shows that one. It can be animated as well. A bone called `hand` in the animation moves and turns it. No model has such a bone, only the animation names it. The wave in `player.animation.json` raises the arm and moves `hand` along, so the hand you see follows suit.
 
 ## Armor and other worn items
+
 An item shows up on the wearer when it sits in an equipment slot. The slots are declared once, with the bones what is worn there covers and the silhouette of the empty slot, and an item only names its slot:
+
 ```rust
 static HEAD: EquipmentSlot = EquipmentSlot::named("base:head");    // the base game's, or your own
 r.equipment_slot(&BACK, worn_parts::BODY, "slot_back");             // a slot of your mod
 r.item(&RUBY_HELMET).wearable(&HEAD, 1.0, "armor/ruby_1")
 ```
+
 `worn_parts` are `HEAD`, `BODY`, `ARMS`, `LEGS`, combined with `|`. `wearable` takes how far the piece sticks out from the body in pixels (vanilla armor uses 1.0, and 0.5 for the leggings layer) and its texture.
 The slot then takes the item in the inventory, shift-clicks put it there, and a new slot of any mod shows up in the inventory screen by itself (`.equipment()` on the menu, `ui.equipment()` on its screen). That texture is drawn on the same boxes as the wearer's, so it follows the wearer's skin layout, and the 64x32 files in `mods/base/assets/textures/entity/armor/` show how (the name is under `entity/`). It works on any model with the right roles, mobs made with `biped` included.
 

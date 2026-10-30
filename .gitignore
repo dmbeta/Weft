@@ -1,3 +1,5 @@
 target/
 /run*
 /.idea
+.rumdl_cache/
+mise.local.toml
