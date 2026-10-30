@@ -397,7 +397,7 @@ impl Hud {
                 }
             }
             Part::HeldName if editing => {
-                drop(ui.text(text::rich(lang.get("hud.edit.sample_name"), lang, None), "label"))
+                let _ = ui.text(text::rich(lang.get("hud.edit.sample_name"), lang, None), "label");
             }
             Part::HeldName => {}
             Part::Hotbar if client.mode == crate::world::GameMode::Spectator => {}
@@ -409,10 +409,12 @@ impl Hud {
                 });
             }
             Part::Crosshair => {
-                drop(ui.add(Kind::Custom { tag: TAG_CROSSHAIR, data: 0 }, Style::default().size(9.0, 9.0)))
+                let _ = ui.add(Kind::Custom { tag: TAG_CROSSHAIR, data: 0 }, Style::default().size(9.0, 9.0));
             }
             Part::Chat if chat_visible > 0 => crate::game_screens::chat_lines(ui, client, lang, input, false),
-            Part::Chat if editing => drop(ui.text(text::rich(lang.get("hud.edit.sample_chat"), lang, None), "chat")),
+            Part::Chat if editing => {
+                let _ = ui.text(text::rich(lang.get("hud.edit.sample_chat"), lang, None), "chat");
+            }
             Part::Chat => {}
             Part::DebugGroup(i) => debug_group(ui, i, align, &|id| line_shown(id, Some(i))),
             Part::DebugMod(i) => debug_mod_panel(ui, mods_debug[i].0, mods_debug[i].2, align, &|ui, (o, cb)| {

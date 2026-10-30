@@ -196,9 +196,56 @@ pub fn total_memory() -> u64 {
     0
 }
 
-/// The processor's marketing name ("AMD Ryzen 9 5900X") from CPUID, without the trademark and
-/// core count noise; the OS identifier string where CPUID has no name.
-pub fn cpu_name() -> String {
+/// The processor's brand string as the OS has it, empty where it knows none.
+#[cfg(target_os = "macos")]
+fn os_cpu_name() -> String {
+    unsafe extern "C" {
+        fn sysctlbyname(
+            name: *const core::ffi::c_char,
+            old: *mut core::ffi::c_void,
+            len: *mut usize,
+            new: *const core::ffi::c_void,
+            new_len: usize,
+        ) -> core::ffi::c_int;
+    }
+    // Intel and Apple silicon both fill this in: "Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz",
+    // "Apple M1 Pro".
+    let key = c"machdep.cpu.brand_string";
+    let mut len = 0;
+    unsafe {
+        if sysctlbyname(key.as_ptr(), std::ptr::null_mut(), &mut len, std::ptr::null(), 0) != 0 || len == 0 {
+            return String::new();
+        }
+        let mut buf = vec![0u8; len];
+        if sysctlbyname(key.as_ptr(), buf.as_mut_ptr().cast(), &mut len, std::ptr::null(), 0) != 0 {
+            return String::new();
+        }
+        buf.truncate(len);
+        String::from_utf8_lossy(&buf).into_owned()
+    }
+}
+
+/// The brand line of `/proc/cpuinfo`: x86 calls it `model name`, ARM SoCs say `Hardware` or
+/// `Processor`.
+#[cfg(target_os = "linux")]
+fn os_cpu_name() -> String {
+    let Ok(src) = std::fs::read_to_string("/proc/cpuinfo") else { return String::new() };
+    ["model name", "Hardware", "Processor"]
+        .iter()
+        .find_map(|key| {
+            src.lines()
+                .filter_map(|line| line.strip_prefix(key))
+                .find_map(|rest| rest.split_once(':').map(|(_, v)| v.trim()))
+                .filter(|v| !v.is_empty())
+        })
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// CPUID holds the brand string every x86 CPU carries; Windows on ARM has only
+/// `PROCESSOR_IDENTIFIER`, which `cpu_name` falls back to.
+#[cfg(windows)]
+fn os_cpu_name() -> String {
     #[cfg(target_arch = "x86_64")]
     {
         use std::arch::x86_64::__cpuid;
@@ -210,18 +257,28 @@ pub fn cpu_name() -> String {
                     bytes.extend_from_slice(&v.to_le_bytes());
                 }
             }
-            let raw =
-                String::from_utf8_lossy(&bytes).trim_matches(|c: char| c == '\0' || c.is_whitespace()).to_string();
-            let name = tidy_cpu_name(&raw);
-            if !name.is_empty() {
-                return name;
-            }
+            return String::from_utf8_lossy(&bytes).into_owned();
         }
     }
-    std::env::var("PROCESSOR_IDENTIFIER").unwrap_or_default()
+    String::new()
 }
 
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
+fn os_cpu_name() -> String {
+    String::new()
+}
+
+/// The processor's marketing name ("AMD Ryzen 9 5900X", "Apple M1 Pro"), without the trademark and
+/// core count noise; the OS identifier string where the OS has no brand string.
+pub fn cpu_name() -> String {
+    let name = tidy_cpu_name(&os_cpu_name());
+    if name.is_empty() { std::env::var("PROCESSOR_IDENTIFIER").unwrap_or_default() } else { name }
+}
+
+/// Drops the trademark marks, the clock, the core count and the NUL padding CPUID leaves after a
+/// brand string.
 fn tidy_cpu_name(raw: &str) -> String {
+    let raw = raw.trim_matches(|c: char| c == '\0' || c.is_whitespace());
     let mut s = raw.replace("(R)", "").replace("(TM)", "").replace("(tm)", "");
     // Intel: "... CPU @ 3.60GHz"; AMD: "... 12-Core Processor".
     if let Some(i) = s.find(" @ ") {
@@ -446,6 +503,9 @@ mod cpu_tests {
     fn cpu_names_lose_the_noise() {
         assert_eq!(super::tidy_cpu_name("AMD Ryzen 9 5900X 12-Core Processor"), "AMD Ryzen 9 5900X");
         assert_eq!(super::tidy_cpu_name("Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz"), "Intel Core i7-8700K");
+        // CPUID pads its 48-byte brand string with NULs; Apple silicon has no clock or core count.
+        assert_eq!(super::tidy_cpu_name("Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz\0\0"), "Intel Core i7-8700K");
+        assert_eq!(super::tidy_cpu_name("Apple M1 Pro"), "Apple M1 Pro");
     }
 }
 

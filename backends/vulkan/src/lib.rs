@@ -1,6 +1,8 @@
 //! Vulkan 1.3 backend: dynamic rendering, synchronization2, bindless sampled images,
 //! push descriptors for per-draw buffers.
 
+mod surface;
+
 use std::ffi::{CString, c_void};
 use std::mem::ManuallyDrop;
 
@@ -221,7 +223,7 @@ impl VulkanBackend {
             let window = desc.window.window_handle().map_err(err("window handle"))?.as_raw();
 
             let mut exts: Vec<*const i8> =
-                ash_window::enumerate_required_extensions(display).map_err(err("surface extensions"))?.to_vec();
+                surface::required_extensions(display).map_err(err("surface extensions"))?.to_vec();
             let mut layers: Vec<*const i8> = Vec::new();
             let validation = c"VK_LAYER_KHRONOS_validation";
             let debug = desc.debug
@@ -285,8 +287,7 @@ impl VulkanBackend {
             };
 
             let surface_fn = khr::surface::Instance::new(&entry, &instance);
-            let surface = ash_window::create_surface(&entry, &instance, display, window, None)
-                .map_err(err("creating surface"))?;
+            let surface = surface::create(&entry, &instance, display, window).map_err(err("creating surface"))?;
 
             let mut best = None;
             for pdev in instance.enumerate_physical_devices().map_err(err("enumerating GPUs"))? {

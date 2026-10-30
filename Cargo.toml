@@ -18,10 +18,10 @@ weft_vulkan = { path = "backends/vulkan" }
 base_api = { path = "mods/base/api" }
 
 ash = "0.38"
-ash-window = "0.13"
 gpu-allocator = { version = "0.28", default-features = false, features = ["vulkan", "std"] }
 winit = "0.30"
 raw-window-handle = "0.6"
+raw-window-metal = "1"
 naga = { version = "30", features = ["wgsl-in", "spv-out"] }
 glam = { version = "0.34", features = ["bytemuck", "mint-05"] }
 bytemuck = { version = "1", features = ["derive"] }
