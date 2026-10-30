@@ -48,6 +48,7 @@ Requires Rust 1.90 or newer. [mise](https://mise.jdx.dev/) pins the toolchain an
 ```sh
 git clone https://github.com/VortexSo4/Weft.git
 cd Weft
+brew install molten-vk vulkan-loader  # macOS only; skip on Linux and Windows
 mise install          # installs the toolchain and writes the git pre-commit hook
 mise run run:release  # builds the game and all mods, then runs
 ```
@@ -58,7 +59,7 @@ Available tasks: `build` (debug), `build:release`, `run` (debug) and `run:releas
 
 `mise run fmt` formats Rust, Markdown and TOML in place, and `mise run check` reports the same without touching files. The pre-commit hook that `mise install` writes runs `fmt` on every commit and stages what it changed.
 
-Linux also needs ALSA and pkg-config (`sudo apt-get install -y libasound2-dev pkg-config`); macOS and Windows need nothing extra. Your GPU needs a Vulkan driver.
+Release builds on macOS carry MoltenVK themselves; a source build takes it from the Homebrew install above, which the game looks for in `/opt/homebrew/lib` and `/usr/local/lib`. Linux also needs ALSA and pkg-config (`sudo apt-get install -y libasound2-dev pkg-config`). On Windows the Vulkan loader and driver come with your GPU driver, so nothing extra is needed there.
 
 Without mise: `cargo build --release --workspace`, then `cargo run --release`.
 
