@@ -43,15 +43,22 @@ Weft ships with its own textures. If Minecraft is installed through the official
 
 ## Build from source
 
-Requires Rust 1.90 or newer.
+Requires Rust 1.90 or newer. [mise](https://mise.jdx.dev/) pins the toolchain and provides the build and run tasks.
 
 ```sh
 git clone https://github.com/VortexSo4/Weft.git
 cd Weft
-cargo run --release
+mise install          # installs the Rust toolchain
+mise run run:release  # builds the game and all mods, then runs
 ```
 
-Run it from the repository root. Release builds pack each mod in `mods/` into `run/mods/` on start; settings, saves and logs go to `run/`. `cargo run --release -- --dist <dir>` makes a standalone build to share.
+Run it from the repository root. Release builds pack each mod in `mods/` into `run/mods/` on start; settings, saves and logs go to `run/`. `mise run run:release -- --dist <dir>` makes a standalone build to share.
+
+Available tasks: `build` (debug), `build:release`, `run` (debug) and `run:release`. Pass game options after `--`, for example `mise run run:release -- --gpu-debug`.
+
+Linux also needs ALSA and pkg-config (`sudo apt-get install -y libasound2-dev pkg-config`); macOS and Windows need nothing extra. Your GPU needs a Vulkan driver.
+
+Without mise: `cargo build --release --workspace`, then `cargo run --release`.
 
 ## Modding
 

@@ -1,0 +1,20 @@
+[tools]
+rust = { version = "stable", components = ["rustfmt", "clippy"] }
+
+[tasks.build]
+description = "Build the game and all mods (debug)"
+run = "cargo build --workspace"
+
+[tasks."build:release"]
+description = "Build the game and all mods (release)"
+run = "cargo build --release --workspace"
+
+[tasks.run]
+description = "Build then run (debug); pass game options after `--`"
+depends = ["build"]
+run = "cargo run --"
+
+[tasks."run:release"]
+description = "Build then run (release); pass game options after `--`"
+depends = ["build:release"]
+run = "cargo run --release --"
