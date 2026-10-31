@@ -81,7 +81,7 @@ struct Frame {
 fn texture_frame(name: u32) -> Frame {
     let base = tex_info[name * 2u];
     let info = tex_info[name * 2u + 1u];
-    let size = f32(tex_info[arrayLength(&tex_info) / 3u * 2u + name]);
+    let size = f32(tex_info[g.extra.y + name]);
     if info == 0u {
         return Frame(base, base, 0.0, size);
     }

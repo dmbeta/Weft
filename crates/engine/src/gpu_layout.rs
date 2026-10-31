@@ -464,7 +464,7 @@ gpu_struct! {
         /// Origins are relative to this cube.
         pub cam_cube: [i32; 4],
         /// x start of the overlay table in `frames` (per texture: overlay texture + 1, or 0),
-        /// z tint kinds, w half the width of `lod_mask`.
+        /// y start of the size table in `tex_info`, z tint kinds, w half the width of `lod_mask`.
         pub extra: [u32; 4],
     }
 }
@@ -789,6 +789,8 @@ fn structs() -> String {
         GpuCorner::wgsl(),
         GpuBone::wgsl(),
         GpuParticle::wgsl(),
+        GpuSimParticle::wgsl(),
+        GpuParticleKind::wgsl(),
         GpuWeather::wgsl(),
         GpuSky::wgsl(),
         Quad::wgsl(),

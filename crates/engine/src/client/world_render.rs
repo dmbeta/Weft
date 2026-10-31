@@ -307,6 +307,8 @@ pub struct WorldRenderer {
     tint_tiles: u32,
     tex_info: BufferId,
     anim: BufferId,
+    /// Start of the size table in `tex_info`.
+    tex_info_sizes: u32,
     /// Start of the overlay table in `anim`.
     overlays: u32,
     /// Block shader slot per texture id (`shader_table`).
@@ -380,7 +382,7 @@ impl WorldRenderer {
         let (face_pipes, quad_pipes, lod_pipe) = Self::pipelines(gpu, &shader)?;
         let tex_shader = shader_table(gpu, c, textures, &slots);
 
-        let (tex_info, anim, overlays) = Self::texture_info(gpu, textures);
+        let (tex_info, anim, overlays, tex_info_sizes) = Self::texture_info(gpu, textures);
 
         // Tint kind colors per biome, then the blended columns (`set_tint_tiles`).
         let biome_data: Vec<u32> = if c.biomes.is_empty() {
@@ -425,6 +427,7 @@ impl WorldRenderer {
             tint_tiles: 0,
             tex_info,
             anim,
+            tex_info_sizes,
             overlays,
             glow: textures.glow_buffer(),
             tex_shader,
@@ -436,14 +439,16 @@ impl WorldRenderer {
         })
     }
 
-    /// The block texture tables (`GameTextures::world_tables`) on the GPU.
-    fn texture_info(gpu: &mut dyn Backend, textures: &GameTextures) -> (BufferId, BufferId, u32) {
+    /// The block texture tables (`GameTextures::world_tables`) on the GPU: the info buffer, the
+    /// frame buffer, the overlay table's start in it, and the size table's start in the info.
+    fn texture_info(gpu: &mut dyn Backend, textures: &GameTextures) -> (BufferId, BufferId, u32, u32) {
         let (info, frames, overlays) = textures.world_tables();
+        let sizes = (info.len() / 3 * 2) as u32;
         let tex_info = gpu.create_buffer((info.len().max(1) * 4) as u64, usage::STORAGE, "texture info");
         gpu.write_buffer(tex_info, 0, bytemuck::cast_slice(&info));
         let anim = gpu.create_buffer((frames.len() * 4) as u64, usage::STORAGE, "texture frames");
         gpu.write_buffer(anim, 0, bytemuck::cast_slice(&frames));
-        (tex_info, anim, overlays)
+        (tex_info, anim, overlays, sizes)
     }
 
     /// Builds the texture tables again when textures were loaded since (cheap: a few words per
@@ -455,7 +460,7 @@ impl WorldRenderer {
         }
         gpu.destroy_buffer(self.tex_info);
         gpu.destroy_buffer(self.anim);
-        (self.tex_info, self.anim, self.overlays) = Self::texture_info(gpu, textures);
+        (self.tex_info, self.anim, self.overlays, self.tex_info_sizes) = Self::texture_info(gpu, textures);
         self.tex_generation = textures.generation();
     }
 
@@ -756,7 +761,12 @@ impl WorldRenderer {
             cam_frac: [cam_frac.x, cam_frac.y, cam_frac.z, 0.0],
             ids: [0, 0, (self.biome_table.len() / crate::content::content().tint_kinds.len()) as u32, self.tint_tiles],
             cam_cube: cam_cube.extend(0).to_array(),
-            extra: [self.overlays, 0, crate::content::content().tint_kinds.len() as u32, self.lod_half],
+            extra: [
+                self.overlays,
+                self.tex_info_sizes,
+                crate::content::content().tint_kinds.len() as u32,
+                self.lod_half,
+            ],
         };
         let gbuf = self.globals[frame.slot];
         gpu.mapped(gbuf)[..size_of::<Globals>()].copy_from_slice(bytemuck::bytes_of(&globals));
