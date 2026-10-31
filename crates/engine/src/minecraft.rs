@@ -515,6 +515,10 @@ mod tests {
         let pack = root.join("run/resourcepacks").join(super::PACK);
         assert!(pack.join("base/sounds/step/grass1.ogg").is_file(), "footsteps come from the pack too");
         assert!(pack.join("base/sounds/entity/cow/ambient1.ogg").is_file(), "so do mob voices");
+        assert!(pack.join("base/sounds/entity/sheep/ambient1.ogg").is_file());
+        assert!(pack.join("base/sounds/entity/chicken/ambient1.ogg").is_file());
+        assert!(pack.join("base/sounds/entity/skeleton/ambient1.ogg").is_file());
+        assert!(pack.join("base/sounds/entity/creeper/hurt1.ogg").is_file());
         assert!(pack.join("core/sounds/ui/click.ogg").is_file(), "and the click");
         let assets = crate::assets::Assets::new(
             [

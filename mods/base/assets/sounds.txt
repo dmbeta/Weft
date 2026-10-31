@@ -31,3 +31,15 @@ entity/pig/death* = entity.pig.death
 entity/cow/ambient* = entity.cow.ambient
 entity/cow/hurt* = entity.cow.hurt
 entity/cow/death* = entity.cow.death
+entity/sheep/ambient* = entity.sheep.ambient
+entity/sheep/hurt* = entity.sheep.hurt
+entity/sheep/death* = entity.sheep.death
+entity/chicken/ambient* = entity.chicken.ambient
+entity/chicken/hurt* = entity.chicken.hurt
+entity/chicken/death* = entity.chicken.death
+entity/skeleton/ambient* = entity.skeleton.ambient
+entity/skeleton/hurt* = entity.skeleton.hurt
+entity/skeleton/death* = entity.skeleton.death
+# Vanilla has no creeper ambient: it only speaks when hurt or killed.
+entity/creeper/hurt* = entity.creeper.hurt
+entity/creeper/death* = entity.creeper.death

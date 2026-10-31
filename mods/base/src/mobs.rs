@@ -203,6 +203,8 @@ pub fn register(r: &mut Registry) {
     r.entity_component(&SHOOTER, 0u64, 0);
     r.entity(&CREEPER)
         .tag("hostile")
+        .sound("hurt")
+        .sound("death")
         .size(0.6, 1.7)
         .health(20.0)
         .speed(2.5)
@@ -213,6 +215,9 @@ pub fn register(r: &mut Registry) {
         .goals(creeper());
     r.entity(&SKELETON)
         .tag("hostile")
+        .sound("ambient")
+        .sound("hurt")
+        .sound("death")
         .size(0.6, 1.99)
         .health(20.0)
         .speed(2.5)
@@ -233,6 +238,9 @@ pub fn register(r: &mut Registry) {
         .goals(ai::Goals::new().then(arrow_flies));
     r.entity(&SHEEP)
         .tag("livestock")
+        .sound("ambient")
+        .sound("hurt")
+        .sound("death")
         .size(0.9, 1.3)
         .health(8.0)
         .speed(2.3)
@@ -243,6 +251,9 @@ pub fn register(r: &mut Registry) {
         .on_hurt(panic);
     r.entity(&CHICKEN)
         .tag("livestock")
+        .sound("ambient")
+        .sound("hurt")
+        .sound("death")
         .size(0.4, 0.7)
         .health(4.0)
         .speed(2.5)
