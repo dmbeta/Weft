@@ -1,0 +1,4 @@
+# Sounds to take from the player's Minecraft: ours = vanilla event.
+# A `*` in ours numbers the event's sounds from one.
+ui/click = ui.button.click
+item/pickup = entity.item.pickup

@@ -5,9 +5,12 @@
 //! computer it was made on.
 //!
 //! What goes where is data of each mod (and the engine for `core:`): `assets/minecraft.txt`
-//! lists `ours = theirs` texture paths, and files under `assets/minecraft/` are copied into the
-//! pack as they are (a `.ctm` or `.gui` that fits the vanilla picture better).
+//! lists `ours = theirs` texture paths, `assets/sounds.txt` lists `ours = event` sound names, and
+//! files under `assets/minecraft/` are copied into the pack as they are (a `.ctm` or `.gui` that
+//! fits the vanilla picture better). Sounds come from the launcher's asset store rather than the
+//! jar, and only when the objects were downloaded.
 
+use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -34,39 +37,108 @@ fn get_roots_from_env() -> Option<Vec<PathBuf>> {
     Some(std::env::var_os("MINECRAFT_DIR_LOOKUP")?.to_str()?.split(':').map(PathBuf::from).collect())
 }
 
-/// Client jars the launchers keep, newest first.
-fn jars() -> Vec<(PathBuf, String)> {
+/// Client jars the launchers keep, newest first, with the launcher folder they came from.
+fn jars() -> Vec<(PathBuf, String, PathBuf)> {
     let roots = get_roots_from_env().unwrap_or_else(get_roots_from_home);
 
-    let mut found: Vec<(std::time::SystemTime, PathBuf, String)> = Vec::new();
-    let mut add = |path: PathBuf, version: String| {
+    let mut found: Vec<(std::time::SystemTime, PathBuf, String, PathBuf)> = Vec::new();
+    let mut add = |root: &Path, path: PathBuf, version: String| {
         if let Ok(t) = std::fs::metadata(&path).and_then(|m| m.modified()) {
-            found.push((t, path, version));
+            found.push((t, path, version, root.to_path_buf()));
         }
     };
     for root in roots {
         // Official launcher: versions/<v>/<v>.jar.
         for e in std::fs::read_dir(root.join("versions")).into_iter().flatten().flatten() {
             let v = e.file_name().to_string_lossy().into_owned();
-            add(e.path().join(format!("{v}.jar")), v);
+            add(&root, e.path().join(format!("{v}.jar")), v);
         }
         // Prism: libraries/com/mojang/minecraft/<v>/minecraft-<v>-client.jar.
         for e in std::fs::read_dir(root.join("libraries/com/mojang/minecraft")).into_iter().flatten().flatten() {
             let v = e.file_name().to_string_lossy().into_owned();
-            add(e.path().join(format!("minecraft-{v}-client.jar")), v);
+            add(&root, e.path().join(format!("minecraft-{v}-client.jar")), v);
         }
     }
     found.sort_by(|a, b| b.0.cmp(&a.0));
-    found.into_iter().map(|(_, p, v)| (p, v)).collect()
+    found.into_iter().map(|(_, p, v, r)| (p, v, r)).collect()
+}
+
+/// The launcher's index of the assets for this version, if the launcher downloaded it.
+fn asset_index(root: &Path, version: &str) -> Option<PathBuf> {
+    let meta = [
+        root.join("versions").join(version).join(format!("{version}.json")),
+        root.join("meta/net.minecraft").join(format!("{version}.json")),
+    ]
+    .into_iter()
+    .find(|p| p.is_file())?;
+    let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(meta).ok()?).ok()?;
+    let id = json.get("assetIndex")?.get("id")?.as_str()?;
+    let index = root.join("assets/indexes").join(format!("{id}.json"));
+    index.is_file().then_some(index)
+}
+
+/// Names and objects of the launcher's asset store for this version.
+struct SoundStore {
+    objects: PathBuf,
+    hashes: HashMap<String, String>,
+    /// Vanilla event (`entity.cow.ambient`) to the sound paths it chooses from.
+    events: HashMap<String, Vec<String>>,
+}
+
+fn sound_store(root: &Path, version: &str) -> Option<SoundStore> {
+    let index = asset_index(root, version)?;
+    let json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(index).ok()?).ok()?;
+    let hashes: HashMap<String, String> = json
+        .get("objects")?
+        .as_object()?
+        .iter()
+        .filter_map(|(path, v)| Some((path.clone(), v.get("hash")?.as_str()?.to_string())))
+        .collect();
+    let objects = root.join("assets/objects");
+    let sounds = hashes.get("minecraft/sounds.json")?;
+    let at = objects.join(sounds.get(..2)?).join(sounds);
+    let json: serde_json::Value = serde_json::from_slice(&std::fs::read(at).ok()?).ok()?;
+    let events = json
+        .as_object()?
+        .iter()
+        .filter_map(|(name, def)| {
+            let sounds: Vec<String> = def.get("sounds")?.as_array()?.iter().filter_map(event_sound).collect();
+            (!sounds.is_empty()).then(|| (name.clone(), sounds))
+        })
+        .collect();
+    Some(SoundStore { objects, hashes, events })
+}
+
+/// A sound in a vanilla event: usually a name, sometimes an object with a volume or pitch.
+fn event_sound(v: &serde_json::Value) -> Option<String> {
+    match v {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Object(o) => o.get("name")?.as_str().map(str::to_owned),
+        _ => None,
+    }
+}
+
+struct ModMaps {
+    ns: String,
+    dir: PathBuf,
+    textures: String,
+    sounds: String,
 }
 
 /// Makes or refreshes the pack; true when it was made for the first time (the caller enables it).
 /// `mods` are (namespace, assets folder), the engine's `core` among them.
 pub fn ensure_pack(run_dir: &Path, mods: &[(String, PathBuf)]) -> bool {
-    let maps: Vec<(String, PathBuf, String)> = mods
+    let maps: Vec<ModMaps> = mods
         .iter()
         .filter_map(|(ns, dir)| {
-            std::fs::read_to_string(dir.join("minecraft.txt")).ok().map(|m| (ns.clone(), dir.clone(), m))
+            let textures = std::fs::read_to_string(dir.join("minecraft.txt")).unwrap_or_default();
+            let sounds = std::fs::read_to_string(dir.join("sounds.txt")).unwrap_or_default();
+            (!textures.is_empty() || !sounds.is_empty()).then(|| ModMaps {
+                ns: ns.clone(),
+                dir: dir.clone(),
+                textures,
+                sounds,
+            })
         })
         .collect();
     if maps.is_empty() {
@@ -76,22 +148,32 @@ pub fn ensure_pack(run_dir: &Path, mods: &[(String, PathBuf)]) -> bool {
     let fresh = !out.is_dir();
     // Snapshots and modded versions can't be told from releases by name: a jar without the
     // textures is skipped.
-    for (jar, version) in jars() {
+    for (jar, version, root) in jars() {
         let Ok(stamp) = std::fs::metadata(&jar).and_then(|m| m.modified()) else {
             continue;
         };
         let mut key = format!("{}|{:?}", jar.display(), stamp);
-        for (ns, dir, m) in &maps {
-            key.push_str(ns);
-            key.push_str(m);
-            own_files(&dir.join("minecraft"), &mut key);
+        for m in &maps {
+            key.push_str(&m.ns);
+            key.push_str(&m.textures);
+            key.push_str(&m.sounds);
+            own_files(&m.dir.join("minecraft"), &mut key);
+        }
+        // The pack gains sounds once the launcher has downloaded the assets, so their index is
+        // part of what the pack was made from.
+        match asset_index(&root, &version) {
+            Some(p) => {
+                key.push_str(&p.display().to_string());
+                key.push_str(&format!("{:?}", std::fs::metadata(&p).and_then(|m| m.modified())));
+            }
+            None => key.push_str("no asset index"),
         }
         let key = format!("{:016x}", fnv(&key));
         let cfg = std::fs::read_to_string(out.join("pack.cfg")).unwrap_or_default();
         if crate::kv::get(&cfg, "source").is_some_and(|k| k == key) {
             return false;
         }
-        match build(&jar, &version, &maps, &out, &key) {
+        match build(&jar, &version, &root, &maps, &out, &key) {
             Ok(n) => {
                 log::info!("made the {PACK} resource pack from {} ({n} files)", jar.display());
                 return fresh;
@@ -116,13 +198,7 @@ fn own_files(dir: &Path, key: &mut String) {
     }
 }
 
-fn build(
-    jar: &Path,
-    version: &str,
-    maps: &[(String, PathBuf, String)],
-    out: &Path,
-    key: &str,
-) -> Result<usize, String> {
+fn build(jar: &Path, version: &str, root: &Path, maps: &[ModMaps], out: &Path, key: &str) -> Result<usize, String> {
     let mut zip =
         zip::ZipArchive::new(std::fs::File::open(jar).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     const T: &str = "assets/minecraft/textures/";
@@ -138,9 +214,13 @@ fn build(
     let tmp = out.with_extension("new");
     let _ = std::fs::remove_dir_all(&tmp);
     let mut files = 0;
-    for (ns, dir, map) in maps {
+    let store = sound_store(root, version);
+    if store.is_none() && maps.iter().any(|m| !m.sounds.trim().is_empty()) {
+        log::debug!("no Minecraft assets for {version} in {}: sounds stay as they are", root.display());
+    }
+    for ModMaps { ns, dir, textures, sounds } in maps {
         let base = tmp.join(ns).join("textures");
-        for (n, line) in map.lines().enumerate() {
+        for (n, line) in textures.lines().enumerate() {
             let line = line.split('#').next().unwrap_or("").trim();
             let Some((ours, theirs)) = line.split_once('=') else {
                 continue;
@@ -243,6 +323,9 @@ fn build(
                 }
             }
         }
+        if let Some(store) = &store {
+            import_sounds(store, ns, sounds, &tmp, &mut files)?;
+        }
         // Files the mod made to go with the vanilla pictures.
         copy_tree(&dir.join("minecraft"), &tmp.join(ns)).map_err(|e| e.to_string())?;
     }
@@ -254,6 +337,57 @@ fn build(
     let _ = std::fs::remove_dir_all(out);
     std::fs::rename(&tmp, out).map_err(|e| e.to_string())?;
     Ok(files)
+}
+
+/// Copies the sounds of vanilla events to our names: `step/grass* = block.grass.step` writes
+/// `step/grass1.ogg` .. `step/grass6.ogg`, while a name without `*` takes the event's first sound.
+fn import_sounds(store: &SoundStore, ns: &str, map: &str, tmp: &Path, files: &mut usize) -> Result<(), String> {
+    for (n, line) in map.lines().enumerate() {
+        let line = line.split('#').next().unwrap_or("").trim();
+        let Some((ours, event)) = line.split_once('=') else {
+            continue;
+        };
+        let (ours, event) = (ours.trim(), event.trim());
+        // Event names change between versions too: the first one this version has.
+        let Some(sounds) = event.split('|').find_map(|e| store.events.get(e.trim())) else {
+            log::debug!("{ns}/sounds.txt:{}: no {event} in this version", n + 1);
+            continue;
+        };
+        for (name, source) in sound_names(ours, sounds.len()).into_iter().zip(sounds) {
+            let object = sound_object(source);
+            let Some((prefix, hash)) = store.hashes.get(&object).and_then(|h| Some((h.get(..2)?, h))) else {
+                log::debug!("{ns}/sounds.txt:{}: no {object} in this version", n + 1);
+                continue;
+            };
+            let src = store.objects.join(prefix).join(hash);
+            let dst = tmp.join(ns).join("sounds").join(format!("{name}.ogg"));
+            if let Some(dir) = dst.parent() {
+                std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            }
+            match std::fs::copy(&src, &dst) {
+                Ok(_) => *files += 1,
+                Err(e) => log::debug!("{ns}/sounds.txt:{}: {e}", n + 1),
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Our file names for a vanilla event's `count` sounds. `*` numbers them from one.
+fn sound_names(ours: &str, count: usize) -> Vec<String> {
+    if ours.contains('*') {
+        (1..=count).map(|i| ours.replace('*', &i.to_string())).collect()
+    } else {
+        (count > 0).then(|| ours.to_string()).into_iter().collect()
+    }
+}
+
+/// The asset store path of a sound named in a vanilla event.
+fn sound_object(name: &str) -> String {
+    let name = name.strip_prefix("minecraft:").unwrap_or(name);
+    let name = name.strip_prefix("sounds/").unwrap_or(name);
+    let name = name.strip_suffix(".ogg").unwrap_or(name);
+    format!("minecraft/sounds/{name}.ogg")
 }
 
 /// A picture meant to be added to what is behind it, as an ordinary transparent one: how bright a
@@ -360,7 +494,7 @@ fn fnv(s: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{dye, light_to_alpha, put_together, turn};
+    use super::{dye, light_to_alpha, put_together, sound_names, sound_object, turn};
 
     /// Builds the real pack from the Minecraft on this computer into `run`, as a normal start does:
     /// automated runs don't, and this needs no window. `cargo test --release -p weft_engine real_pack -- --ignored`
@@ -378,6 +512,30 @@ mod tests {
         assert_eq!(sun.rgba[3], 0, "the corner of the sun is transparent");
         assert!(sky.join("gui/attack_bar_fill.png").is_file());
         assert!(sky.join("entity/armor/leather_1.png").is_file(), "worn armor comes from the pack too");
+        let pack = root.join("run/resourcepacks").join(super::PACK);
+        assert!(pack.join("base/sounds/step/grass1.ogg").is_file(), "footsteps come from the pack too");
+        assert!(pack.join("base/sounds/entity/cow/ambient1.ogg").is_file(), "so do mob voices");
+        assert!(pack.join("core/sounds/ui/click.ogg").is_file(), "and the click");
+        let assets = crate::assets::Assets::new(
+            [
+                ("core".to_string(), root.join("crates/engine/assets")),
+                ("base".to_string(), root.join("mods/base/assets")),
+            ],
+            vec![pack.clone()],
+        );
+        assert!(assets.path("base:step/grass1", "sounds", "ogg").is_some(), "the pack's sounds are found");
+        assert!(assets.path("core:ui/click", "sounds", "ogg").is_some());
+    }
+
+    #[test]
+    fn sounds_number_with_a_star() {
+        assert_eq!(
+            sound_names("step/grass*", 3),
+            vec!["step/grass1".to_string(), "step/grass2".to_string(), "step/grass3".to_string()]
+        );
+        assert_eq!(sound_names("ui/click", 3), vec!["ui/click".to_string()], "one file takes the first sound");
+        assert!(sound_names("ui/click", 0).is_empty());
+        assert_eq!(sound_object("minecraft:sounds/step/grass1.ogg"), "minecraft/sounds/step/grass1.ogg");
     }
 
     #[test]
