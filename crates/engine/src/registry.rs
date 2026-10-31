@@ -48,13 +48,14 @@ impl Cuboid {
         }
         let [w, h, d] = self.size;
         let [u, v] = self.uv;
-        // The sides run from the back to the front edge, as they lie beside the front in the
-        // unwrap, so they are read right to left.
+        // Wrapped around the box as they lie in the unwrap: seen from the front (-Z), what is left
+        // of it there is on its left, which is +X. The top lies above the front, so it is turned
+        // to meet it. As Blockbench does it.
         let mut r = [
-            [u + d, v + d, -d, h],
-            [u + d * 2.0 + w, v + d, -d, h],
+            [u + d + w, v + d, d, h],
+            [u, v + d, d, h],
             [u + d + w, v, w, d],
-            [u + d, v, w, d],
+            [u + d + w, v + d, -w, -d],
             [u + d, v + d, w, h],
             [u + d * 2.0 + w, v + d, w, h],
         ];
@@ -341,8 +342,8 @@ pub struct Game {
     pub world_ticks: Vec<(ModId, Callback)>,
     /// `abi::comp::NAME` as an entity component.
     pub name_comp: u32,
-    /// `HEALTH`, `BURNING`, `WORN`, `SHAPE`.
-    pub field_comps: [u32; 4],
+    /// `HEALTH`, `BURNING`, `WORN`, `SHAPE`, `HELD`.
+    pub field_comps: [u32; 5],
     /// `SIMULATED`.
     pub simulated_comp: u32,
     /// Entity components with `SYNC_WATCHERS` / `SYNC_MENU`.
@@ -890,6 +891,7 @@ pub const ENGINE_EVENTS: &[(&str, &str, u32)] = {
         (abi::event::BLOCK_PLACED, abi::BlockChange::SCHEMA, size_of::<abi::BlockChange>() as u32),
         (abi::event::ENTITY_DIED, abi::Death::SCHEMA, size_of::<abi::Death>() as u32),
         (abi::event::PLAYER_JOINED, abi::PlayerEvent::SCHEMA, size_of::<abi::PlayerEvent>() as u32),
+        (abi::event::PLAYER_RESPAWNED, abi::PlayerEvent::SCHEMA, size_of::<abi::PlayerEvent>() as u32),
         (abi::event::ITEM_PICKED_UP, abi::Pickup::SCHEMA, size_of::<abi::Pickup>() as u32),
         (abi::event::ENTITY_HURT, abi::Hurt::SCHEMA, size_of::<abi::Hurt>() as u32),
         (abi::event::ITEM_USED, abi::ItemUsed::SCHEMA, size_of::<abi::ItemUsed>() as u32),
@@ -1132,11 +1134,13 @@ pub const MODIFIERS: &str = "core:modifiers";
 pub const TIMERS: &str = "core:timers";
 /// Engine fields clients show, kept as synced components (`Dim::mirror_fields`): health and
 /// max health (`[f32; 2]`, max only for players), on fire (`u8`), worn items (`u32` each), own
-/// size and look (`[f32; 3]` with width 0 for the kind's, `u32` kind with `u32::MAX` for its own).
+/// size and look (`[f32; 3]` with width 0 for the kind's, `u32` kind with `u32::MAX` for its own),
+/// a player's item in hand (`u32`, 0 for none).
 pub const HEALTH: &str = "core:health";
 pub const BURNING: &str = "core:burning";
 pub const WORN: &str = "core:worn";
 pub const SHAPE: &str = "core:shape";
+pub const HELD: &str = "core:held";
 /// Entity component (`u64`, saved): the world time a system last simulated it to, so it can
 /// catch up on what it missed (`Dim::run_systems`).
 pub const SIMULATED: &str = "core:simulated";
@@ -1339,10 +1343,9 @@ pub fn freeze(
     }
     freeze_particles(&mut g, particles, errors);
     freeze_sky(&mut g, sky, dim_names, errors);
-    // Volume settings right after the master volume.
     let volumes: Vec<(usize, crate::config::ConfigDef)> =
         sound_categories.iter().filter_map(|k| k.setting.as_deref()).map(|s| (0, crate::config::volume(s))).collect();
-    configs.splice(1..1, volumes);
+    configs.extend(volumes);
     sounds.sort_by(|a, b| a.1.name.cmp(&b.1.name));
     for (cell, mut d) in sounds {
         let category = if d.category_name.is_empty() { "core:blocks" } else { &d.category_name };
@@ -1572,6 +1575,7 @@ pub fn freeze(
         (BURNING, 1, shown, vec![0]),
         (WORN, 0, shown, Vec::new()),
         (SHAPE, 16, own, shape),
+        (HELD, 4, shown, vec![0; 4]),
         (SIMULATED, 8, save, vec![0; 8]),
     ] {
         components.push(RawComponent {
@@ -1590,7 +1594,7 @@ pub fn freeze(
     g.modifiers_comp = g.component_names[MODIFIERS];
     g.timers_comp = g.component_names[TIMERS];
     g.name_comp = g.component_names[abi::comp::NAME];
-    g.field_comps = [HEALTH, BURNING, WORN, SHAPE].map(|n| g.component_names[n]);
+    g.field_comps = [HEALTH, BURNING, WORN, SHAPE, HELD].map(|n| g.component_names[n]);
     g.simulated_comp = g.component_names[SIMULATED];
     let with_flag = |f: u32| {
         g.components
@@ -2167,6 +2171,34 @@ fn expand_variables(r: RawRecipe, tags: &FxHashMap<&str, u32>) -> Result<Vec<Raw
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod box_unwrap {
+    use super::Cuboid;
+
+    fn arm(mirror: bool) -> [[f32; 4]; 6] {
+        Cuboid { origin: [0.0; 3], size: [4.0, 12.0, 4.0], uv: [40.0, 16.0], inflate: 0.0, mirror, faces: None }
+            .face_rects()
+    }
+
+    #[test]
+    fn wraps_around_the_box() {
+        let r = arm(false);
+        // Each side's edge meets the same edge of the strip beside it in the unwrap.
+        assert_eq!(r[1], [40.0, 20.0, 4.0, 12.0], "+X, left of the front");
+        assert_eq!(r[4], [44.0, 20.0, 4.0, 12.0], "-Z, the front");
+        assert_eq!(r[0], [48.0, 20.0, 4.0, 12.0], "-X, right of the front");
+        assert_eq!(r[5], [52.0, 20.0, 4.0, 12.0], "+Z, the back");
+        assert_eq!(r[3], [48.0, 20.0, -4.0, -4.0], "the top, meeting the front");
+    }
+
+    #[test]
+    fn mirrored_is_the_other_side_read_backwards() {
+        let r = arm(true);
+        assert_eq!(r[0], [44.0, 20.0, -4.0, 12.0], "-X has what +X had");
+        assert_eq!(r[4], [48.0, 20.0, -4.0, 12.0], "the front flipped");
+    }
 }
 
 #[cfg(test)]

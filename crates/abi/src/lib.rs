@@ -244,6 +244,9 @@ pub mod comp {
     pub const ATTACK_SPEED: &str = "attack_speed";
     /// Item: a full swing standing on the ground also hits what stands next to the target.
     pub const SWEEPS: &str = "sweeps";
+    /// On an item: the entity it is the spawn egg of, by name. It is called after it unless it has a
+    /// name of its own, and looks generic without a texture of its own.
+    pub const SPAWN_EGG: &str = "spawn_egg";
     /// On an item: in creative it doesn't break blocks (a sword). Client and server both read it.
     pub const NO_CREATIVE_BREAK: &str = "no_creative_break";
     /// On a biome: rain falls as snow there.
@@ -985,6 +988,7 @@ pub mod pose {
     pub const CROUCH: u32 = 1;
     pub const SWIM: u32 = 2;
     pub const CRAWL: u32 = 3;
+    pub const SLEEP: u32 = 4;
 }
 
 #[repr(C)]
@@ -1066,6 +1070,8 @@ defaults!(AreaFillDesc { center: [0.0; 3], radius: 0.0, state: 0, flags: 0 });
 pub mod area_flags {
     /// Unbreakable blocks (negative hardness) stay.
     pub const KEEP_UNBREAKABLE: u32 = 1;
+    /// Liquids stay.
+    pub const KEEP_LIQUIDS: u32 = 2;
 }
 
 pub mod component_flags {
@@ -1077,6 +1083,9 @@ pub mod component_flags {
     /// Sent to players with a menu open on the entity (machine progress), when it changes; read
     /// on the client with `ClientView::menu_component`.
     pub const SYNC_MENU: u32 = 8;
+    /// Kept when the player respawns (a bed, advancements, statistics); the others start over
+    /// from their defaults.
+    pub const KEEP: u32 = 16;
 }
 
 /// Per-entity data storage (hunger, machine state): created with `default` on spawn of the kinds
@@ -1640,6 +1649,10 @@ pub struct Host {
     pub stack_with: unsafe extern "C" fn(data: u32, comp: u32, value: Slice<u8>, remove: u32) -> u32,
 
     pub get_block: unsafe extern "C" fn(world: *mut WorldCtx, pos: *const [i32; 3]) -> u32,
+    /// `u32::MAX` if the position is not loaded where this callback runs.
+    pub get_block_loaded: unsafe extern "C" fn(world: *mut WorldCtx, pos: *const [i32; 3]) -> u32,
+    /// The id of the dimension this callback runs in.
+    pub world_dimension: unsafe extern "C" fn(world: *mut WorldCtx) -> u32,
     /// Returns 0 if the position is not loaded.
     pub set_block: unsafe extern "C" fn(world: *mut WorldCtx, pos: *const [i32; 3], state: u32) -> u32,
     pub schedule_tick: unsafe extern "C" fn(world: *mut WorldCtx, pos: *const [i32; 3], delay: u32),
@@ -2571,6 +2584,9 @@ pub mod event {
     pub const ENTITY_DIED: &str = "core:entity_died";
     /// `PlayerEvent`.
     pub const PLAYER_JOINED: &str = "core:player_joined";
+    /// `PlayerEvent`: a dead player came back, at the spawn point with fresh components (but the
+    /// `KEEP` ones), before anyone saw them there; a mod may move them on (a bed).
+    pub const PLAYER_RESPAWNED: &str = "core:player_respawned";
     /// `Pickup`.
     pub const ITEM_PICKED_UP: &str = "core:item_picked_up";
     /// `Hurt`: damage was applied (after armor and every modifier).
@@ -3185,6 +3201,8 @@ pub mod control_mask {
     pub const FLYING: u32 = 8;
     pub const FLY_SPEED: u32 = 16;
     pub const SELECTED: u32 = 32;
+    /// Lying down with its feet toward `yaw`, or `NaN` to get up.
+    pub const LYING: u32 = 64;
 }
 
 #[repr(C)]
@@ -3199,8 +3217,11 @@ pub struct PlayerControl {
     /// Spectator/creative flight speed multiplier.
     pub fly_speed: f32,
     pub selected: u32,
+    /// With `LYING`.
+    pub lying: f32,
 }
 defaults!(PlayerControl {
+    lying: 0.0,
     mask: 0,
     pos: [0.0; 3],
     vel: [0.0; 3],

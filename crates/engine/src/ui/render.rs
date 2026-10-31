@@ -192,6 +192,11 @@ fn load_shader(assets: &Assets) -> Result<(Shader, Slots, Slots), ShaderError> {
     Ok((shader, fx, gui))
 }
 
+/// The part (u0, v0, u1, v1) of a rectangle.
+fn cropped(r: Rect, c: [f32; 4]) -> Rect {
+    Rect { x: r.x + r.w * c[0], y: r.y + r.h * c[1], w: r.w * (c[2] - c[0]), h: r.h * (c[3] - c[1]) }
+}
+
 impl UiRenderer {
     pub fn new(gpu: &mut dyn Backend, assets: &Assets) -> Result<UiRenderer, String> {
         let (pipeline, fx, gui) = Self::pipeline(gpu, assets)?;
@@ -464,6 +469,25 @@ impl UiRenderer {
         }
     }
 
+    /// Share `v` of a picture in `r`: its nearest state, or cut off toward `dir` (`ui::meter`).
+    #[allow(clippy::too_many_arguments)]
+    fn meter_picture(
+        &mut self,
+        gpu: &mut dyn Backend,
+        assets: &Assets,
+        name: &str,
+        v: f32,
+        dir: u32,
+        r: Rect,
+        scale: f32,
+    ) {
+        let Some((picture, crop)) = super::meter::part(name, v, dir) else { return };
+        match self.texture(gpu, assets, &picture) {
+            Some((idx, _, _)) => self.image(cropped(r, crop), idx, crop, 0xFFFFFFFF),
+            None => self.checker(cropped(r, crop), scale),
+        }
+    }
+
     /// Magenta and black squares (4 GUI pixels), where a class has no texture.
     pub fn checker(&mut self, r: Rect, scale: f32) {
         let cell = 4.0 * scale;
@@ -660,14 +684,14 @@ impl UiRenderer {
                         icons.push((x + ix * px, y + iy * px, 16.0 * px, state | super::text::STATE_ICON))
                     }
                     // Loaded by `load_images` before.
-                    Placed::Image { x: ix, y: iy, w, h, image } if !pass => {
+                    Placed::Image { x: ix, y: iy, w, h, image, crop } if !pass => {
                         if let Some(Some(t)) =
                             super::text::image_name(image).and_then(|n| self.textures.get(&n).copied())
                         {
                             self.image(
-                                Rect { x: x + ix * px, y: y + iy * px, w: w * px, h: h * px },
+                                cropped(Rect { x: x + ix * px, y: y + iy * px, w: w * px, h: h * px }, crop),
                                 t.0,
-                                [0.0, 0.0, 1.0, 1.0],
+                                crop,
                                 0xFFFFFFFF,
                             );
                         }
@@ -753,10 +777,12 @@ impl UiRenderer {
             let ch = |s: u32| (((c >> s) & 255) as f32 * k) as u32;
             ch(24) << 24 | ch(16) << 16 | ch(8) << 8 | 0xFF
         };
-        // Isometric: block point (X, Y, Z) lands at origin + X*ex + Y*ey + Z*ez.
-        let (h, q) = (size / 2.0, size / 4.0);
-        let o = [x + h, y + size * 0.03 + h];
-        let at = |p: [f32; 3]| [o[0] + (p[0] - p[2]) * h, o[1] + (p[0] + p[2]) * q - p[1] * h];
+        // As block.json shows it in a slot: rotation 30 225 0, scale 0.625, the block's middle in
+        // the middle. Along x or z a block goes cos 45 across and sin 30 sin 45 down, up it goes
+        // cos 30, all times 0.625.
+        let (h, q, up) = (size * 0.625 * 0.707_106_8, size * 0.625 * 0.353_553_4, size * 0.625 * 0.866_025_4);
+        let o = [x + size / 2.0, y + size / 2.0];
+        let at = |p: [f32; 3]| [o[0] + (p[0] - p[2]) * h, o[1] + (p[0] + p[2] - 1.0) * q - (p[1] - 0.5) * up];
         let grass = crate::content::item_tint(s.tint) << 8 | 0xFF;
         let mut shape = boxes.to_vec();
         // Back to front.
@@ -767,11 +793,18 @@ impl UiRenderer {
             // (corner, u edge, v edge, face, shade, uv rect): the faces seen from the front, with
             // the part of the texture the world mesher shows there.
             let faces = [
-                (at([n[0], m[1], m[2]]), [dx * h, dx * q], [0.0, dy * h], 5, 0.8, [n[0], 1.0 - m[1], m[0], 1.0 - n[1]]),
+                (
+                    at([n[0], m[1], m[2]]),
+                    [dx * h, dx * q],
+                    [0.0, dy * up],
+                    5,
+                    0.8,
+                    [n[0], 1.0 - m[1], m[0], 1.0 - n[1]],
+                ),
                 (
                     at([m[0], m[1], m[2]]),
                     [dz * h, -dz * q],
-                    [0.0, dy * h],
+                    [0.0, dy * up],
                     1,
                     0.62,
                     [1.0 - m[2], 1.0 - m[1], 1.0 - n[2], 1.0 - n[1]],
@@ -982,7 +1015,10 @@ impl UiRenderer {
                 } else {
                     ""
                 };
-                background(self, class, state);
+                // No class: nothing of its own, only what it contains.
+                if !class.is_empty() {
+                    background(self, class, state);
+                }
             }
             Kind::Text(t) => {
                 let px = scale * ui.text_unit * t.scale;
@@ -1034,53 +1070,33 @@ impl UiRenderer {
             Kind::Progress { value, .. } if *value < 0.0 => {}
             Kind::Progress { class, value, dir, .. } => {
                 background(self, class, "");
-                let fill = look.texture(class, "fill").and_then(|n| self.texture(gpu, assets, &n));
                 let v = value.clamp(0.0, 1.0);
-                let (fr, uv) = match *dir {
-                    weft_abi::ui_dir::UP => {
-                        (Rect { y: r.y + r.h * (1.0 - v), h: r.h * v, ..r }, [0.0, 1.0 - v, 1.0, 1.0])
-                    }
-                    weft_abi::ui_dir::LEFT => {
-                        (Rect { x: r.x + r.w * (1.0 - v), w: r.w * v, ..r }, [1.0 - v, 0.0, 1.0, 1.0])
-                    }
-                    weft_abi::ui_dir::DOWN => (Rect { h: r.h * v, ..r }, [0.0, 0.0, 1.0, v]),
-                    _ => (Rect { w: r.w * v, ..r }, [0.0, 0.0, v, 1.0]),
-                };
-                match fill {
-                    Some((idx, _, _)) => self.image(fr, idx, uv, 0xFFFFFFFF),
-                    None => self.checker(fr, scale),
+                match look.texture(class, "fill") {
+                    Some(fill) => self.meter_picture(gpu, assets, &fill, v, *dir, r, scale),
+                    None => self.checker(cropped(r, super::meter::crop(v, *dir)), scale),
                 }
             }
-            Kind::Icons { class, count, value, rtl, shake, .. } if *value >= 0.0 => {
+            Kind::Icons { class, count, value, dir, shake, .. } if *value >= 0.0 => {
+                use weft_abi::ui_dir;
                 let tick = (crate::shaders::clock() * crate::world::TPS as f32) as i64;
-                let names = ["full", "half", "empty"].map(|s| look.texture(class, s));
-                let tex = names.map(|n| n.and_then(|n| self.texture(gpu, assets, &n)));
+                let full = look.texture(class, "full");
+                let empty = look.texture(class, "empty").and_then(|n| self.texture(gpu, assets, &n));
                 for i in 0..*count {
-                    let v = *value - i as f32 * 2.0;
-                    let which = if v >= 2.0 {
-                        0
-                    } else if v >= 1.0 {
-                        1
-                    } else {
-                        2
-                    };
-                    let slot = if *rtl { count - 1 - i } else { i };
+                    // A value counts halves of an icon, as vanilla's bars do.
+                    let v = *value / 2.0 - i as f32;
+                    let slot =
+                        if matches!(*dir, ui_dir::LEFT | ui_dir::UP) { count - 1 - i } else { i } as f32 * 8.0 * scale;
                     let jump =
                         if *shake && *value <= 4.0 { (weft_noise::hash(0, tick, i as i64, 0) & 1) as f32 } else { 0.0 };
-                    let rr = Rect {
-                        x: r.x + slot as f32 * 8.0 * scale,
-                        y: r.y + jump * scale,
-                        w: 9.0 * scale,
-                        h: 9.0 * scale,
-                    };
-                    if let Some((idx, _, _)) = tex[2] {
+                    let (dx, dy) = if matches!(*dir, ui_dir::UP | ui_dir::DOWN) { (0.0, slot) } else { (slot, 0.0) };
+                    let rr = Rect { x: r.x + dx, y: r.y + dy + jump * scale, w: 9.0 * scale, h: 9.0 * scale };
+                    if let Some((idx, _, _)) = empty {
                         self.image(rr, idx, [0.0, 0.0, 1.0, 1.0], 0xFFFFFFFF);
                     }
-                    if which < 2 {
-                        if let Some((idx, _, _)) = tex[which] {
-                            self.image(rr, idx, [0.0, 0.0, 1.0, 1.0], 0xFFFFFFFF);
-                        } else {
-                            self.checker(rr, scale);
+                    if v > 0.0 {
+                        match &full {
+                            Some(full) => self.meter_picture(gpu, assets, full, v.min(1.0), *dir, rr, scale),
+                            None => self.checker(rr, scale),
                         }
                     }
                 }

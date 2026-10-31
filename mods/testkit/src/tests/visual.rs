@@ -71,6 +71,17 @@ pub async fn hide_hud(t: T) -> R {
 
 /// Items in the first person hand: each drawn in its own colors at the hand's place.
 pub async fn held_items(t: T) -> R {
+    // Tools by being tools, the rest by asking.
+    static HANDHELD: Tag = Tag::named("handheld");
+    let handheld = |name: &str| Item::lookup(name).is_some_and(|i| HANDHELD.on_item(i));
+    t.check(
+        handheld("base:diamond_sword")
+            && handheld("base:wood_pickaxe")
+            && handheld("base:stick")
+            && handheld("testmod:steel_pickaxe"),
+        "tools and the stick are held like tools",
+    );
+    t.check(!handheld("base:apple") && !handheld("base:stone"), "the rest are not");
     t.flat().await?;
     for (i, name) in ["wood_pickaxe", "diamond_sword", "glass", "rose", "torch"].iter().enumerate() {
         t.op(&format!("put me {i} {name} 1")).await?;
@@ -100,13 +111,16 @@ pub async fn tooltips(t: T) -> R {
     t.flat().await?;
     t.op("put me 0 furnace 1").await?;
     t.op("put me 1 coal 5").await?;
+    t.op("put me 2 diamond_sword 1").await?;
+    t.op("put me 3 bread 1").await?;
+    t.op("put me 4 diamond_chestplate 1").await?;
     t.press("core:inventory");
     t.screen("core:menu").await?;
     t.c().cursor(0.02, 0.02);
     t.frames(4).await?;
     let plain = t.grab().await?;
     let (w, h) = (t.state().window[0], t.state().window[1]);
-    for (slot, name) in [(36, "furnace"), (37, "coal")] {
+    for (slot, name) in [(36, "furnace"), (37, "coal"), (38, "sword"), (39, "bread"), (40, "chestplate")] {
         let Some([x, y, sw, sh]) = t.c().ui_rect(&format!("slot:{slot}")) else {
             t.fail(format!("no slot {slot}"));
             continue;
@@ -119,7 +133,17 @@ pub async fn tooltips(t: T) -> R {
         // The tooltip opens to the right of the cursor. Its dark box is close to the panel's
         // color, so only part of the pixels change.
         let v = changed(&plain, &now, w, h, cx + 0.02, cy - 0.02, cx + 0.15, cy + 0.05);
-        t.probe(&format!("{name} tooltip drawn"), v, v > 0.1);
+        t.probe(&format!("{name} tooltip drawn"), v, v > 0.05);
+        // Lines by what an item is (`tagged.<component>`), numbers from the item itself.
+        let line = |c: probe::C| match name {
+            "sword" => c[1] > 140 && c[0] < 60 && c[2] < 60,
+            "chestplate" => c[2] > 200 && c[0] < 130 && c[1] < 130,
+            _ => c[0] > 150 && c[1] > 70 && c[1] < 150 && c[2] < 90,
+        };
+        if matches!(name, "sword" | "bread" | "chestplate") {
+            let share = t.shot(&format!("{name}_lines")).await?.share(cx + 0.015, cy - 0.06, cx + 0.3, cy + 0.12, line);
+            t.probe(&format!("{name}'s line from its tag"), share, share > 0.0005);
+        }
         // Another mod's line under coal's own (`item.base.coal.tooltip.testmod`), in red.
         if name == "coal" {
             let red = t.shot("coal_lines").await?.share(cx + 0.02, cy - 0.05, cx + 0.3, cy + 0.12, probe::red);
@@ -309,11 +333,14 @@ pub async fn break_overlay(t: T) -> R {
     t.hold("core:attack", 0.5);
     t.until("the first block broken", Duration::from_secs(2), |t| t.c().block(wall) == Some(0)).await?;
     let held = t.shot("creative").await?.px;
-    // The same blocks without a button held: the next block as it looks clean.
-    t.secs(0.6).await?;
-    t.fill(next, add(next, [0, 1, 0]), "dirt").await?;
-    t.set(wall, "air").await?;
-    t.frames(10).await?;
+    // The same with a click, no button held when it is seen: the next block as it looks clean.
+    // Broken the same way, for the light on it to be just as late: a block goes at once here, the
+    // light comes from the server after. Past the longest a broken block's pieces fly.
+    t.secs(1.2).await?;
+    t.fill(wall, add(next, [0, 1, 0]), "dirt").await?;
+    t.secs(0.5).await?;
+    t.press("core:attack");
+    t.until("the first block broken again", Duration::from_secs(2), |t| t.c().block(wall) == Some(0)).await?;
     let clean = t.grab().await?;
     let p = t.block_on_screen(next, [0.0, 0.0, 0.5]).unwrap_or((0.5, 0.45));
     let v = changed(&held, &clean, w, h, p.0 - 0.05, p.1 - 0.05, p.0 + 0.05, p.1 + 0.05);
@@ -473,6 +500,22 @@ pub async fn multiplayer(t: T) -> R {
         .iter()
         .filter_map(|&id| t.c().entity(id))
         .any(|e| name_of(abi::entry_kind::ENTITY, e.kind) == "core:player");
+    // What they hold reaches the others, to draw it in their hand.
+    static HELD: weft_sdk::Component<u32> = weft_sdk::Component::named("core:held");
+    if let Some(other) = t
+        .c()
+        .entities()
+        .iter()
+        .copied()
+        .find(|&id| t.c().entity(id).is_some_and(|e| name_of(abi::entry_kind::ENTITY, e.kind) == "core:player"))
+    {
+        t.op(&format!("put {other} 0 stone 1")).await?;
+        let stone = Item::lookup("base:stone").unwrap_or(u32::MAX);
+        t.until("what the other player holds", Duration::from_secs(5), |t| {
+            t.c().view().component_of(other, &HELD) == Some(stone)
+        })
+        .await?;
+    }
     // A synced setting the host changes while the other player is in reaches them.
     SPARKS.set(7);
     let synced = t

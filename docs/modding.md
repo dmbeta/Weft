@@ -142,7 +142,7 @@ Textures can also be [animated, glow and have overlays](textures.md), or [be con
 ### Translations
 
 Format: `type.modname.name = value`, e.g. `item.examplemod.example_item = Example Item`\
-Any item can have a tooltip using `type.modname.name.tooltip = Some tooltip`, more in the [tooltips guide](tooltips.md).\
+Any item can have a tooltip using `type.modname.name.tooltip = Some tooltip`, more in the [localization guide](localization.md).\
 If the player's language doesn't have a key (or a whole file), English is shown, so `en_us.lang` is the one you always need.\
 The Mods screen reads your mod's page from there too: `mod.mymod.name`, `mod.mymod.description` (as long as you like, with pictures), `mod.mymod.authors` and `mod.mymod.url`, and its icon is `assets/textures/gui/icon.png`.
 
@@ -202,9 +202,9 @@ A value that names blocks is a reference, not text: `Component<BlockRef>` for on
 Per-entity components like a state of a machine, hunger or anything else that changes in time go through
 `r.entity_component(&COMP, default, flags)`, declared once, and then carried by the kinds that need it: `.attach(&COMP)` on an entity or machine builder, `r.attach(&PLAYER, &COMP)` for someone else's kind, `.attach_with(&COMP, value)` to start from another value.\
 `.set(&C, v)` is different: one value of the kind itself (like a mob's attack damage), while `.attach` gives every entity its own value that changes.\
-Flags from `component_flags` are `SAVE`, `SYNC_OWNER`, `SYNC_WATCHERS`, `SYNC_MENU`.\
+Flags from `component_flags` are `SAVE`, `SYNC_OWNER`, `SYNC_WATCHERS`, `SYNC_MENU`, `KEEP` (kept when a player respawns; everything else starts over from its default).\
 You can change them through `w.component_mut(id, &COMP)` and the engine will figure out what to send.\
-What the engine itself shows of an entity travels the same way, so a client can read it with `view.component_of(id, &C)`: `core:health` (`[f32; 2]`, health and, for players, max health) and `core:burning` (`u8`). They are the engine's copies: writing them changes nothing.
+What the engine itself shows of an entity travels the same way, so a client can read it with `view.component_of(id, &C)`: `core:health` (`[f32; 2]`, health and, for players, max health) `core:burning` (`u8`) and `core:held` (`u32`, a player's item in hand, 0 for none). They are the engine's copies: writing them changes nothing.
 
 ### Sharing types with other mods
 
@@ -262,7 +262,9 @@ Anywhere a block is named as text, `base:furnace[lit=true]` picks a state: in st
 - `attack_damage`, `attack_speed(per_second)` (hitting before it has recharged does less; a sword is 1.6, and without it an item swings at an empty hand's 4) and `sweeps()` (a full swing on the ground also does 1 damage to what stands next to the target)
 - Advancements read tags, so yours count by tagging them: `cooked_meat` on food, `hostile` and `livestock` on mobs, `logs`, `torches`, `furnaces`, etc etc
 - `no_creative_break()`: in creative it doesn't break blocks, like a sword. Both sides know, so nothing flickers; a rule that depends on more is `question::BREAK_BLOCK`, which is asked when mining starts and tells the client no right away
+- `spawns(&ENTITY)`: used on a block it puts the entity there. Every entity already has an egg of its own, see below
 - `placed_block(&BLOCK)`
+- `handheld()`: held by its end and pointing ahead in third person, like a stick. `tool(..)` does it already, and so does the tag `handheld`
 - `wearable(&HEAD, inflate, texture)` for armor and anything else worn in an equipment slot
 - `on_use`: what using it does. Before it runs anyone can say no to `question::USE_ITEM`, and after it the `ITEM_USED` event tells every mod (testmod heals with base's food through it). `base_api::eat` is the base game's eating: `.set(&FOOD, ..).use_ticks(32).on_use(base_api::eat)`
 
@@ -270,6 +272,7 @@ Anywhere a block is named as text, `base:furnace[lit=true]` picks a state: in st
 
 `r.entity(&ENTITY)` and then:
 
+- every entity gets a spawn egg by itself, `<name>_spawn_egg`, called after it and in the creative tab of eggs. Draw `item/<name>_spawn_egg.png` or it looks generic; `no_egg()` for what isn't a creature
 - `size(w, h)`, `health`, `speed`
 - `hostile()` or `passive()` or `category(..)`
 - `texture` (by default `entity/<name>`)
@@ -365,7 +368,7 @@ Two helpers go with them. `w.after(entity, ticks, &EVENT, value)` fires an event
 
 ### Built-in events
 
-`BLOCK_BROKEN`, `BLOCK_PLACED`, `ITEM_PICKED_UP`, `ITEM_USED`, `ENTITY_HURT`, `ENTITY_DIED`, `PLAYER_JOINED`, and the questions `BREAK_BLOCK`, `PLACE_BLOCK`, `USE_BLOCK`, `USE_ITEM`, `INTERACT_ENTITY`, `ATTACK`, `HURT`, `PICKUP_ITEM`, `ENTER_DIMENSION`\
+`BLOCK_BROKEN`, `BLOCK_PLACED`, `ITEM_PICKED_UP`, `ITEM_USED`, `ENTITY_HURT`, `ENTITY_DIED`, `PLAYER_JOINED`, `PLAYER_RESPAWNED`, and the questions `BREAK_BLOCK`, `PLACE_BLOCK`, `USE_BLOCK`, `USE_ITEM`, `INTERACT_ENTITY`, `ATTACK`, `HURT`, `PICKUP_ITEM`, `ENTER_DIMENSION`\
 base adds `base:smelted`.
 
 ### Systems and energy
@@ -448,7 +451,7 @@ You can contact me on Discord: `@vortex_so`
 
 - [Textures](textures.md): animation, glow, tinted overlays
 - [CTM](ctm.md): connected and varied block textures (glass, logs, random stone)
-- [Tooltips](tooltips.md): item tooltips, rich text and effects, adding them from other mods and packs
+- [Localization](localization.md): all text, item tooltips, rich text and effects, icons and meters, lines by tag, adding them from other mods and packs
 - [Worldgen](worldgen.md): ores, structures, biomes, spawns, new dimensions and terrain, also in other mods' dimensions
 - [Sky](sky.md): suns, moons, stars and skyboxes in any dimension, changing or removing the ones there
 - [Models and animations](models.md): mob models in code or Blockbench, keyframes, the first-person hand, armor

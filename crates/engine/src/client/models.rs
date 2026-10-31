@@ -59,6 +59,7 @@ pub struct Posed {
     pub head_yaw: f32,
     pub swim: Option<f32>,
     pub attack: f32,
+    pub holding: bool,
     pub anims: [(usize, f32, f32); 2],
     pub anim_count: usize,
     pub layers: [Instance; MAX_LAYERS],
@@ -217,6 +218,17 @@ impl Models {
         }
     }
 
+    /// How many bones are posed so far: where what comes next starts in `bone`.
+    pub fn bones_so_far(&self) -> usize {
+        self.rows.len()
+    }
+
+    /// A posed bone's transform.
+    pub fn bone(&self, at: usize) -> Mat4 {
+        let [a, b, c] = self.rows[at];
+        Mat4::from_cols_array_2d(&[a, b, c, [0.0, 0.0, 0.0, 1.0]]).transpose()
+    }
+
     /// Poses many models at once, in parallel, straight into the bone table: per entity its kind,
     /// root, pitch, swing, crouch, keyframes and layers. Nothing is allocated per entity (a
     /// thousand mobs are a thousand of each every frame).
@@ -258,6 +270,7 @@ impl Models {
                     swing: e.swing,
                     swim: e.swim,
                     attack: e.attack,
+                    holding: e.holding,
                     anims,
                     crouch: e.crouch,
                 },

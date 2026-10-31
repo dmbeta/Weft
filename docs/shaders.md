@@ -54,7 +54,7 @@ fn effect(g: Glyph) -> Glyph {
 
 `Glyph` has `offset` (pixels added to the letter's corner), `color` (linear, with alpha), `time`, `index` (the letter's number in its text, handy for waves), `corner` (which corner of the letter, 0 to 1 on each axis), `scale` (physical pixels per GUI pixel) and `shadow`, which is true for the dark copy drawn under the text. Leave the shadow's color alone, or it turns bright.
 
-The function runs for every corner of every letter, so it pays to keep it small. How to use the effects inside translations is in the [tooltips guide](tooltips.md#effects).
+The function runs for every corner of every letter, so it pays to keep it small. How to use the effects inside translations is in the [tooltips guide](localization.md#effects).
 
 ## Panels
 
@@ -158,6 +158,7 @@ Snippets add to the engine's shaders, a shader pack replaces them. It is a folde
 | `model.wgsl` | mobs and the player's model |
 | `entity.wgsl` | the first-person hand and held items |
 | `particle.wgsl` | particles |
+| `weather.wgsl` | rain and snow |
 | `sky.wgsl` | the sky, what is in it, and the overlay from inside a liquid |
 | `post.wgsl` | screen effects |
 | `ui.wgsl` | all screens and text |

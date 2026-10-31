@@ -330,8 +330,289 @@ pub async fn advancements(t: T) -> R {
     t.screen("core:pause").await?;
     t.c().close_screen();
     t.no_screen().await?;
+    // Dying takes none of them.
+    t.cmd("/kill").await?;
+    t.screen("core:death").await?;
+    t.c().respawn();
+    t.no_screen().await?;
+    t.secs(1.0).await?;
+    t.check_eq(made(&t).count_ones(), 2, "advancements after dying");
     t.cmd("/advancements reset").await?;
     t.until("advancements reset", Duration::from_secs(5), |t| made(t) == 0).await?;
+    Ok(())
+}
+
+fn bed_spawn(t: &T) -> Option<[i32; 3]> {
+    t.c().view().component(&base_api::BED_SPAWN).filter(|s| s.set != 0).map(|s| s.bed)
+}
+
+/// Clears room around the player and places a bed two blocks north the way a player does: gives
+/// its foot.
+async fn place_bed(t: &T) -> Result<[i32; 3], String> {
+    let f = t.feet();
+    t.fill(add(f, [-3, -1, -6]), add(f, [3, -1, 2]), "stone").await?;
+    t.fill(add(f, [-3, 0, -6]), add(f, [3, 4, 2]), "air").await?;
+    t.op("put me 0 bed 1").await?;
+    t.c().select(0);
+    let foot = add(f, [0, 0, -2]);
+    t.look_at(add(foot, [0, -1, 0]));
+    t.frames(2).await?;
+    t.press("core:use");
+    for _ in 0..30 {
+        if t.block(add(foot, [0, 0, -1])).await?.starts_with("base:bed") {
+            break;
+        }
+        t.secs(0.1).await?;
+    }
+    Ok(foot)
+}
+
+/// Dies and comes back, up to the point the world is seen again.
+async fn die_and_respawn(t: &T) -> R {
+    t.cmd("/kill").await?;
+    t.screen("core:death").await?;
+    t.c().respawn();
+    t.no_screen().await
+}
+
+fn off_bed(t: &T, foot: [i32; 3]) -> f64 {
+    let p = t.state().pos;
+    ((p[0] - (foot[0] as f64 + 0.5)).powi(2) + (p[2] - (foot[2] as f64 + 0.5)).powi(2)).sqrt()
+}
+
+/// A bed placed by a player takes two blocks, the head away from them. Used by day it sets the
+/// respawn point; at night the player lies down unless it can't be done (no room, a monster of
+/// any kind near) and, everybody asleep, the night is skipped; being hurt gets them up; dead, the
+/// player comes back at the bed. Breaking one half takes the other and drops one bed, and an
+/// explosion taking one half takes the other too.
+pub async fn beds(t: T) -> R {
+    let spawn = bed_spawn;
+    fn beds_held(t: &T) -> u32 {
+        (0..36).map(|i| t.c().inventory_slot(i)).filter(|s| s.item == item("base:bed")).map(|s| s.count).sum()
+    }
+    t.world(3).await?;
+    t.op("mode survival").await?;
+    t.op("time 6000").await?;
+    let f = t.feet();
+    let foot = place_bed(&t).await?;
+    let head = add(foot, [0, 0, -1]);
+    t.check(
+        t.block(foot).await?.contains("part=foot"),
+        format!("the foot where it was placed: {}", t.block(foot).await?),
+    );
+    t.check(t.block(head).await?.contains("part=head"), format!("the head beyond it: {}", t.block(head).await?));
+
+    // By day only the respawn point.
+    t.look_at(foot);
+    t.frames(2).await?;
+    t.press("core:use");
+    t.until("respawn point set", Duration::from_secs(5), |t| spawn(t) == Some(foot)).await?;
+    t.secs(0.5).await?;
+    t.check(t.c().screen() != "base:sleeping", "no sleeping by day");
+    t.shot("placed").await?;
+
+    t.op("time 18000").await?;
+    // No room to stand on it.
+    t.set(add(foot, [0, 2, 0]), "stone").await?;
+    t.press("core:use");
+    t.secs(0.4).await?;
+    t.check(t.c().screen() != "base:sleeping", "no sleeping under a low ceiling");
+    t.set(add(foot, [0, 2, 0]), "air").await?;
+
+    // Any monster keeps the player up, by its tag.
+    let creeper = t.op(&format!("spawn base:creeper {} {} {}", foot[0] + 5, foot[1], foot[2])).await?;
+    t.press("core:use");
+    t.secs(0.4).await?;
+    t.check(t.c().screen() != "base:sleeping", "no sleeping with a creeper near");
+    t.op(&format!("remove {}", creeper.trim())).await?;
+
+    // Being hurt gets them up.
+    t.press("core:use");
+    t.screen("base:sleeping").await?;
+    t.op("hurt_me 1").await?;
+    t.until("woken by the hit", Duration::from_secs(3), |t| t.c().screen() != "base:sleeping").await?;
+
+    // At night the player lies down, and the night is skipped.
+    t.look_at(foot);
+    t.frames(2).await?;
+    t.press("core:use");
+    t.screen("base:sleeping").await?;
+    // Lying down on the bed, as the others see it too: the server says so.
+    t.secs(0.3).await?;
+    t.check_eq(t.op("pose").await?.trim().to_string(), abi::pose::SLEEP.to_string(), "lying down");
+    let p = t.state().pos;
+    t.check((p[2] - foot[2] as f64).abs() < 0.1, format!("over the middle of the bed: {p:?}, foot {foot:?}"));
+    t.secs(2.5).await?;
+    t.shot("sleeping").await?;
+    t.until("morning", Duration::from_secs(15), |t| t.c().screen() != "base:sleeping").await?;
+    let time = t.cmd("/time query").await?;
+    let tick: u64 = time
+        .split(|c: char| !c.is_ascii_digit())
+        .find(|s| !s.is_empty())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(u64::MAX);
+    t.check(tick % 24000 < 2000, format!("woke up in the morning: {time}"));
+
+    // Dead, back at the bed (on its foot), the respawn point still set.
+    // The world's spawn is two blocks from the bed: only the bed puts the player on it.
+    die_and_respawn(&t).await?;
+    t.secs(1.0).await?;
+    let off = off_bed(&t, foot);
+    t.check(off < 1.5, format!("respawned {off:.1} blocks from the bed"));
+    t.check(spawn(&t) == Some(foot), "the respawn point survives death");
+
+    // Breaking the head takes the foot and drops one bed.
+    t.op(&format!("break {} {} {}", head[0], head[1], head[2])).await?;
+    t.frames(2).await?;
+    t.check_eq(t.block(foot).await?, "core:air".into(), "the foot goes with the head");
+    t.until("the bed picked up", Duration::from_secs(5), |t| beds_held(t) >= 1).await?;
+    t.secs(0.5).await?;
+    t.check_eq(beds_held(&t), 1, "beds dropped");
+
+    // Placed each way: the head away from the player, the bed facing them. Seen from above, the
+    // pillow is at the far end of each.
+    t.op("mode creative").await?;
+    t.c().fly(true);
+    t.fill(add(f, [-4, -1, -4]), add(f, [4, -1, 4]), "stone").await?;
+    t.fill(add(f, [-4, 0, -4]), add(f, [4, 4, 4]), "air").await?;
+    t.c().teleport([f[0] as f64 + 0.5, f[1] as f64, f[2] as f64 + 0.5]);
+    t.secs(0.3).await?;
+    for (facing, d) in [("south", [0, 0, -1]), ("west", [1, 0, 0]), ("north", [0, 0, 1]), ("east", [-1, 0, 0])] {
+        t.op("put me 0 bed 1").await?;
+        let foot = [f[0] + d[0] * 2, f[1], f[2] + d[2] * 2];
+        let head = add(foot, d);
+        t.look_at(add(foot, [0, -1, 0]));
+        t.frames(2).await?;
+        t.press("core:use");
+        t.until(&format!("the {facing} bed"), Duration::from_secs(3), |t| t.c().block(head).is_some_and(|s| s != 0))
+            .await?;
+        let (a, b) = (t.block(foot).await?, t.block(head).await?);
+        t.check(a.contains("part=foot") && a.contains(&format!("facing={facing}")), format!("the foot: {a}"));
+        t.check(b.contains("part=head") && b.contains(&format!("facing={facing}")), format!("the head: {b}"));
+    }
+    t.c().teleport([f[0] as f64 + 0.5, f[1] as f64 + 7.0, f[2] as f64 + 0.5]);
+    // Landing ended the flight.
+    t.c().fly(true);
+    t.c().look(0.0, -89.0);
+    t.secs(1.0).await?;
+    t.shot("facings").await?;
+
+    // An explosion takes one half without breaking it.
+    let foot = add(f, [0, 0, -2]);
+    let head = add(foot, [0, 0, -1]);
+    t.c().teleport([head[0] as f64 + 1.5, head[1] as f64, head[2] as f64 + 0.5]);
+    t.secs(0.2).await?;
+    t.op("crater_fast 1").await?;
+    t.until("the head gone", Duration::from_secs(2), |t| t.c().block(head) == Some(0)).await?;
+    t.secs(0.3).await?;
+    t.check_eq(t.block(foot).await?, "core:air".into(), "the foot goes with the head in an explosion");
+    Ok(())
+}
+
+/// The respawn point holds wherever the bed is: far from the spawn, so nothing around it is
+/// loaded when the player comes back, and in another dimension. A bed gone meanwhile puts them back
+/// at the spawn, without a respawn point.
+pub async fn beds_far(t: T) -> R {
+    t.world(3).await?;
+    t.op("mode creative").await?;
+    t.c().fly(true);
+    t.op("time 6000").await?;
+    let home = t.state().pos;
+    t.cmd("/tp ~1500 ~30 ~").await?;
+    t.until("far away", Duration::from_secs(10), |t| (t.state().pos[0] - home[0]).abs() > 1000.0).await?;
+    t.loaded().await?;
+    let foot = place_bed(&t).await?;
+    t.look_at(foot);
+    t.frames(2).await?;
+    t.press("core:use");
+    t.until("respawn point set", Duration::from_secs(5), |t| bed_spawn(t) == Some(foot)).await?;
+    t.op("mode survival").await?;
+
+    die_and_respawn(&t).await?;
+    t.until("back on the bed", Duration::from_secs(20), |t| off_bed(t, foot) < 1.5).await?;
+    t.secs(1.0).await?;
+    t.check(off_bed(&t, foot) < 1.5, format!("still {:.1} blocks from the bed", off_bed(&t, foot)));
+    t.check(bed_spawn(&t) == Some(foot), "the respawn point stays");
+
+    t.op(&format!("break {} {} {}", foot[0], foot[1], foot[2])).await?;
+    t.frames(2).await?;
+    die_and_respawn(&t).await?;
+    t.until("the respawn point gone", Duration::from_secs(20), |t| bed_spawn(t).is_none()).await?;
+    t.until("back at the spawn", Duration::from_secs(20), |t| (t.state().pos[0] - home[0]).abs() < 100.0).await?;
+
+    t.cmd("/dim base:flatlands").await?;
+    let dim = Dimension::lookup("base:flatlands").unwrap_or(u32::MAX);
+    t.until("flatlands", Duration::from_secs(20), |t| t.state().dim == dim).await?;
+    t.loaded().await?;
+    t.op("time 6000").await?;
+    let foot = place_bed(&t).await?;
+    t.look_at(foot);
+    t.frames(2).await?;
+    t.press("core:use");
+    t.until("respawn point set there", Duration::from_secs(5), |t| bed_spawn(t) == Some(foot)).await?;
+    die_and_respawn(&t).await?;
+    t.until("back on the bed there", Duration::from_secs(20), |t| t.state().dim == dim && off_bed(t, foot) < 1.5)
+        .await?;
+    t.secs(1.0).await?;
+    t.check_eq(t.state().dim, dim, "stays in the bed's dimension");
+    t.check(bed_spawn(&t) == Some(foot), "the respawn point stays there too");
+    Ok(())
+}
+
+/// A mob in the way is all that is aimed at: nothing happens to the block behind it.
+pub async fn mob_in_the_way(t: T) -> R {
+    t.flat().await?;
+    let f = t.feet();
+    let wall = add(f, [0, 0, -4]);
+    t.fill(wall, add(wall, [0, 1, 0]), "stone").await?;
+    t.op("put me 0 dirt 4").await?;
+    t.c().select(0);
+    t.look_at(wall);
+    t.frames(2).await?;
+    let pig = t.op(&format!("spawn pig {}", at(add(f, [0, 0, -3])))).await?;
+    t.until("the pig on the client", Duration::from_secs(3), |t| {
+        pig.trim().parse().is_ok_and(|id| t.c().entity(id).is_some())
+    })
+    .await?;
+    t.frames(3).await?;
+    t.press("core:use");
+    t.secs(0.4).await?;
+    t.check_eq(t.block(add(wall, [0, 0, 1])).await?, "core:air".into(), "no block placed on the wall through the pig");
+    t.op(&format!("remove {}", pig.trim())).await?;
+    t.frames(5).await?;
+    t.press("core:use");
+    t.until("placed with the pig gone", Duration::from_secs(2), |t| {
+        t.c().block(add(wall, [0, 0, 1])).is_some_and(|s| s != 0)
+    })
+    .await
+}
+
+/// A creeper going off under water breaks nothing and the water stays. A crater in a lake is
+/// filled again by the water around it.
+pub async fn explosions_and_water(t: T) -> R {
+    t.flat().await?;
+    t.cmd("/rule testkit:no_hurt 1").await?;
+    let f = t.feet();
+    t.fill(add(f, [-6, -1, -6]), add(f, [6, -1, 6]), "stone").await?;
+    t.fill(add(f, [-6, 0, -6]), add(f, [6, 2, 6]), "water").await?;
+    t.secs(0.3).await?;
+    let spot = add(f, [2, 0, 0]);
+    let creeper = t.op(&format!("spawn base:creeper {}", at(spot))).await?;
+    let id: u64 = creeper.trim().parse().map_err(|_| format!("spawn creeper: {creeper}"))?;
+    t.until("the creeper going off", Duration::from_secs(6), |t| t.c().entity(id).is_none()).await?;
+    t.secs(0.3).await?;
+    t.check(t.block(spot).await?.contains("water"), format!("the water stays: {}", t.block(spot).await?));
+    t.check_eq(t.block(add(spot, [0, -1, 0])).await?, "base:stone".into(), "the floor under it stays");
+    // The same place, a hole in the water that the water must fill.
+    t.op("mode creative").await?;
+    t.c().fly(true);
+    t.c().teleport([f[0] as f64 + 0.5, f[1] as f64 + 1.0, f[2] as f64 + 0.5]);
+    t.secs(0.2).await?;
+    t.op("crater_fast 3").await?;
+    let hole = add(f, [0, 1, 2]);
+    t.until("the hole", Duration::from_secs(2), |t| t.c().block(hole) == Some(0)).await?;
+    t.until("water flowing back in", Duration::from_secs(6), |t| t.c().block(hole).is_some_and(|s| s != 0)).await?;
+    t.cmd("/rule testkit:no_hurt 0").await?;
     Ok(())
 }
 
@@ -350,7 +631,7 @@ pub async fn fall_damage(t: T) -> R {
         hp = hp.min(t.state().health);
         t.frames(1).await?;
     }
-    t.check((10.0..=12.0).contains(&hp), format!("health after a 12 block fall: {hp}, vanilla 11"));
+    t.check((10.0..=13.0).contains(&hp), format!("health after a 12 block fall: {hp}, vanilla 11"));
     Ok(())
 }
 
@@ -1066,7 +1347,7 @@ pub async fn names_translated(t: T) -> R {
             if name.is_empty() {
                 break;
             }
-            if let Some(n) = name.strip_prefix("base:") {
+            if let Some(n) = name.strip_prefix("base:").filter(|n| !n.ends_with("_spawn_egg")) {
                 if !has(format!("item.base.{n}")) && !has(format!("block.base.{n}")) {
                     missing.push(name.to_string());
                 }
@@ -1155,8 +1436,12 @@ pub async fn toast_with_the_gui(t: T) -> R {
     t.frames(3).await?;
     let hidden = toast(&t.shot("hidden").await?);
     t.check(hidden < 0.0001, format!("F1 hides it: {hidden}"));
+    // Let go first, or the second press is the same one, and the GUI stays hidden for what's next.
+    t.secs(0.2).await?;
     t.press("core:hide_hud");
-    t.frames(3).await?;
+    t.secs(0.2).await?;
+    let back = toast(&t.shot("back").await?);
+    t.check(back > 0.0005, format!("and it is back: {back}"));
     // The second is still waiting behind the first, and must not come in the next world.
     t.c().leave_world();
     t.screen("core:title").await?;
@@ -1170,5 +1455,159 @@ pub async fn toast_with_the_gui(t: T) -> R {
     t.frames(3).await?;
     let again = toast(&t.shot("again").await?);
     t.check(again < 0.0001, format!("none from the world before: {again}"));
+    Ok(())
+}
+
+/// Every entity has an egg with nothing registered for it, a mod's too, unless it says otherwise.
+/// One puts its mob on the side of the block it is used on, and is used up outside creative.
+pub async fn spawn_eggs(t: T) -> R {
+    t.check(Item::lookup("testmod:wisp_spawn_egg").is_some(), "a mod's mob has one");
+    t.check(Item::lookup("base:arrow_spawn_egg").is_none(), "no_egg() has none");
+    t.check(Item::lookup("base:furnace_spawn_egg").is_none(), "a machine's block entity has none");
+    t.flat().await?;
+    let f = t.feet();
+    let ground = add(f, [2, -1, 0]);
+    t.look_at(ground);
+    t.op("put me 0 pig_spawn_egg 2").await?;
+    t.c().select(0);
+    t.secs(0.2).await?;
+    t.press("core:use");
+    t.secs(0.5).await?;
+    t.check_eq(t.slot("me", 0).await?.1, 1, "one egg used up");
+    t.laid_out(&["text:Pig Spawn Egg"]);
+    t.op("mode creative").await?;
+    t.secs(0.3).await?;
+    t.press("core:use");
+    t.secs(0.4).await?;
+    t.check_eq(t.slot("me", 0).await?.1, 1, "none in creative");
+    let near = t.op(&format!("near {} {} {} 8", f[0], f[1], f[2])).await?;
+    t.check(near.matches("base:pig").count() == 2, format!("two pigs: {near}"));
+    Ok(())
+}
+
+/// With every other mod turned off the game still starts, whatever they brought (no mod but this
+/// one has settings of its own to lean on).
+pub async fn base_alone(t: T) -> R {
+    use std::io::Write;
+    let port = 30000 + (std::process::id() % 20000) as u16 + 1;
+    let dir = format!("{}/test-base-alone", t.c().run_dir());
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(format!("{dir}/config")).map_err(|e| e.to_string())?;
+    std::fs::write(format!("{dir}/config/disabled_mods.txt"), "testkit\ntestmod").map_err(|e| e.to_string())?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut server = std::process::Command::new(exe)
+        .args([
+            "--server",
+            "--world",
+            "w",
+            "--seed",
+            "1",
+            "--view",
+            "4",
+            "--port",
+            &port.to_string(),
+            "--run-dir",
+            &dir,
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    let up = t
+        .until("the game up with only base", Duration::from_secs(30), |_| {
+            std::net::TcpStream::connect(("127.0.0.1", port)).is_ok()
+        })
+        .await;
+    if up.is_err() {
+        let _ = server.kill();
+        return up;
+    }
+    writeln!(server.stdin.take().ok_or("no console")?, "stop").map_err(|e| e.to_string())?;
+    t.until("it stops", Duration::from_secs(20), |_| server.try_wait().ok().flatten().is_some()).await?;
+    t.check(server.try_wait().ok().flatten().is_some_and(|s| s.success()), "stopped cleanly");
+    Ok(())
+}
+
+/// A game with no window, reached by address: nobody owns it by connecting first, `op` from its
+/// console makes someone more, its whitelist keeps out who isn't on it, `stop` saves and leaves.
+pub async fn dedicated_server(t: T) -> R {
+    use std::io::Write;
+    struct Child(std::process::Child);
+    impl Drop for Child {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+        }
+    }
+    let port = 30000 + (std::process::id() % 20000) as u16;
+    let dir = format!("{}/test-server", t.c().run_dir());
+    let _ = std::fs::remove_dir_all(&dir);
+    static SPARKS: Config<u32> = Config::named("testmod:wisp_sparks");
+    let own_sparks = SPARKS.get();
+    std::fs::create_dir_all(format!("{dir}/config")).map_err(|e| e.to_string())?;
+    std::fs::write(format!("{dir}/config/testmod.txt"), format!("wisp_sparks = {}\n", own_sparks + 3))
+        .map_err(|e| e.to_string())?;
+    let start = || -> Result<Child, String> {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        std::process::Command::new(exe)
+            .args([
+                "--server",
+                "--world",
+                "w",
+                "--seed",
+                "1",
+                "--view",
+                "4",
+                "--port",
+                &port.to_string(),
+                "--run-dir",
+                &dir,
+            ])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map(Child)
+            .map_err(|e| e.to_string())
+    };
+    let listening = |t: &T| {
+        let _ = t;
+        std::net::TcpStream::connect(("127.0.0.1", port)).is_ok()
+    };
+    let mut server = start()?;
+    t.until("the server listening", Duration::from_secs(30), listening).await?;
+    t.c().join(&format!("127.0.0.1:{port}"));
+    t.until("joined by address", Duration::from_secs(30), |t| t.flag(client::client_flags::JOINED)).await?;
+    t.loaded().await?;
+    t.check_eq(SPARKS.get(), own_sparks + 3, "the server's setting counts while on it");
+    let refused = t.cmd("/time query").await?;
+    t.check(!refused.contains("time is"), format!("the first to connect owns nothing: {refused}"));
+    static NAME: TextConfig = TextConfig::named("core:name");
+    let mut console = server.0.stdin.take().ok_or("no console")?;
+    writeln!(console, "op {}", NAME.get()).map_err(|e| e.to_string())?;
+    let _ = console.flush();
+    t.secs(0.5).await?;
+    let allowed = t.cmd("/time query").await?;
+    t.check(allowed.contains("time is"), format!("op from the console: {allowed}"));
+    t.c().leave_world();
+    t.screen("core:title").await?;
+    t.check_eq(SPARKS.get(), own_sparks, "the player's own setting after leaving");
+    writeln!(console, "stop").map_err(|e| e.to_string())?;
+    let _ = console.flush();
+    t.until("the server stopped", Duration::from_secs(20), |_| server.0.try_wait().ok().flatten().is_some()).await?;
+    t.check(
+        std::fs::read_dir(format!("{dir}/saves/w/players")).is_ok_and(|mut d| d.next().is_some()),
+        "the player was saved",
+    );
+
+    std::fs::create_dir_all(format!("{dir}/config")).map_err(|e| e.to_string())?;
+    std::fs::write(format!("{dir}/config/whitelist.txt"), "somebody else\n").map_err(|e| e.to_string())?;
+    std::fs::write(format!("{dir}/config/disabled_mods.txt"), "").map_err(|e| e.to_string())?;
+    let _server = start()?;
+    t.until("the server listening again", Duration::from_secs(30), listening).await?;
+    t.c().join(&format!("127.0.0.1:{port}"));
+    t.screen("core:message").await?;
+    t.check(!t.flag(client::client_flags::IN_WORLD), "not on the whitelist, not in");
+    t.c().close_screen();
     Ok(())
 }

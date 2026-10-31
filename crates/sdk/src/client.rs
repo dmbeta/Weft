@@ -131,6 +131,16 @@ impl Client {
         });
     }
 
+    /// Lies down with its feet toward `yaw` (radians) and stays there, or gets up with `None`. Other
+    /// players see it. Where it lies is the server's to say (`World::teleport`).
+    pub fn lie_down(&self, yaw: Option<f32>) {
+        self.control(&abi::PlayerControl {
+            mask: abi::control_mask::LYING,
+            lying: yaw.unwrap_or(f32::NAN),
+            ..abi::PlayerControl::DEFAULT
+        });
+    }
+
     pub fn fly_speed(&self, mul: f32) {
         self.control(&abi::PlayerControl {
             mask: abi::control_mask::FLY_SPEED,

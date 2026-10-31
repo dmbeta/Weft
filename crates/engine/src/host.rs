@@ -47,6 +47,8 @@ pub static HOST: Host = Host {
     stack_get,
     stack_with,
     get_block,
+    get_block_loaded,
+    world_dimension,
     set_block,
     schedule_tick,
     world_time,
@@ -463,6 +465,14 @@ unsafe extern "C" fn get_block(w: *mut abi::WorldCtx, pos: *const [i32; 3]) -> u
     unsafe { dim(w).get(ip(pos)).unwrap_or(content::AIR) }
 }
 
+unsafe extern "C" fn get_block_loaded(w: *mut abi::WorldCtx, pos: *const [i32; 3]) -> u32 {
+    unsafe { dim(w).get(ip(pos)).unwrap_or(u32::MAX) }
+}
+
+unsafe extern "C" fn world_dimension(w: *mut abi::WorldCtx) -> u32 {
+    unsafe { dim(w).id }
+}
+
 /// A mod called a host function with something that does not exist: logged, the first 20 times
 /// per function (a mod doing it every tick would flood the log).
 pub(crate) fn misuse(func: &'static str, detail: impl FnOnce() -> String) {
@@ -852,6 +862,7 @@ unsafe extern "C" fn area_fill(w: *mut abi::WorldCtx, desc: *const abi::AreaFill
             radius: a.radius,
             state: a.state,
             keep_unbreakable: a.flags & abi::area_flags::KEEP_UNBREAKABLE != 0,
+            keep_liquids: a.flags & abi::area_flags::KEEP_LIQUIDS != 0,
         };
         d.events.push(crate::server::DimEvent::AreaFill { dim: d.id, fill });
     }

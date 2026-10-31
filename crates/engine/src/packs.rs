@@ -344,7 +344,9 @@ impl Screen for ShaderPacks {
                 ui,
                 cx,
                 "packs.shaders_note",
-                &[Arg::Text("world.wgsl, entity.wgsl, model.wgsl, particle.wgsl, sky.wgsl, post.wgsl".into())],
+                &[Arg::Text(
+                    "world.wgsl, entity.wgsl, model.wgsl, particle.wgsl, weather.wgsl, sky.wgsl, post.wgsl".into(),
+                )],
                 "dim",
             );
             ui.container(Style::row().gap(6.0).justify(Justify::Center), |ui| {

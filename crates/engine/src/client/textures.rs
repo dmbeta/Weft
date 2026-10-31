@@ -30,6 +30,7 @@ struct Entry {
     images: Vec<TextureId>,
     stamp: u64,
     requested: bool,
+    size: u32,
 }
 
 struct Inner {
@@ -91,6 +92,7 @@ impl GameTextures {
                     images: Vec::new(),
                     stamp: 0,
                     requested: false,
+                    size: 16,
                 });
                 entries.len() as u32 - 1
             })
@@ -232,15 +234,19 @@ impl GameTextures {
     }
 
     /// The world shader's tables, per texture id. `info`: two words, static -> (index, 0),
-    /// animated -> (offset into `frames`, count | total ticks << 16 | interpolate << 31).
+    /// animated -> (offset into `frames`, count | total ticks << 16 | interpolate << 31), then
+    /// every texture's size. Shader packs are copies of that shader, also of older ones: new
+    /// things go after what they read.
     /// `frames`: animation frames (index | ticks << 16), then from `overlays` per block texture
     /// its overlay id + 1 or 0.
     pub fn world_tables(&self) -> (Vec<u32>, Vec<u32>, u32) {
         let i = self.inner.borrow();
-        let mut info: Vec<u32> = Vec::with_capacity(i.ids.len() * 2);
+        let mut info: Vec<u32> = Vec::with_capacity(i.ids.len() * 3);
+        let mut sizes: Vec<u32> = Vec::with_capacity(i.ids.len());
         let mut frames: Vec<u32> = vec![0];
         for &e in &i.ids {
             let en = &i.entries[e as usize];
+            sizes.push(if en.frames.is_empty() { 16 } else { en.size.max(1) });
             match (&en.anim, en.frames.is_empty()) {
                 (Some(a), false) if !a.frames.is_empty() => {
                     let total: u32 = a.frames.iter().map(|f| f.1).sum::<u32>().min(0x7FFF);
@@ -256,6 +262,7 @@ impl GameTextures {
                 (_, true) => info.extend([self.blank.1, 0]),
             }
         }
+        info.extend(sizes);
         let overlays = frames.len() as u32;
         frames.extend((0..i.ids.len()).map(|b| self.overlays.get(b).copied().unwrap_or(0)));
         (info, frames, overlays)
@@ -407,5 +414,5 @@ fn upload(gpu: &mut dyn Backend, i: &mut Inner, l: Loaded) {
     for t in std::mem::replace(&mut en.images, images) {
         gpu.destroy_texture(t);
     }
-    (en.frames, en.glow, en.anim, en.stamp, en.requested) = (frames, glows, l.tex.anim, l.stamp, false);
+    (en.frames, en.glow, en.anim, en.stamp, en.requested, en.size) = (frames, glows, l.tex.anim, l.stamp, false, size);
 }

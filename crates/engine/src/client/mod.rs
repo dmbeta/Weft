@@ -13,6 +13,7 @@ pub mod sky;
 pub mod terrain;
 pub mod terrain_gpu;
 pub mod textures;
+pub mod weather;
 pub mod world;
 pub mod world_render;
 
@@ -61,6 +62,8 @@ pub struct LocalPlayer {
     pub fov_mul: f32,
     /// Lower box and eyes. Stays on under a low ceiling until there is room for more.
     pub pose: Pose,
+    /// Lying in a bed, its head toward the back of this yaw: stays put, whatever the keys say.
+    pub lying: Option<f32>,
     /// Actually sprinting, after the conditions: moving forward, not sneaking, not wading.
     pub sprinting: bool,
     /// Holding the use button on an item that takes time.
@@ -98,6 +101,8 @@ pub struct ClientEntity {
     pub health: f32,
     pub hurt: f32,
     pub worn: Vec<u32>,
+    /// A player's item in hand, 0 for none.
+    pub held: u32,
     /// Accumulated walk distance and current swing amplitude, for limb animation.
     pub walk: f32,
     /// Blocks actually walked, which limbs at full swing fall behind of.
@@ -354,6 +359,7 @@ pub struct Client {
     /// Seconds left of the red screen flash after taking damage.
     pub hurt_flash: f32,
     pub particles: particles::Particles,
+    pub weather_render: weather::Weather,
     pub sky: sky::Sky,
     /// Scratch: taken items and where they fly to this frame.
     pulls: Vec<(u64, DVec3)>,
@@ -378,6 +384,7 @@ pub struct Client {
     weather: (bool, bool),
     /// How much of it there is by now, 0..1 over about five seconds.
     rain: f32,
+    frame_dt: f32,
     /// Seconds left of a lightning's flash.
     lightning: f32,
     /// Holding the use button on an item that takes time: ticks left, ticks in all.
@@ -496,6 +503,7 @@ impl Client {
         let render = WorldRenderer::new(gpu, c, textures, assets)?;
         let entity_render = EntityRenderer::new(gpu, assets)?;
         let particles = particles::Particles::new(gpu, assets);
+        let weather_render = weather::Weather::new(gpu, assets);
         let sky = sky::Sky::new(gpu, assets);
         conn.send(ToServer::Join { name: name.to_string(), key: key.to_string() });
         conn.send(ToServer::View(view_radius as u32));
@@ -506,6 +514,8 @@ impl Client {
         let gpu_on = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let gpu_terrain = terrain_gpu::GpuTerrain::new(gpu, assets, gpu_rx, gpu_on.clone());
         Ok(Client {
+            weather_render,
+            frame_dt: 0.0,
             conn,
             world: ClientWorld::new(0),
             render,
@@ -522,6 +532,7 @@ impl Client {
                 eye: 1.62,
                 fov_mul: 1.0,
                 pose: Pose::Stand,
+                lying: None,
                 sprinting: false,
                 using: false,
                 swim_anywhere: false,
@@ -856,6 +867,7 @@ impl Client {
         self.swing_since += dt as f32;
         self.player.using = self.using.is_some();
         self.body_particles(dt as f32);
+        self.frame_dt = dt as f32;
         self.weather_effects(dt as f32);
         let step = dt as f32 * 0.4 * crate::world::TPS as f32;
         // The hand dips after a swing and comes back up as it charges (vanilla's strength cubed).
@@ -993,6 +1005,16 @@ impl Client {
         use crate::server::extend::{BLOCK_REACH, ENTITY_REACH};
         let reach = self.attribute(BLOCK_REACH) as f64;
         self.target = if spectator { None } else { self.raycast(eye, look, reach) };
+        // Vanilla's: whichever comes first along the look is all that is aimed at.
+        let block_dist = self.target.map_or(f64::INFINITY, |h| h.dist);
+        self.target_entity = if spectator {
+            None
+        } else {
+            self.pick_entity(eye, look, block_dist.min(self.attribute(ENTITY_REACH) as f64))
+        };
+        if self.target_entity.is_some() {
+            self.target = None;
+        }
         if input.captured && !spectator && input.pressed("core:pick") {
             if let Some(item) = self.target.and_then(|h| c.pick_item(h.state)) {
                 let hotbar = &self.inventory[..content().game.player_layout.hotbar as usize];
@@ -1011,12 +1033,6 @@ impl Client {
                 }
             }
         }
-        let block_dist = self.target.map_or(f64::INFINITY, |h| (h.block.as_dvec3() + DVec3::splat(0.5) - eye).length());
-        self.target_entity = if spectator {
-            None
-        } else {
-            self.pick_entity(eye, look, block_dist.min(self.attribute(ENTITY_REACH) as f64))
-        };
         look
     }
 
@@ -1639,8 +1655,8 @@ impl Client {
     fn pick_entity(&self, eye: DVec3, dir: DVec3, max: f64) -> Option<u64> {
         let mut best: Option<(f64, u64)> = None;
         for (&id, e) in &self.entities {
-            // Structures are aimed at by their blocks.
-            if !e.item.is_empty() || id == self.player_id || e.structure.is_some() {
+            // Structures are aimed at by their blocks; the dead lie there only to be seen.
+            if !e.item.is_empty() || id == self.player_id || e.structure.is_some() || e.dying.is_some() {
                 continue;
             }
             let (hw, h, _) = e.dims();
@@ -1657,7 +1673,7 @@ impl Client {
     /// Copies an engine field component into the entity (or the own player) that shows it.
     fn engine_field(&mut self, id: u64, comp: u32, bytes: &[u8]) {
         let c = content();
-        let [health, burning, worn, shape] = c.game.field_comps;
+        let [health, burning, worn, shape, held] = c.game.field_comps;
         let f: Vec<f32> = words(bytes).map(f32::from_le_bytes).collect();
         let shaped = || {
             let size = (f.len() == 4 && f[0] > 0.0).then(|| [f[0], f[1], f[2]]);
@@ -1695,6 +1711,8 @@ impl Client {
             e.burning = bytes.first().is_some_and(|&b| b != 0);
         } else if comp == worn {
             e.worn = words(bytes).map(u32::from_le_bytes).collect();
+        } else if comp == held {
+            e.held = words(bytes).next().map_or(0, u32::from_le_bytes);
         } else if comp == shape {
             (e.size, e.look) = shaped();
         }
@@ -1752,8 +1770,11 @@ impl Client {
     pub fn camera(&self) -> Camera {
         // From inside a liquid everything looks closer, vanilla's 60 degrees for 70.
         let inside = if self.eye_liquid().is_some() { 6.0 / 7.0 } else { 1.0 };
+        // From the bed, the head is on the pillow, behind the middle of the body.
+        let pillow =
+            self.player.lying.map_or(DVec3::ZERO, |yaw| DVec3::new(yaw.sin() as f64, 0.0, yaw.cos() as f64) * 0.75);
         Camera {
-            pos: self.smooth_pos() + DVec3::Y * self.player.eye,
+            pos: self.smooth_pos() + DVec3::Y * self.player.eye + pillow,
             yaw: self.player.yaw,
             pitch: self.player.pitch,
             fov: self.fov * self.player.fov_mul * inside,
@@ -1835,6 +1856,7 @@ impl Client {
             health: self.health,
             hurt: self.hurt_flash,
             worn,
+            held: self.held().item,
             walk: self.self_walk,
             walked: self.self_walk,
             swing: self.self_swing,
@@ -1867,6 +1889,7 @@ impl Client {
         self.render.destroy(gpu);
         self.entity_render.destroy(gpu);
         self.particles.destroy(gpu);
+        self.weather_render.destroy(gpu);
         self.sky.destroy(gpu);
         self.gpu_terrain.destroy(gpu);
     }
@@ -1878,56 +1901,13 @@ impl Client {
         if self.lightning > 0.0 { (day + 0.5).min(1.0) } else { day }
     }
 
-    /// Rain or snow falling around the player, and now and then a lightning's flash.
+    /// How much rain there is, and now and then a lightning's flash (`weather` draws it).
     fn weather_effects(&mut self, dt: f32) {
         let target = if self.weather.0 { 1.0 } else { 0.0 };
         self.rain += (target - self.rain).clamp(-dt / 5.0, dt / 5.0);
         self.lightning = (self.lightning - dt).max(0.0);
         if self.weather.1 && self.chance() < dt / 12.0 {
             self.lightning = 0.15;
-        }
-        if self.rain <= 0.0 {
-            return;
-        }
-        let c = content();
-        let (rain, snow) = (
-            c.game.particle_names.get(weft_abi::particle::RAIN).copied(),
-            c.game.particle_names.get(weft_abi::particle::SNOW).copied(),
-        );
-        let snowy = c.ids.snowy;
-        let center = self.player.pos;
-        for _ in 0..(self.rain * dt * 500.0).ceil() as u32 {
-            let r = self.rng.next();
-            let (x, z) =
-                (((r & 0xFFFF) as f64 / 65535.0 - 0.5) * 32.0, (((r >> 16) & 0xFFFF) as f64 / 65535.0 - 0.5) * 32.0);
-            // Not right in front of the eyes, where a drop would be as wide as a block.
-            if x * x + z * z < 9.0 {
-                continue;
-            }
-            let at = center + DVec3::new(x, 12.0 + ((r >> 32) & 7) as f64, z);
-            let cell = at.floor().as_ivec3();
-            // Only under open sky: caves and houses stay dry.
-            if crate::world::light::sky_of(self.world.light(cell)) < 15 {
-                continue;
-            }
-            let biome = self
-                .world
-                .cube(cell >> 4i32)
-                .map_or(0, |cube| cube.biome((cell.x & 15) as usize, (cell.z & 15) as usize));
-            let cold = snowy.is_some_and(|t| c.components.has(crate::components::BIOME, biome as u32, t));
-            let (kind, fall) = if cold { (snow, 2.0) } else { (rain, 20.0) };
-            if let Some(kind) = kind {
-                self.particles.spawn(
-                    &weft_abi::ParticleBurst {
-                        kind,
-                        pos: at.to_array(),
-                        count: 1,
-                        velocity: [0.0, -fall, 0.0],
-                        ..weft_abi::ParticleBurst::DEFAULT
-                    },
-                    &self.world,
-                );
-            }
         }
     }
 
@@ -2043,8 +2023,12 @@ impl Client {
         );
         self.render.draw_translucent(&mut late);
         let me = (self.view != 0 && !self.dead && self.mode != GameMode::Spectator).then(|| self.self_entity());
-        let hand = (self.view == 0 && !self.dead && self.mode != GameMode::Spectator && !self.hide_gui).then(|| {
-            entity_render::Hand {
+        let hand = (self.view == 0
+            && !self.dead
+            && self.player.lying.is_none()
+            && self.mode != GameMode::Spectator
+            && !self.hide_gui)
+            .then(|| entity_render::Hand {
                 stack: self.hand_stack,
                 swing: self.hand_swing,
                 lowered: 1.0 - self.hand_height,
@@ -2052,8 +2036,7 @@ impl Client {
                 using: self.using,
                 anim: self.self_anim.clone(),
                 age: self.start.elapsed().as_secs_f32(),
-            }
-        });
+            });
         let world = &self.world;
         let light = |p: IVec3| world.light(p);
         let mut hand_late = std::mem::take(&mut self.hand_late);
@@ -2080,6 +2063,8 @@ impl Client {
             &mut hand_late,
         );
         self.particles.draw(gpu, list, &mut late, frame, &cam, textures, scene_buf);
+        let ticks = self.smooth_time();
+        self.weather_render.draw(gpu, &mut late, frame, &cam, scene_buf, &self.world, self.rain, ticks, self.frame_dt);
         self.sky.draw_overlay(&mut hand_late, scene_buf);
         list.append(&mut late);
         list.append(&mut hand_late);
@@ -2130,6 +2115,11 @@ fn step_player(
     bodies: &[physics::Body],
 ) {
     let c = content();
+    if let Some(yaw) = p.lying {
+        (p.yaw, p.pitch, p.vel, p.pose) = (yaw, 0.0, DVec3::ZERO, Pose::Sleep);
+        p.eye = physics::posed(Pose::Sleep, 1.8, 1.62).1;
+        return;
+    }
     // The body the player rides moves it first, like on the server.
     let (hw, _, _) = p.dims();
     if !p.noclip {

@@ -62,12 +62,12 @@ fn skeleton_model() -> Model {
         vanilla_part("head", [0.0, 0.0, 0.0], &[([-4.0, -8.0, -4.0], [8.0, 8.0, 8.0], [0.0, 0.0])]),
         vanilla_part("body", [0.0, 0.0, 0.0], &[([-4.0, 0.0, -2.0], [8.0, 12.0, 4.0], [16.0, 16.0])]),
         vanilla_part("rightArm", [-5.0, 2.0, 0.0], &[([-1.0, -2.0, -1.0], [2.0, 12.0, 2.0], [40.0, 16.0])])
-            .rotation(forward, 0.0, 0.0),
-        vanilla_part("leftArm", [5.0, 2.0, 0.0], &[([-1.0, -2.0, -1.0], [2.0, 12.0, 2.0], [40.0, 16.0])])
             .mirrored()
             .rotation(forward, 0.0, 0.0),
-        vanilla_part("rightLeg", [-2.0, 12.0, 0.0], &[([-1.0, 0.0, -1.0], [2.0, 12.0, 2.0], [0.0, 16.0])]),
-        vanilla_part("leftLeg", [2.0, 12.0, 0.0], &[([-1.0, 0.0, -1.0], [2.0, 12.0, 2.0], [0.0, 16.0])]).mirrored(),
+        vanilla_part("leftArm", [5.0, 2.0, 0.0], &[([-1.0, -2.0, -1.0], [2.0, 12.0, 2.0], [40.0, 16.0])])
+            .rotation(forward, 0.0, 0.0),
+        vanilla_part("rightLeg", [-2.0, 12.0, 0.0], &[([-1.0, 0.0, -1.0], [2.0, 12.0, 2.0], [0.0, 16.0])]).mirrored(),
+        vanilla_part("leftLeg", [2.0, 12.0, 0.0], &[([-1.0, 0.0, -1.0], [2.0, 12.0, 2.0], [0.0, 16.0])]),
     ])
     .uv(64, 32)
 }
@@ -223,6 +223,7 @@ pub fn register(r: &mut Registry) {
         .attach(&FUSE)
         .goals(skeleton());
     r.entity(&ARROW)
+        .no_egg()
         .size(0.5, 0.5)
         .unpushable()
         .health(1.0)
@@ -344,7 +345,11 @@ fn blast(w: &World, id: u64, at: [f64; 3], radius: f64) {
         let damage = (impact * impact + impact) / 2.0 * 7.0 * radius * 2.0 + 1.0;
         w.damage(other, damage as f32, id, damage::EXPLOSION);
     }
-    w.fill_sphere(at, radius, 0, true);
+    // Vanilla's: one going off in a liquid breaks nothing, and liquids don't break at all.
+    let p = [at[0].floor() as i32, at[1].floor() as i32, at[2].floor() as i32];
+    if w.flags(p) & abi::block_flags::LIQUID == 0 {
+        w.fill_sphere_keeping(at, radius, 0, abi::area_flags::KEEP_UNBREAKABLE | abi::area_flags::KEEP_LIQUIDS);
+    }
     w.spawn_particles(&Particle::named("core:poof"), at).count(40).spread(radius as f32 * 0.5).speed(2.0);
     w.remove(id);
 }

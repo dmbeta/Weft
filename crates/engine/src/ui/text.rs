@@ -80,6 +80,8 @@ pub enum Name {
     Recipe(String),
     Config(String),
     Key(String),
+    /// An entity kind, by name.
+    Entity(String),
 }
 
 /// `prefix.ns.path` for `ns:path`: how a thing's name becomes its translation key.
@@ -106,6 +108,7 @@ impl Name {
             "recipe" => Name::Recipe(id.to_string()),
             "config" => Name::Config(id.to_string()),
             "key" => Name::Key(id.to_string()),
+            "entity" => Name::Entity(id.to_string()),
             _ => return None,
         })
     }
@@ -127,6 +130,7 @@ impl Name {
             Name::Recipe(n) => format!("recipe:{n}"),
             Name::Config(n) => format!("config:{n}"),
             Name::Key(n) => format!("key:{n}"),
+            Name::Entity(n) => format!("entity:{n}"),
         }
     }
 
@@ -152,6 +156,7 @@ impl Name {
             Name::Recipe(n) => (vec![lang_key("recipe", n)], n.clone()),
             Name::Config(n) => (vec![lang_key("config", n)], n.clone()),
             Name::Key(n) => (vec![lang_key("key", n)], n.clone()),
+            Name::Entity(n) => (vec![lang_key("entity", n)], n.clone()),
         }
     }
 
@@ -178,8 +183,8 @@ pub enum Piece {
     Icon(u32),
     /// A block state, drawn like a block item.
     Block(u32),
-    /// A GUI texture (`image_id`), its size in font pixels.
-    Image(u16, f32, f32),
+    /// A GUI texture (`image_id`), its size in font pixels and the part of it that shows.
+    Image(u16, f32, f32, [f32; 4]),
     LinkStart(String),
     LinkEnd,
 }
@@ -195,6 +200,8 @@ pub enum Test {
     /// Actions (names with a namespace) or raw keys, all held.
     Keys(Vec<String>),
     If(String),
+    /// Decided when the text was made (`{if:value>0}`).
+    Fixed(bool),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -288,16 +295,108 @@ pub fn image_name(id: u16) -> Option<String> {
     IMAGES.lock().unwrap().get(id as usize).cloned()
 }
 
+/// What `{value..}` reads: a stack, and the component `{value}` alone means (a `tagged.` line's).
+#[derive(Clone, Copy)]
+pub struct Subject {
+    pub stack: weft_abi::ItemStack,
+    pub own: Option<u32>,
+}
+
 /// What formatting reads: the language and the keys bound (for `{key:..}` and `{on_key:..}`).
 /// Names of content come from the loaded content.
 pub struct Ctx<'a> {
     pub lang: &'a Lang,
     pub input: Option<&'a Input>,
+    pub subject: Option<Subject>,
 }
 
 impl<'a> Ctx<'a> {
     pub fn new(lang: &'a Lang, input: Option<&'a Input>) -> Ctx<'a> {
-        Ctx { lang, input }
+        Ctx { lang, input, subject: None }
+    }
+}
+
+/// A number in the subject: `value`, `value.field`, `ns:component`, `ns:component.field`. The
+/// stack's own value goes before its item's.
+fn subject_value(name: &str, cx: &Ctx) -> Option<f32> {
+    let subject = cx.subject?;
+    let c = crate::content::try_content()?;
+    let (comp, field) = match name.strip_prefix("value") {
+        Some("") => (subject.own?, None),
+        Some(f) => (subject.own?, Some(f.strip_prefix('.')?)),
+        None => match name.rsplit_once('.') {
+            Some((comp, field)) if c.components.id(comp).is_some() => (c.components.id(comp)?, Some(field)),
+            _ => (c.components.id(name)?, None),
+        },
+    };
+    let schema = c.components.schemas.get(comp as usize)?;
+    let bytes = crate::stack::value(subject.stack.data, comp)
+        .or_else(|| c.components.bytes(crate::components::ITEM, subject.stack.item, comp))?;
+    crate::components::number_in(schema, bytes, field)
+}
+
+/// A number given in a tag: as it is, or `value..` as above; `/n` and `*n` scale it.
+fn amount(spec: &str, cx: &Ctx) -> Option<f32> {
+    let (base, scale) = match spec.split_once(['/', '*']) {
+        Some((b, n)) => {
+            let n = n.parse::<f32>().ok()?;
+            (b, if spec.contains('/') { 1.0 / n } else { n })
+        }
+        None => (spec, 1.0),
+    };
+    Some(base.parse::<f32>().ok().or_else(|| subject_value(base, cx))? * scale)
+}
+
+/// Whole numbers without a point, the rest with what they need of two places.
+fn show_number(v: f32) -> String {
+    let s = format!("{v:.2}");
+    s.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+/// `{if:value.toughness>0}`: a number against a number.
+fn comparison(spec: &str, cx: &Ctx) -> Option<bool> {
+    let (a, op, b) =
+        ["<=", ">=", "!=", "==", "<", ">"].iter().find_map(|op| spec.split_once(op).map(|(a, b)| (a, *op, b)))?;
+    let (a, b) = (amount(a.trim(), cx).unwrap_or(0.0), amount(b.trim(), cx)?);
+    Some(match op {
+        "<=" => a <= b,
+        ">=" => a >= b,
+        "!=" => a != b,
+        "==" => a == b,
+        "<" => a < b,
+        _ => a > b,
+    })
+}
+
+/// `{icons:picture amount dir:left size:9x9}`: whole pictures, and what is left over of one.
+fn push_icons(spec: &str, cx: &Ctx, out: &mut Vec<Span>, st: &State) {
+    let mut parts = spec.split_whitespace();
+    let name = gui_texture(parts.next().unwrap_or(""));
+    let Some(n) = parts.next().and_then(|a| amount(a, cx)).filter(|n| *n > 0.0) else { return };
+    let (mut dir, mut size) = (weft_abi::ui_dir::RIGHT, None);
+    for option in parts {
+        match option.split_once(':') {
+            Some(("dir", "left")) => dir = weft_abi::ui_dir::LEFT,
+            Some(("dir", "up")) => dir = weft_abi::ui_dir::UP,
+            Some(("dir", "down")) => dir = weft_abi::ui_dir::DOWN,
+            Some(("size", v)) => {
+                size = v.split_once('x').and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)))
+            }
+            _ => {}
+        }
+    }
+    let Some((w, h)) = size.or_else(|| texture_size(&name).map(|(w, h)| (w as f32, h as f32))) else { return };
+    // At most a line's worth, whatever a value says.
+    let whole = (n.floor() as u32).min(64);
+    let mut pictures: Vec<(String, [f32; 4])> =
+        (0..whole).filter_map(|_| super::meter::part(&name, 1.0, dir)).collect();
+    pictures.extend(super::meter::part(&name, n.fract(), dir).filter(|_| n.fract() > 0.0));
+    // Leftward the part comes first, cut toward the whole ones.
+    if dir == weft_abi::ui_dir::LEFT {
+        pictures.reverse();
+    }
+    for (picture, crop) in pictures {
+        out.push(st.span(Piece::Image(image_id(&picture), w * FONT_PER_GUI, h * FONT_PER_GUI, crop), None));
     }
 }
 
@@ -468,7 +567,21 @@ fn format_depth(
                 .and_then(|s| s.split_once('x'))
                 .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)));
             if let Some((w, h)) = size.or_else(|| texture_size(name).map(|(w, h)| (w as f32, h as f32))) {
-                out.push(st.span(Piece::Image(image_id(name), w * FONT_PER_GUI, h * FONT_PER_GUI), None));
+                out.push(st.span(
+                    Piece::Image(image_id(name), w * FONT_PER_GUI, h * FONT_PER_GUI, [0.0, 0.0, 1.0, 1.0]),
+                    None,
+                ));
+            }
+        } else if let Some(spec) = tag.strip_prefix("icons:") {
+            push_icons(spec, cx, out, st);
+        } else if tag == "value"
+            || tag.starts_with("value.")
+            || tag.starts_with("value/")
+            || tag.starts_with("value*")
+            || tag.starts_with("value:")
+        {
+            if let Some(v) = amount(tag.strip_prefix("value:").unwrap_or(tag), cx) {
+                push_text(out, &show_number(v), st);
             }
         } else if let Some(a) = tag.strip_prefix("align:") {
             st.align = match a.trim() {
@@ -493,7 +606,10 @@ fn format_depth(
         } else if let Some(spec) = tag.strip_prefix("on_key:") {
             st.when.push(cond(spec, true));
         } else if let Some(spec) = tag.strip_prefix("if:") {
-            st.when.push(cond(spec, false));
+            st.when.push(match comparison(spec, cx) {
+                Some(holds) => Cond { not: false, test: Test::Fixed(holds) },
+                None => cond(spec, false),
+            });
         } else if tag == "/on_key" || tag == "/if" {
             st.when.pop();
         } else if let Some(name) = tag.strip_prefix("fx:") {
@@ -531,11 +647,24 @@ fn format_depth(
 }
 
 /// A name, formatted from its translation (colors and effects kept) or its raw text.
+fn egg_of(n: &Name) -> Option<String> {
+    let Name::Item(i) = n else { return None };
+    let c = crate::content::try_content()?;
+    c.components.text(crate::components::ITEM, *i, c.ids.spawn_egg?).map(str::to_string)
+}
+
 fn push_name(n: &Name, cx: &Ctx, out: &mut Vec<Span>, st: &mut State, depth: u32) {
     match n.key(cx.lang) {
         Some(k) if depth < 4 => {
             let color = st.color;
             format_depth(cx.lang.get(&k), &[], cx, out, st, color, depth + 1);
+            st.color = color;
+        }
+        // An egg nobody named is called after what hatches from it.
+        None if depth < 4 && egg_of(n).is_some() => {
+            let color = st.color;
+            let args = [Arg::Name(Name::Entity(egg_of(n).unwrap_or_default()))];
+            format_depth(cx.lang.get("item.spawn_egg"), &args, cx, out, st, color, depth + 1);
             st.color = color;
         }
         _ => push_text(out, &n.keys().1, st),
@@ -547,7 +676,8 @@ fn push_name(n: &Name, cx: &Ctx, out: &mut Vec<Span>, st: &mut State, depth: u32
 pub fn refresh(spans: &mut [Span], test: &dyn Fn(&Test) -> bool) -> bool {
     let mut changed = false;
     for s in spans.iter_mut().filter(|s| !s.when.is_empty()) {
-        let hidden = !s.when.iter().all(|c| test(&c.test) != c.not);
+        let hidden =
+            !s.when.iter().all(|c| if let Test::Fixed(holds) = c.test { holds } else { test(&c.test) != c.not });
         changed |= hidden != s.hidden;
         s.hidden = hidden;
     }
@@ -560,7 +690,7 @@ pub enum Placed {
     Glyph { x: f32, y: f32, ch: char, color: Option<u32>, fx: u16 },
     Icon { x: f32, y: f32, item: u32 },
     Block { x: f32, y: f32, state: u32 },
-    Image { x: f32, y: f32, w: f32, h: f32, image: u16 },
+    Image { x: f32, y: f32, w: f32, h: f32, image: u16, crop: [f32; 4] },
 }
 
 impl Placed {
@@ -727,11 +857,11 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
                 });
                 x += ICON + 1.0;
             }
-            &Piece::Image(image, w, h) => {
+            &Piece::Image(image, w, h, crop) => {
                 if x + w > limit && x > 0.0 {
                     newline(&mut out, &mut x, &mut y, &mut max_x, &mut line_start, &mut line_h, &mut lines, line_align);
                 }
-                out.items.push(Placed::Image { x, y, w, h, image });
+                out.items.push(Placed::Image { x, y, w, h, image, crop });
                 line_h = line_h.max(h + 1.0);
                 x += w + 1.0;
             }

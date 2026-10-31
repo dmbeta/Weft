@@ -213,6 +213,9 @@ pub type CreativeTab = Handle<kind::CreativeTab>;
 pub type Question = Handle<kind::Question>;
 pub type Chain = Handle<kind::Chain>;
 pub type Attribute = Handle<kind::Attribute>;
+
+/// The creative tab every entity's spawn egg goes to.
+pub static SPAWN_EGGS: CreativeTab = CreativeTab::named("core:spawn_eggs");
 pub type RecipeKind = Handle<kind::RecipeKind>;
 pub type LootTable = Handle<kind::LootTable>;
 pub type TextCondition = Handle<kind::TextCondition>;
@@ -527,7 +530,7 @@ struct StateDef {
     layer: Layer,
     model: Model,
     textures: [String; 6],
-    boxes: Vec<([f32; 3], [f32; 3], [String; 6])>,
+    boxes: Vec<([f32; 3], [f32; 3], [String; 6], [[f32; 4]; 6])>,
     collision: Vec<[f32; 6]>,
     selection: Vec<[f32; 6]>,
     components: Vec<Pending>,
@@ -729,7 +732,22 @@ macro_rules! state_setters {
                 s.flags &= !bf::OPAQUE;
                 s.opacity = 0;
                 s.layer = Layer::Cutout;
-                s.boxes.push((min, max, Default::default()));
+                s.boxes.push((min, max, Default::default(), [[-1.0; 4]; 6]));
+            });
+            self
+        }
+        /// `model_box` with its own textures and texel rectangles (u0, v0, u1, v1, 0..16) per face
+        /// in -X, +X, -Y, +Y, -Z, +Z order, as a model file's element has.
+        pub fn model_box_faces(mut self, min: [f32; 3], max: [f32; 3], faces: [(&str, [f32; 4]); 6]) -> Self {
+            self.each(|s, ns| {
+                if s.model != Model::Boxes {
+                    s.boxes.clear();
+                }
+                s.model = Model::Boxes;
+                s.flags &= !bf::OPAQUE;
+                s.opacity = 0;
+                s.layer = Layer::Cutout;
+                s.boxes.push((min, max, std::array::from_fn(|i| block_tex(ns, faces[i].0)), faces.map(|f| f.1)));
             });
             self
         }
@@ -1159,11 +1177,11 @@ impl Drop for BlockBuilder<'_> {
             .map(|s| {
                 s.boxes
                     .iter()
-                    .map(|(min, max, t)| abi::ModelBox {
+                    .map(|(min, max, t, uv)| abi::ModelBox {
                         min: *min,
                         max: *max,
                         textures: std::array::from_fn(|i| Str::new(&t[i])),
-                        ..abi::ModelBox::DEFAULT
+                        uv: *uv,
                     })
                     .collect()
             })
@@ -1272,10 +1290,15 @@ impl ItemBuilder<'_> {
         self.set(&c::DURABILITY, d).set(&c::MAX_STACK, 1)
     }
     /// A tool of `class` (tag `tools/<class>`): it mines blocks `mineable/<class>`, at its
-    /// `mining_speed`, those needing up to its `tool_level`.
+    /// `mining_speed`, those needing up to its `tool_level`. Held like one (`handheld`).
     pub fn tool(self, class: &str) -> Self {
         let tag = format!("tools/{class}");
-        self.tag(&tag)
+        self.tag(&tag).handheld()
+    }
+    /// Held like a tool in third person, by its end and pointing ahead (tag `handheld`, vanilla's
+    /// `item/handheld` model), instead of flat in the hand. Tools have it already.
+    pub fn handheld(self) -> Self {
+        self.tag("handheld")
     }
     /// The highest `needs_tool` level it harvests (`abi::tool_tier`: wood 0 ... diamond 300).
     pub fn tool_level(self, level: u32) -> Self {
@@ -1322,6 +1345,22 @@ impl ItemBuilder<'_> {
         self.tag(&format!("worn/{}", slot.name()))
             .set(&c::WORN, abi::Worn { roles: 0, inflate })
             .set_text(&c::WORN_TEXTURE, &tex)
+    }
+
+    /// Used on a block, puts `entity` on that side of it. One is used up, outside creative. Entities
+    /// have an egg of their own without this; it is for something else that hatches one.
+    pub fn spawns(mut self, entity: &'static crate::Entity) -> Self {
+        self.components.push(Pending::text(abi::comp::SPAWN_EGG, entity.name()));
+        self.on_use(move |u| {
+            let Some((p, face)) = u.target() else { return false };
+            let (w, side) =
+                (u.world(), [[-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]][face as usize % 6]);
+            w.spawn(entity, [(p[0] + side[0]) as f64 + 0.5, (p[1] + side[1]) as f64, (p[2] + side[2]) as f64 + 0.5]);
+            if !w.creative(u.player()) {
+                u.set_stack(crate::StackData::shrink(u.stack(), 1));
+            }
+            true
+        })
     }
 
     pub fn on_use(mut self, f: impl Fn(&mut ItemUse) -> bool + Send + Sync + 'static) -> Self {

@@ -2,6 +2,7 @@
 //! engine knows about stone, water or zombies.
 
 mod advancements;
+mod beds;
 mod blocks;
 mod items;
 mod machines;
@@ -40,6 +41,7 @@ fn init(r: &mut Registry) {
     mobs::register(r);
     worldgen::register(r);
     advancements::register(r);
+    beds::register(r);
     // Its terrain is described in `worldgen`.
     r.dimension(&OVERWORLD).player_spawn().sky_above(16).day_length(24000).weather();
     // Second dimension on purpose: nothing in the engine may assume there is only one world.

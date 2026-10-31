@@ -487,7 +487,14 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                     Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32>
                 };
                 b.ui.open(
-                    Kind::Icons { class, count: n.count, bind, value: -1.0, rtl: n.data == 1, shake: n.data == 2 },
+                    Kind::Icons {
+                        class,
+                        count: n.count,
+                        bind,
+                        value: -1.0,
+                        dir: if n.data == 1 { weft_abi::ui_dir::LEFT } else { n.dir },
+                        shake: n.data == 2,
+                    },
                     style,
                 )
             }

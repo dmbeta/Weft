@@ -138,13 +138,30 @@ fn build(
                 Some("light") => ("light", words.next().unwrap_or("")),
                 // Two pictures one above the other, for a model drawn from one texture.
                 Some("stack") => ("stack", words.next().unwrap_or("")),
+                // Colored by the game there, gray for nothing: see `dye`.
+                Some("dyed") => ("dyed", words.next().unwrap_or("")),
+                // Turned by a model there, one picture for every way it faces.
+                Some("turned") => ("turned", words.next().unwrap_or("")),
+                // One picture cut up and put together in another's layout.
+                Some("pieces") => ("pieces", words.next().unwrap_or("")),
                 Some(s) => ("copy", s),
                 None => continue,
             };
             let next = words.next();
             let lower = (mode == "stack").then_some(next).flatten();
+            let overlay = (mode == "dyed").then_some(next).flatten();
+            let color = words.clone().next().and_then(|w| u32::from_str_radix(w, 16).ok()).filter(|_| mode == "dyed");
+            let turned = (mode == "turned").then_some(next).flatten().and_then(|w| w.parse::<u32>().ok());
+            let numbers: Vec<u32> = if mode == "pieces" {
+                next.into_iter().chain(words.clone()).filter_map(|w| w.parse().ok()).collect()
+            } else {
+                Vec::new()
+            };
             let crop: Vec<u32> = match next {
                 Some("crop") => words.filter_map(|w| w.parse().ok()).collect(),
+                _ if turned.is_some() && words.clone().next() == Some("crop") => {
+                    words.skip(1).filter_map(|w| w.parse().ok()).collect()
+                }
                 _ => Vec::new(),
             };
             // Names change between versions: the first one this version has.
@@ -163,15 +180,24 @@ fn build(
                 let mut px = a.rgba;
                 px.extend_from_slice(&b.rgba);
                 crate::assets::encode_png(&dst, a.width, a.height + b.height, &px).map_err(|e| e.to_string())?;
+            } else if let (Some(overlay), Some(color)) = (overlay, color) {
+                let img = crate::assets::decode_png(&png).ok_or(format!("{src}: not a png"))?;
+                let above = read(&format!("{T}{overlay}.png")).and_then(|b| crate::assets::decode_png(&b));
+                let Some(above) = above.filter(|a| (a.width, a.height) == (img.width, img.height)) else { continue };
+                let mut px = img.rgba;
+                dye(&mut px, &above.rgba, color);
+                crate::assets::encode_png(&dst, img.width, img.height, &px).map_err(|e| e.to_string())?;
+            } else if mode == "pieces" {
+                let img = crate::assets::decode_png(&png).ok_or(format!("{src}: not a png"))?;
+                let Some((w, h, px)) = put_together(&img, &numbers) else { continue };
+                crate::assets::encode_png(&dst, w, h, &px).map_err(|e| e.to_string())?;
+            } else if let Some(degrees) = turned {
+                let img = crate::assets::decode_png(&png).ok_or(format!("{src}: not a png"))?;
+                let (w, h, px) = cropped(&img, &crop);
+                crate::assets::encode_png(&dst, w, h, &turn(&px, w, degrees / 90)).map_err(|e| e.to_string())?;
             } else if mode == "glow" || mode == "light" || crop.len() == 4 {
                 let img = crate::assets::decode_png(&png).ok_or(format!("{src}: not a png"))?;
-                let (x0, y0, w, h) =
-                    if crop.len() == 4 { (crop[0], crop[1], crop[2], crop[3]) } else { (0, 0, img.width, img.height) };
-                let mut px = Vec::with_capacity((w * h * 4) as usize);
-                for y in y0..(y0 + h).min(img.height) {
-                    let row = ((y * img.width + x0) * 4) as usize;
-                    px.extend_from_slice(&img.rgba[row..row + (w.min(img.width - x0) * 4) as usize]);
-                }
+                let (w, h, mut px) = cropped(&img, &crop);
                 if mode == "glow" {
                     // White where the texel is bright and warm (fire, embers).
                     for p in px.chunks_exact_mut(4) {
@@ -231,6 +257,75 @@ fn light_to_alpha(px: &mut [u8]) {
     }
 }
 
+/// A picture the game colors as it draws, as an ordinary one: gray times the color (`rrggbb`), with
+/// what stays undyed over it.
+fn dye(px: &mut [u8], overlay: &[u8], color: u32) {
+    let tint = [(color >> 16) & 255, (color >> 8) & 255, color & 255];
+    for (p, o) in px.chunks_exact_mut(4).zip(overlay.chunks_exact(4)) {
+        let a = o[3] as u32;
+        for i in 0..3 {
+            let dyed = p[i] as u32 * tint[i] / 255;
+            p[i] = ((o[i] as u32 * a + dyed * (255 - a)) / 255) as u8;
+        }
+        p[3] = p[3].max(o[3]);
+    }
+}
+
+/// The part `crop` (x, y, w, h) of a picture, or all of it: its width, height and pixels.
+fn cropped(img: &crate::assets::Image, crop: &[u32]) -> (u32, u32, Vec<u8>) {
+    let (x0, y0, w, h) =
+        if crop.len() == 4 { (crop[0], crop[1], crop[2], crop[3]) } else { (0, 0, img.width, img.height) };
+    let mut px = Vec::with_capacity((w * h * 4) as usize);
+    for y in y0..(y0 + h).min(img.height) {
+        let row = ((y * img.width + x0) * 4) as usize;
+        px.extend_from_slice(&img.rgba[row..row + (w.min(img.width - x0) * 4) as usize]);
+    }
+    (w, h, px)
+}
+
+/// `w h`, then per piece `x y w h quarters flip to_x to_y`: a part of a picture, flipped left to
+/// right, turned clockwise, put at a place of an empty picture of that size.
+fn put_together(img: &crate::assets::Image, numbers: &[u32]) -> Option<(u32, u32, Vec<u8>)> {
+    let (&[w, h], pieces) = numbers.split_first_chunk::<2>()?;
+    let mut out = vec![0u8; (w * h * 4) as usize];
+    for p in pieces.chunks_exact(8) {
+        let (x0, y0, pw, ph) = (p[0], p[1], p[2], p[3]);
+        for y in 0..ph {
+            for x in 0..pw {
+                let at = ((y0 + y) * img.width + x0 + x) as usize * 4;
+                let px = img.rgba.get(at..at + 4)?;
+                let (mut dx, mut dy) = (if p[5] != 0 { pw - 1 - x } else { x }, y);
+                let (mut cw, mut ch) = (pw, ph);
+                for _ in 0..p[4] % 4 {
+                    (dx, dy) = (ch - 1 - dy, dx);
+                    (cw, ch) = (ch, cw);
+                }
+                let (tx, ty) = (p[6] + dx, p[7] + dy);
+                if tx < w && ty < h {
+                    let to = (ty * w + tx) as usize * 4;
+                    out[to..to + 4].copy_from_slice(px);
+                }
+            }
+        }
+    }
+    Some((w, h, out))
+}
+
+/// A square picture turned clockwise `quarters` times.
+fn turn(px: &[u8], size: u32, quarters: u32) -> Vec<u8> {
+    let mut out = px.to_vec();
+    for _ in 0..quarters % 4 {
+        let from = out.clone();
+        for y in 0..size {
+            for x in 0..size {
+                let (a, b) = (((y * size + x) * 4) as usize, (((size - 1 - x) * size + y) * 4) as usize);
+                out[a..a + 4].copy_from_slice(&from[b..b + 4]);
+            }
+        }
+    }
+    out
+}
+
 fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     for e in std::fs::read_dir(from).into_iter().flatten().flatten() {
         let dst = to.join(e.file_name());
@@ -250,7 +345,7 @@ fn fnv(s: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::light_to_alpha;
+    use super::{dye, light_to_alpha, put_together, turn};
 
     /// Builds the real pack from the Minecraft on this computer into `run`, as a normal start does:
     /// automated runs don't, and this needs no window. `cargo test --release -p weft_engine real_pack -- --ignored`
@@ -267,6 +362,7 @@ mod tests {
         let sun = crate::assets::decode_png(&std::fs::read(sky.join("sky/sun.png")).unwrap()).unwrap();
         assert_eq!(sun.rgba[3], 0, "the corner of the sun is transparent");
         assert!(sky.join("gui/attack_bar_fill.png").is_file());
+        assert!(sky.join("entity/armor/leather_1.png").is_file(), "worn armor comes from the pack too");
     }
 
     #[test]
@@ -277,5 +373,37 @@ mod tests {
         assert_eq!(px[4..8], [255, 230, 100, 255], "the brightest stay as they are");
         assert_eq!(px[8..12], [255, 255, 127, 40], "a dim halo is its color, barely covering");
         assert_eq!(px[12..16], [255, 255, 127, 20], "alpha it already had counts");
+    }
+
+    #[test]
+    fn pieces_turn_and_flip_into_place() {
+        // 2 x 1: red, green.
+        let img = crate::assets::Image { width: 2, height: 1, rgba: vec![9, 0, 0, 255, 0, 9, 0, 255] };
+        let (w, h, px) = put_together(&img, &[2, 2, 0, 0, 2, 1, 1, 0, 0, 0]).unwrap();
+        assert_eq!((w, h), (2, 2));
+        assert_eq!(px[..4], [9, 0, 0, 255], "turned clockwise, the left end is on top");
+        assert_eq!(px[8..12], [0, 9, 0, 255], "and the right one under it");
+        let (_, _, px) = put_together(&img, &[2, 1, 0, 0, 2, 1, 0, 1, 0, 0]).unwrap();
+        assert_eq!(px[..4], [0, 9, 0, 255], "flipped");
+    }
+
+    #[test]
+    fn turned_clockwise() {
+        let (a, b, c, d) = ([1, 0, 0, 255], [2, 0, 0, 255], [3, 0, 0, 255], [4, 0, 0, 255]);
+        let px = [a, b, c, d].concat();
+        assert_eq!(turn(&px, 2, 1), [c, a, d, b].concat());
+        assert_eq!(turn(&px, 2, 2), [d, c, b, a].concat());
+        assert_eq!(turn(&px, 2, 4), px);
+    }
+
+    #[test]
+    fn dyed_gray_takes_the_color_under_its_overlay() {
+        let mut px = [255, 255, 255, 255, 128, 128, 128, 255, 200, 200, 200, 255, 0, 0, 0, 0];
+        let overlay = [0, 0, 0, 0, 0, 0, 0, 0, 10, 20, 30, 255, 40, 50, 60, 255];
+        dye(&mut px, &overlay, 0xa06540);
+        assert_eq!(px[..4], [160, 101, 64, 255], "white becomes the color");
+        assert_eq!(px[4..8], [80, 50, 32, 255], "gray a darker one");
+        assert_eq!(px[8..12], [10, 20, 30, 255], "the overlay is not dyed");
+        assert_eq!(px[12..16], [40, 50, 60, 255], "and shows where nothing is under it");
     }
 }
