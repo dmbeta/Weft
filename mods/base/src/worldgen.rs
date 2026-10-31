@@ -85,6 +85,7 @@ pub fn register(r: &mut Registry) {
         .set(&GRASS_COVER, 0.08)
         .set_text(&TREE_KINDS, "base:spruce_log");
     r.biome(&SNOWY)
+        .snows()
         .temperature(..-0.45)
         .surface("snowy_grass", "dirt", 3)
         .frozen("ice")
@@ -266,7 +267,6 @@ fn decorate(g: &mut Gen) {
                 continue;
             }
             let (wx, wz) = (ox + x as i32, oz + z as i32);
-            let below = if y == 0 { g.surface_block(wx, wz) } else { g.get(x, y - 1, z) };
             let h = hash(seed ^ 0xF10, wx as i64, 0, wz as i64);
             let roll = unit(h);
             // Plants go where they could be planted (soil tags); the biome decides how many.
@@ -274,8 +274,13 @@ fn decorate(g: &mut Gen) {
             if FROZEN.on_biome(b) {
                 continue;
             }
+            let grass_chance = GRASS_COVER.on_biome(b).unwrap_or(0.05) as f64;
+            // What is under the lowest layer takes a look at the terrain: only if anything would grow.
+            if y == 0 && roll >= grass_chance.max(0.08) {
+                continue;
+            }
+            let below = if y == 0 { g.surface_block(wx, wz) } else { g.get(x, y - 1, z) };
             if PLANT_SOIL.on_block(below) {
-                let grass_chance = GRASS_COVER.on_biome(b).unwrap_or(0.05) as f64;
                 if roll < 0.012 {
                     let flower = FLOWERS.on_biome(b).map_or_else(
                         || [DANDELION.id(), ROSE.id()][(h >> 32) as usize % 2],

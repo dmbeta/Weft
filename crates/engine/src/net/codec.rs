@@ -10,7 +10,7 @@ use glam::{DVec3, IVec3};
 use weft_abi::{ItemStack, ParticleBurst};
 
 use super::{ToClient, ToServer};
-use crate::world::{Cube, GameMode};
+use crate::world::{Cube, GameMode, Pose};
 
 #[derive(Default)]
 pub struct W(pub Vec<u8>);
@@ -166,6 +166,15 @@ impl Wire for DVec3 {
     }
 }
 
+impl Wire for Pose {
+    fn put(&self, w: &mut W) {
+        (*self as u8).put(w);
+    }
+    fn get(r: &mut R) -> Option<Self> {
+        Some(Pose::from_u8(u8::get(r)?))
+    }
+}
+
 impl Wire for GameMode {
     fn put(&self, w: &mut W) {
         (*self as u8).put(w);
@@ -245,11 +254,11 @@ impl Wire for Msg {
 
 impl Wire for ParticleBurst {
     fn put(&self, w: &mut W) {
-        (self.kind, self.pos, self.spread, self.velocity, self.speed, (self.count, self.block)).put(w);
+        (self.kind, self.pos, self.spread, self.velocity, self.speed, (self.count, self.block, self.outward)).put(w);
     }
     fn get(r: &mut R) -> Option<Self> {
-        let (kind, pos, spread, velocity, speed, (count, block)) = Wire::get(r)?;
-        Some(ParticleBurst { kind, pos, spread, velocity, speed, count, block })
+        let (kind, pos, spread, velocity, speed, (count, block, outward)) = Wire::get(r)?;
+        Some(ParticleBurst { kind, pos, spread, velocity, speed, count, block, outward })
     }
 }
 
@@ -293,7 +302,9 @@ mod tests {
                 yaw: 1.0,
                 pitch: -0.5,
                 on_ground: true,
-                crouched: false,
+                pose: crate::world::Pose::Swim,
+                sprint: true,
+                flying: false,
                 frame: Some((7, DVec3::ONE)),
             },
             ToServer::UseItem { target: Some((IVec3::new(1, 2, 3), 4)) },

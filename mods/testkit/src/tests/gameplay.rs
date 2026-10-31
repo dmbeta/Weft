@@ -284,6 +284,57 @@ pub async fn bucket(t: T) -> R {
     Ok(())
 }
 
+/// An ingot in the inventory and a placed torch each make an advancement, the client gets them
+/// (a toast, the list on L), and `/advancements reset` takes them back.
+pub async fn advancements(t: T) -> R {
+    fn made(t: &T) -> u64 {
+        t.c().view().component(&base_api::ADVANCEMENTS).map_or(0, |a| a.done)
+    }
+    t.flat().await?;
+    t.check_eq(made(&t), 0, "a new player's advancements");
+    t.op("put me 0 iron_ingot 1").await?;
+    t.until("advancement for the ingot", Duration::from_secs(5), |t| made(t).count_ones() == 1).await?;
+    t.secs(0.15).await?;
+    t.shot("toast_sliding").await?;
+    t.secs(0.6).await?;
+    t.shot("toast").await?;
+    t.op("put me 1 torch 1").await?;
+    t.c().select(1);
+    t.look_at(add(t.feet(), [1, -1, 0]));
+    t.frames(2).await?;
+    t.press("core:use");
+    t.until("advancement for the torch", Duration::from_secs(5), |t| made(t).count_ones() == 2).await?;
+    t.press("base:advancements");
+    t.screen("base:advancements").await?;
+    t.frames(3).await?;
+    t.laid_out(&["text:Advancements", "text:Getting Started", "text:Exploration", "text:2 of 19 made"]);
+    t.shot("list").await?;
+    // The first tile of a group, right of its 90 pixel wide name, tells its details on hover.
+    if let Some([x, y, w, h]) = t.c().ui_rect("text:Making Progress") {
+        let st = t.state();
+        t.c().cursor(x + w + 13.0 * st.gui_scale / st.window[0] as f32, y + h / 2.0);
+        t.frames(5).await?;
+        t.shot("tooltip").await?;
+    }
+    t.c().close_screen();
+    t.no_screen().await?;
+    // The pause menu's button, as wide as the engine's own, opens the list too.
+    t.c().open_screen(&screens::PAUSE);
+    t.screen("core:pause").await?;
+    t.frames(3).await?;
+    t.shot("pause").await?;
+    t.check(t.click_ui("text:Advancements", 0), "the pause menu's advancements button");
+    t.screen("base:advancements").await?;
+    // It opened on top of the pause menu, which is back once it closes.
+    t.c().close_screen();
+    t.screen("core:pause").await?;
+    t.c().close_screen();
+    t.no_screen().await?;
+    t.cmd("/advancements reset").await?;
+    t.until("advancements reset", Duration::from_secs(5), |t| made(t) == 0).await?;
+    Ok(())
+}
+
 /// 12 blocks down costs 9 health like vanilla.
 pub async fn fall_damage(t: T) -> R {
     t.flat().await?;
@@ -292,8 +343,13 @@ pub async fn fall_damage(t: T) -> R {
     t.c().teleport([s.pos[0], s.pos[1] + 12.0, s.pos[2]]);
     t.until("falling", Duration::from_secs(5), |t| !t.flag(client::client_flags::ON_GROUND)).await?;
     t.until("landed", Duration::from_secs(10), |t| t.flag(client::client_flags::ON_GROUND)).await?;
-    t.secs(0.5).await?;
-    let hp = t.state().health;
+    // The lowest it gets: full and saturated it heals fast, a point in half a second.
+    let mut hp = f32::MAX;
+    let start = std::time::Instant::now();
+    while start.elapsed() < Duration::from_millis(500) {
+        hp = hp.min(t.state().health);
+        t.frames(1).await?;
+    }
     t.check((10.0..=12.0).contains(&hp), format!("health after a 12 block fall: {hp}, vanilla 11"));
     Ok(())
 }
@@ -363,7 +419,7 @@ pub async fn movement_attributes(t: T) -> R {
         let mut top = y0;
         t.hold("core:jump", 0.1);
         for _ in 0..30 {
-            t.frames(1).await?;
+            t.secs(0.03).await?;
             top = top.max(t.state().pos[1]);
         }
         t.secs(1.0).await?;
@@ -585,7 +641,7 @@ pub async fn food(t: T) -> R {
     })
     .await?;
     t.secs(0.3).await?;
-    t.press("core:use");
+    t.hold("core:use", 2.0);
     t.until("ate", Duration::from_secs(5), |t| t.c().inventory_slot(0).count == 2).await?;
     t.until("food went up", Duration::from_secs(5), |t| {
         t.c().view().component(&HUNGER).is_some_and(|h| h.food == 18.0)
@@ -750,5 +806,369 @@ pub async fn respawn(t: T) -> R {
     t.secs(4.5).await?;
     let health: f32 = t.op("health").await?.parse().unwrap_or(20.0);
     t.check(health < 20.0, format!("hunger's pulse still runs: health {health}"));
+    Ok(())
+}
+
+/// Modern clicks: every press acts at once however fast it follows the last, and only holding the
+/// button waits between repeats.
+pub async fn presses_never_wait(t: T) -> R {
+    t.flat().await?;
+    t.op("put me 0 stone 64").await?;
+    t.c().select(0);
+    weft_sdk::settings::VSYNC.set(false);
+    let r = presses_fast(&t).await;
+    weft_sdk::settings::VSYNC.set(true);
+    r
+}
+
+async fn presses_fast(t: &T) -> R {
+    let f = t.feet();
+    for x in 2..=3 {
+        t.set(add(f, [x, 0, 0]), "stone").await?;
+    }
+    let count = |t: &T| t.c().inventory_slot(0).count;
+    t.look_at(add(f, [3, 0, 0]));
+    t.frames(3).await?;
+    t.press("core:use");
+    // A key needs a frame up between presses, and this is far less than the 0.2 s of holding.
+    t.secs(0.07).await?;
+    t.press("core:use");
+    t.until("two quick presses place two blocks", Duration::from_secs(2), |t| count(t) <= 62).await?;
+    t.check(count(t) == 62, format!("two presses placed {} blocks", 64 - count(t)));
+    // Held, it repeats about 5 times a second.
+    t.secs(0.5).await?;
+    let before = count(t);
+    t.c().look(45.0, 40.0);
+    t.hold("core:use", 1.0);
+    t.secs(1.2).await?;
+    let held = before - count(t);
+    t.note(format!("held for a second: {held} uses"));
+    t.check(held <= 6, format!("holding waits between repeats: {held} in a second"));
+    Ok(())
+}
+
+/// Placing a block over a plant replaces it and drops what it would when broken, except in
+/// creative.
+pub async fn replaced_plants_drop(t: T) -> R {
+    t.flat().await?;
+    let f = t.feet();
+    let flower = add(f, [2, 0, 0]);
+    t.op("put me 0 stone 2").await?;
+    t.c().select(0);
+    for creative in [false, true] {
+        if creative {
+            t.op("mode creative").await?;
+        }
+        t.set(flower, "dandelion").await?;
+        t.until("the flower on the client", Duration::from_secs(2), |t| t.c().block(flower).is_some_and(|s| s != 0))
+            .await?;
+        t.look_at(flower);
+        t.frames(2).await?;
+        t.press("core:use");
+        t.until("stone over the flower", Duration::from_secs(2), |t| {
+            t.c().block(flower).is_some_and(|s| Block::named("base:stone").is(s))
+        })
+        .await?;
+        t.secs(0.2).await?;
+        let near = t.op(&format!("near {} {} {} 2", flower[0], flower[1], flower[2])).await?;
+        if creative {
+            t.check(!near.contains("core:item"), format!("nothing drops in creative: {near}"));
+        } else {
+            let d = t.op("inv me").await?;
+            t.check(
+                near.contains("core:item") || d.contains("dandelion"),
+                format!("the flower dropped: near '{near}', inventory '{d}'"),
+            );
+        }
+        t.set(flower, "air").await?;
+        t.secs(0.5).await?;
+        t.cmd("/kill @e[type=core:item]").await?;
+    }
+    Ok(())
+}
+
+/// Sprinting under water swims in a low box at about 3.9 blocks a second, where wading does 2;
+/// lava is not swimmable, unless the attribute says so.
+pub async fn swimming(t: T) -> R {
+    t.flat().await?;
+    t.op("mode creative").await?;
+    let f = t.feet();
+    let (a, b) = (add(f, [-8, 0, -40]), add(f, [8, 12, 8]));
+    let pool = |name: &'static str| {
+        let t = t.clone();
+        async move { t.fill(a, b, name).await }
+    };
+    let sprint_speed = |t: T, pitch: f32| async move {
+        let s = t.state().pos;
+        t.c().teleport([s[0], f[1] as f64 + 8.0, f[2] as f64 + 0.5]);
+        t.secs(0.3).await?;
+        t.c().look(0.0, pitch);
+        t.hold("core:sprint", 2.0);
+        t.hold("core:forward", 2.0);
+        t.secs(1.0).await?;
+        let from = t.state().pos;
+        t.secs(0.8).await?;
+        let to = t.state().pos;
+        t.secs(1.0).await?;
+        Ok::<(f64, f64), String>((
+            ((to[0] - from[0]).powi(2) + (to[2] - from[2]).powi(2)).sqrt() / 0.8,
+            to[1] - from[1],
+        ))
+    };
+    pool("water").await?;
+    t.secs(0.5).await?;
+    let (swim, _) = sprint_speed(t.clone(), 0.0).await?;
+    t.note(format!("sprinting under water: {swim:.2} blocks/s"));
+    t.check((3.3..4.6).contains(&swim), format!("swimming speed {swim:.2}, vanilla's code gives 3.9"));
+    let (_, down) = sprint_speed(t.clone(), -60.0).await?;
+    t.note(format!("looking down, moved {down:.2} in y"));
+    t.check(down < -0.3, format!("swimming goes where it looks: y {down:.2}"));
+    pool("lava").await?;
+    t.secs(0.5).await?;
+    let (wade, _) = sprint_speed(t.clone(), 0.0).await?;
+    t.note(format!("sprinting in lava: {wade:.2} blocks/s"));
+    t.check(wade < 1.8, format!("no swimming in lava: {wade:.2} blocks/s"));
+    t.op("attr_mod me core:swim_anywhere testkit:swims 0 1 0").await?;
+    t.secs(0.2).await?;
+    let (suit, _) = sprint_speed(t.clone(), 0.0).await?;
+    t.note(format!("with the attribute: {suit:.2} blocks/s"));
+    t.check(suit > wade * 1.3, format!("the attribute swims in lava: {wade:.2} -> {suit:.2}"));
+    t.op("attr_rm me core:swim_anywhere testkit:swims").await?;
+    pool("air").await?;
+    Ok(())
+}
+
+/// Modern combat: a hit right after the last does a fraction, a charged one all of it, and a
+/// stronger hit during the target's recovery still adds the difference.
+pub async fn attack_charge(t: T) -> R {
+    t.flat().await?;
+    t.op("put me 0 iron_sword 1").await?;
+    t.c().select(0);
+    let f = t.feet();
+    let spot = add(f, [0, 0, -2]);
+    // Walled in with the player, or it would run off from the first hit.
+    for (from, to) in
+        [([-1, 0, -3], [-1, 2, 1]), ([1, 0, -3], [1, 2, 1]), ([0, 0, -3], [0, 2, -3]), ([0, 0, 1], [0, 2, 1])]
+    {
+        t.fill(add(f, from), add(f, to), "stone").await?;
+    }
+    let id = t.op(&format!("spawn base:cow {} {} {}", spot[0], spot[1], spot[2])).await?;
+    let health = |t: T, id: String| async move {
+        let s = t.op(&format!("entity {id}")).await?;
+        Ok::<f32, String>(s.split_whitespace().last().and_then(|v| v.parse().ok()).unwrap_or(-1.0))
+    };
+    t.look_at(spot);
+    // The sword just came to hand: nearly no charge, and the hand comes up over the next second.
+    t.secs(0.2).await?;
+    t.c().select(1);
+    t.c().select(0);
+    t.frames(2).await?;
+    let before = health(t.clone(), id.clone()).await?;
+    t.press("core:attack");
+    t.secs(0.15).await?;
+    let weak = before - health(t.clone(), id.clone()).await?;
+    t.note(format!("uncharged: {weak:.2}"));
+    t.check((0.1..2.5).contains(&weak), format!("a hit with no charge does little: {weak:.2} of 6"));
+    t.secs(1.5).await?;
+    let before = health(t.clone(), id.clone()).await?;
+    t.press("core:attack");
+    t.secs(0.15).await?;
+    let full = before - health(t.clone(), id.clone()).await?;
+    t.note(format!("charged: {full:.2}"));
+    t.check((5.5..6.5).contains(&full), format!("a charged iron sword does 6: {full:.2}"));
+    Ok(())
+}
+
+/// One level for everything: below what a command asks for it refuses and isn't offered, and a
+/// player can't give out more than it has.
+pub async fn permissions(t: T) -> R {
+    t.flat().await?;
+    t.check(t.cmd("/time query").await?.contains("time is"), "the host may do it all");
+    t.op("put me 0 stone 1").await?;
+    t.c().select(0);
+    t.secs(0.1).await?;
+    t.cmd("/op @s 0").await?;
+    let no = t.cmd("/time set 1000").await?;
+    t.check(no.contains("permission level 2"), format!("/time at level 0: {no}"));
+    t.cmd("/rename shiny").await?;
+    t.until("a command for everyone still works", Duration::from_secs(2), |t| t.c().inventory_slot(0).data != 0)
+        .await?;
+    let up = t.cmd("/op @s 4").await?;
+    t.check(up.contains("permission level 3"), format!("/op from level 0: {up}"));
+    Ok(())
+}
+
+/// A sword doesn't break blocks in creative, as in modern; other things do.
+pub async fn creative_sword(t: T) -> R {
+    t.flat().await?;
+    t.op("mode creative").await?;
+    t.op("put me 0 iron_sword 1").await?;
+    t.op("put me 1 iron_pickaxe 1").await?;
+    t.c().select(0);
+    let b = add(t.feet(), [2, 0, 0]);
+    t.set(b, "stone").await?;
+    t.until("the block on the client", Duration::from_secs(2), |t| t.c().block(b).is_some_and(|s| s != 0)).await?;
+    t.look_at(b);
+    t.frames(3).await?;
+    t.press("core:attack");
+    t.secs(0.4).await?;
+    t.check_eq(t.block(b).await?, "base:stone".into(), "a sword leaves it");
+    t.check(t.c().block(b).is_some_and(|s| s != 0), "and the client still shows it");
+    t.c().select(1);
+    t.secs(0.1).await?;
+    t.press("core:attack");
+    t.until("a pickaxe breaks it", Duration::from_secs(2), |t| t.c().block(b) == Some(0)).await
+}
+
+/// Advancements go by tags: new food and mobs count without the list knowing them.
+pub async fn advancements_by_tags(t: T) -> R {
+    use weft_sdk::Tag;
+    fn made(t: &T) -> u64 {
+        t.c().view().component(&base_api::ADVANCEMENTS).map_or(0, |a| a.done)
+    }
+    for food in ["base:cooked_beef", "base:cooked_porkchop", "base:cooked_chicken", "base:cooked_mutton"] {
+        t.check(
+            Item::lookup(food).is_some_and(|i| Tag::named("cooked_meat").on_item(i)),
+            format!("{food} is cooked meat"),
+        );
+    }
+    t.flat().await?;
+    t.cmd("/feed 5").await?;
+    t.op("put me 0 cooked_mutton 1").await?;
+    t.c().select(0);
+    t.c().look(0.0, 60.0);
+    t.secs(0.2).await?;
+    let before = made(&t);
+    t.hold("core:use", 2.5);
+    t.until("eating mutton counts", Duration::from_secs(5), |t| made(t).count_ones() > before.count_ones()).await?;
+    let f = t.feet();
+    let chicken = t.op(&format!("spawn base:chicken {} {} {}", f[0] + 3, f[1], f[2])).await?;
+    t.secs(0.2).await?;
+    let before = made(&t);
+    t.op(&format!("hurt {} 100", chicken.trim())).await?;
+    t.until("killing a chicken counts", Duration::from_secs(3), |t| made(t).count_ones() > before.count_ones()).await
+}
+
+/// Every item and mob of the base game has its name in every language it comes with.
+pub async fn names_translated(t: T) -> R {
+    // From a process of several, the run folder is deeper down.
+    let run = t.c().run_dir();
+    let Some(game) = std::path::Path::new(&run).ancestors().find(|d| d.join("mods/base/assets/lang").is_dir()) else {
+        return Err("no base mod sources".into());
+    };
+    let root = game.join("mods/base/assets/lang").display().to_string();
+    for lang in ["en_us", "ru_ru"] {
+        let text = std::fs::read_to_string(format!("{root}/{lang}.lang")).map_err(|e| e.to_string())?;
+        let has = |key: String| text.lines().any(|l| l.split(" = ").next() == Some(key.as_str()));
+        let mut missing = Vec::new();
+        for id in 1.. {
+            let name = item_name(id);
+            if name.is_empty() {
+                break;
+            }
+            if let Some(n) = name.strip_prefix("base:") {
+                if !has(format!("item.base.{n}")) && !has(format!("block.base.{n}")) {
+                    missing.push(name.to_string());
+                }
+            }
+        }
+        for id in 0.. {
+            let name = name_of(weft_sdk::abi::entry_kind::ENTITY, id);
+            if name.is_empty() {
+                break;
+            }
+            if let Some(n) = name.strip_prefix("base:") {
+                // Machines' entities are called what their block is.
+                if !has(format!("entity.base.{n}")) && !has(format!("block.base.{n}")) {
+                    missing.push(name.to_string());
+                }
+            }
+        }
+        t.check(missing.is_empty(), format!("no name in {lang}: {}", missing.join(" ")));
+    }
+    Ok(())
+}
+
+/// Air comes back in creative too, where nothing takes it.
+pub async fn air_in_creative(t: T) -> R {
+    fn air(t: &T) -> f32 {
+        t.c().view().component(&base_api::HUNGER).map_or(0.0, |h| h.air)
+    }
+    t.flat().await?;
+    let f = t.feet();
+    t.fill(add(f, [-2, 0, -2]), add(f, [2, 4, 2]), "water").await?;
+    t.secs(2.0).await?;
+    t.check(air(&t) < 300.0, format!("air under water: {}", air(&t)));
+    t.op("mode creative").await?;
+    t.until("air back in creative, still under water", Duration::from_secs(5), |t| air(t) >= 300.0).await
+}
+
+/// Swimming doesn't bob the view, touching the bottom or not; walking does.
+pub async fn swimming_no_bob(t: T) -> R {
+    t.flat().await?;
+    let f = t.feet();
+    t.c().look(0.0, 0.0);
+    t.hold("core:forward", 1.0);
+    t.secs(0.4).await?;
+    let (mut walked, mut swum, mut touching, mut samples) = (0.0f32, 0.0f32, 0, 0);
+    for _ in 0..40 {
+        t.frames(1).await?;
+        walked = walked.max(t.state().bob);
+    }
+    t.check(walked > 0.02, format!("walking bobs: {walked}"));
+    t.secs(1.0).await?;
+    // Two deep, so swimming scrapes the bottom.
+    t.fill(add(f, [-8, 0, -60]), add(f, [8, 1, 8]), "water").await?;
+    t.secs(0.5).await?;
+    let s = t.state().pos;
+    t.c().teleport([s[0], f[1] as f64 + 0.1, f[2] as f64 + 0.5]);
+    t.secs(0.3).await?;
+    t.c().look(0.0, -30.0);
+    t.hold("core:sprint", 4.0);
+    t.hold("core:forward", 4.0);
+    t.secs(1.0).await?;
+    for _ in 0..120 {
+        t.frames(1).await?;
+        if let Some(me) = t.c().view().me().filter(|m| m.pose == abi::pose::SWIM) {
+            samples += 1;
+            touching += (me.on_ground != 0) as u32;
+            swum = swum.max(t.state().bob);
+        }
+    }
+    t.note(format!("swimming frames {samples}, touching the bottom {touching}, bob {swum}"));
+    t.check(samples > 20, format!("swam for {samples} frames"));
+    t.check(swum < 0.01, format!("swimming bobs: {swum}"));
+    Ok(())
+}
+
+/// A toast goes with the GUI on F1, and doesn't follow the player out of the world.
+pub async fn toast_with_the_gui(t: T) -> R {
+    let toast = |s: &crate::runner::Shot| s.share(0.78, 0.0, 1.0, 0.09, |c| c[0] > 200 && c[1] > 170 && c[2] < 170);
+    t.flat().await?;
+    t.op("put me 0 iron_ingot 1").await?;
+    t.op("put me 1 gold_ingot 1").await?;
+    t.c().look(0.0, -40.0);
+    t.secs(1.5).await?;
+    let shown = toast(&t.shot("shown").await?);
+    t.check(shown > 0.0005, format!("the toast shows: {shown}"));
+    t.press("core:hide_hud");
+    t.frames(3).await?;
+    let hidden = toast(&t.shot("hidden").await?);
+    t.check(hidden < 0.0001, format!("F1 hides it: {hidden}"));
+    t.press("core:hide_hud");
+    t.frames(3).await?;
+    // The second is still waiting behind the first, and must not come in the next world.
+    t.c().leave_world();
+    t.screen("core:title").await?;
+    t.frames(5).await?;
+    let title = toast(&t.shot("title").await?);
+    t.check(title < 0.0001, format!("none on the title screen: {title}"));
+    t.c().open_world(&format!("test-{}", t.name()), 1);
+    t.until("joined again", Duration::from_secs(60), |t| t.flag(client::client_flags::JOINED)).await?;
+    t.loaded().await?;
+    t.c().look(0.0, -40.0);
+    t.frames(3).await?;
+    let again = toast(&t.shot("again").await?);
+    t.check(again < 0.0001, format!("none from the world before: {again}"));
     Ok(())
 }

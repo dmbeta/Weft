@@ -252,18 +252,21 @@ pub fn register(r: &mut Registry) {
     leaves(r, &SPRUCE_LEAVES, "leaves_spruce");
 
     // Vanilla numbers: water steps every 5 ticks and reaches 7 blocks, lava every 30 and 3.
-    r.liquid(&WATER).tint(&tints::WATER).translucent().renewable(2).tag("water").bucket(
+    r.liquid(&WATER).tint(&tints::WATER).translucent().renewable(2).fog(0x050533, 96.0).tag("water").bucket(
         Item::generated("water_bucket".into()),
         &crate::items::BUCKET,
         &crate::tabs::TOOLS,
     );
     r.liquid(&LAVA)
         .light(15)
-        .drag(0.3)
+        .drag(0.4)
         .flow_delay(30)
         .drop_off(2)
         .slope_find(2)
         .temperature(1300)
+        .not_swimmable()
+        .fog(0x991A00, 1.0)
+        .no_overlay()
         .tag("lava")
         .tag("hot")
         .bucket(Item::generated("lava_bucket".into()), &crate::items::BUCKET, &crate::tabs::TOOLS);
@@ -312,8 +315,12 @@ pub fn register(r: &mut Registry) {
         .plant()
         .needs_below("#crop_soil")
         .no_item()
-        .drops("wheat", 1)
         .growth(205.0, 9);
+    // Modern's: unripe gives its seed back, ripe gives the wheat and up to 3 more seeds.
+    r.loot(&WHEAT)
+        .pool(Pool::new().when(Cond::BlockState("age=7")).item("wheat"))
+        .pool(Pool::new().entry(Entry::item("wheat_seeds")))
+        .pool(Pool::new().when(Cond::BlockState("age=7")).entry(Entry::item("wheat_seeds").count(0, 3)));
     r.block(&FARMLAND)
         .sound_group("gravel")
         .textures("farmland", "dirt", "dirt")
@@ -368,6 +375,7 @@ pub fn register(r: &mut Registry) {
         .tab(&crate::tabs::FUNCTIONAL);
     r.block(&TORCH)
         .sound_group("wood")
+        .ambient_particles(&["core:flame", "core:smoke"])
         .facing(TORCH_FACINGS, Toward::Face)
         .states(|p, s| torch_state(p.facing(), s, "torch"))
         .item_texture("torch")
@@ -445,6 +453,8 @@ pub fn register(r: &mut Registry) {
     r.tag("dyes/green", &["cactus"]);
     r.tag("torches", &["torch"]);
     r.tag("furnaces", &["furnace"]);
+    r.tag("crafting_tables", &["crafting_table"]);
+    r.tag("cobblestone", &["cobblestone"]);
     r.tag("plant_soil", &["farmland"]);
     r.tag("sugar_cane_soil", &["#dirt"]);
     r.tag("sugar_cane_soil", &["#sand"]);

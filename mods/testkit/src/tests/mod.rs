@@ -1,5 +1,6 @@
 //! The test list. Each test is an `async fn(T) -> R`; failed checks are collected, `?` stops it.
 
+mod audit;
 mod bodies;
 mod extend;
 mod gameplay;
@@ -57,15 +58,28 @@ pub fn all() -> Vec<TestDef> {
         world::edit_while_loading,
         world::gpu_terrain,
         world::distant_terrain,
+        world::distant_terrain_underground,
         gameplay::crafting_table_tags,
         gameplay::sprint_and_sneak_modes,
         gameplay::mining_and_wear,
         gameplay::creative_and_invulnerable,
         gameplay::creative_clicks,
+        gameplay::presses_never_wait,
+        gameplay::replaced_plants_drop,
+        gameplay::swimming,
+        gameplay::attack_charge,
+        gameplay::permissions,
+        gameplay::creative_sword,
         gameplay::armor,
         gameplay::slot_accepts,
         gameplay::slot_limit,
         gameplay::bucket,
+        gameplay::advancements,
+        gameplay::toast_with_the_gui,
+        gameplay::advancements_by_tags,
+        gameplay::names_translated,
+        gameplay::air_in_creative,
+        gameplay::swimming_no_bob,
         gameplay::battery,
         gameplay::burning,
         gameplay::entity_fields,
@@ -106,7 +120,32 @@ pub fn all() -> Vec<TestDef> {
         visual::gizmos,
         visual::multiplayer,
         visual::client_hooks,
+        audit::saved_entities_stay_gone,
+        audit::death_is_a_state,
+        audit::respawn_keeps_mode,
+        audit::kill_and_void,
+        audit::leaving_keeps_cursor,
+        audit::containers,
+        audit::water_keeps_flowing,
+        audit::ladder_no_fall,
+        audit::bucket_not_wasted,
+        audit::shift_click_skips_grid,
+        audit::no_block_into_mob,
+        audit::tp_nan,
+        audit::changes_in_one_tick,
+        audit::no_ghost_light,
+        audit::chat_down_keeps_text,
+        audit::break_refused,
+        audit::creative_sword_no_flicker,
+        audit::reach_and_mining_attributes,
+        audit::liquid_surface,
+        audit::bodies_only,
         looks::particles,
+        looks::sky,
+        looks::clouds,
+        looks::third_person_shakes,
+        looks::block_dust_scatters,
+        looks::attack_indicator,
         looks::shaders_and_glow,
         looks::texture_seams,
         looks::texture_reload,
@@ -133,7 +172,14 @@ pub fn all() -> Vec<TestDef> {
 
 /// Measurements without a verdict worth failing a run over; `--test bench`.
 pub fn bench() -> Vec<TestDef> {
-    crate::tests![world::load_benchmark, world::item_farm, looks::particle_crowd, world::crater]
+    crate::tests![world::fly_load, world::load_benchmark, world::item_farm, looks::particle_crowd, world::crater]
+}
+
+/// A process's first world is slow to open and to settle, which timings shouldn't be measuring.
+/// Left out of the report unless it fails.
+pub async fn warm_up(t: T) -> R {
+    t.flat().await?;
+    t.secs(0.5).await
 }
 
 impl T {
