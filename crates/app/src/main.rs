@@ -39,6 +39,7 @@ fn main() {
         dev: cfg!(debug_assertions),
         automated: false,
         no_vsync: false,
+        no_minecraft: false,
         view: None,
     };
     let mut chosen_run: Option<PathBuf> = None;
@@ -62,6 +63,7 @@ fn main() {
             "--seed" => opts.seed = value().parse().ok(),
             "--screen" => opts.screen = Some(value()),
             "--no-vsync" => opts.no_vsync = true,
+            "--no-minecraft" => opts.no_minecraft = true,
             "--server" => server = true,
             // Engine shaders and assets live from the source tree in a release build too.
             "--dev" => opts.dev = true,

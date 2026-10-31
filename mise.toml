@@ -20,6 +20,11 @@ description = "Build then run (debug); pass game options after `--`"
 depends = ["build"]
 run = "cargo run --"
 
+[tasks."run:native"]
+description = "Build then run without Minecraft assets (debug); pass game options after `--`"
+depends = ["build"]
+run = "cargo run -- --no-minecraft"
+
 [tasks."run:release"]
 description = "Build then run (release); pass game options after `--`"
 depends = ["build:release"]

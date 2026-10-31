@@ -50,6 +50,7 @@ pub struct Options {
     pub automated: bool,
     /// Benchmarks: force vsync off / a view distance without touching saved settings.
     pub no_vsync: bool,
+    pub no_minecraft: bool,
     pub view: Option<i32>,
 }
 
@@ -323,6 +324,11 @@ impl App {
             crate::config::override_for_run("core:view_distance", &v.to_string());
         }
         let mut settings = Settings::new(&self.opts.run_dir);
+        if self.opts.no_minecraft {
+            let packs: Vec<String> =
+                settings.resource_packs().into_iter().filter(|p| p != crate::minecraft::PACK).collect();
+            crate::config::override_for_run("core:resource_packs", &packs.join(","));
+        }
         let icon = crate::assets::decode_png_file(&engine_assets(self.opts.dev).join("icon.png"))
             .and_then(|(w, h, px)| winit::window::Icon::from_rgba(px, w, h).ok());
         let mut attrs = Window::default_attributes()
@@ -358,7 +364,8 @@ impl App {
         let mut roots: Vec<(String, PathBuf)> = vec![("core".into(), engine_assets(self.opts.dev))];
         roots.extend(mods.iter().map(|m| (m.id.clone(), m.assets.clone())));
         // Not in automated runs: their pictures are compared against fixed expectations.
-        if !self.opts.automated && crate::minecraft::ensure_pack(&self.opts.run_dir, &roots) {
+        if !self.opts.automated && !self.opts.no_minecraft && crate::minecraft::ensure_pack(&self.opts.run_dir, &roots)
+        {
             let mut packs = settings.resource_packs();
             if !packs.iter().any(|p| p == crate::minecraft::PACK) {
                 packs.insert(0, crate::minecraft::PACK.to_string());
