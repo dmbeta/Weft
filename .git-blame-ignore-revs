@@ -1,3 +1,0 @@
-# Formatting-only commits that would otherwise hide the real author of a line.
-# Enable with: git config blame.ignoreRevsFile .git-blame-ignore-revs
-c17ed43
