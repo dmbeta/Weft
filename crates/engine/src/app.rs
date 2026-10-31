@@ -36,6 +36,7 @@ pub type BackendFactory = fn(&BackendDesc) -> Result<Box<dyn Backend>, weft_rend
 #[derive(Clone, Debug)]
 pub struct Options {
     pub run_dir: PathBuf,
+    pub cache_dir: PathBuf,
     pub mod_dirs: Vec<PathBuf>,
     pub gpu_debug: bool,
     /// Automation: skip the menu and play this world (created if missing).
@@ -310,9 +311,8 @@ fn recording() -> bool {
 impl App {
     fn start(&mut self, el: &ActiveEventLoop) -> Result<Running, String> {
         // Mods first: the engine's settings are `core:` configs like theirs.
-        let cache = self.opts.run_dir.join("cache");
         let off = modloader::off_file(&self.opts.run_dir, self.opts.automated);
-        let mods = modloader::load(&self.opts.mod_dirs, &cache, &off)?;
+        let mods = modloader::load(&self.opts.mod_dirs, &self.opts.cache_dir, &off)?;
         crate::config::set_automated(self.opts.automated);
         crate::settings::migrate(&self.opts.run_dir);
         crate::config::load(&self.opts.run_dir);
@@ -2085,6 +2085,8 @@ fn record_passes(r: &mut Running, info: &weft_render::FrameInfo, scale: f32) {
         if post { Target::Texture(r.post.scene_target(&mut *r.gpu, info.width, info.height)) } else { Target::Surface };
     if let Some(g) = &mut r.game {
         g.client.gpu_terrain.frame(&mut *r.gpu, &mut r.list, info.slot);
+        let cam = g.client.render_camera();
+        g.client.particles.simulate(&mut *r.gpu, &mut r.list, info.slot, &r.textures, &g.client.world, &cam);
     }
     r.list.push(Cmd::BeginPass { color: Some((world_target, Some(clear))), depth: Some((r.depth.0, Some(0.0))) });
     if let Some(g) = &mut r.game {
@@ -2185,7 +2187,7 @@ fn count_fps(r: &mut Running) {
 const CHAT_HISTORY: usize = 100;
 
 fn chat_history_path(run_dir: &std::path::Path) -> PathBuf {
-    run_dir.join("config").join("chat_history.txt")
+    crate::paths::config(run_dir).join("chat_history.txt")
 }
 
 fn load_chat_history(run_dir: &std::path::Path) -> Vec<String> {

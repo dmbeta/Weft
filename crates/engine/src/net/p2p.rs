@@ -35,7 +35,7 @@ fn runtime() -> &'static tokio::runtime::Runtime {
 /// saves by it, so a key that cannot be read is never replaced and one that cannot be written is
 /// an error: a new identity every launch would be a new player everywhere.
 pub fn identity(run_dir: &Path) -> Result<SecretKey, String> {
-    let path = run_dir.join("config").join("identity.key");
+    let path = crate::paths::config(run_dir).join("identity.key");
     match std::fs::read_to_string(&path) {
         Ok(s) => {
             return s

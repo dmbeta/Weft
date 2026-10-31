@@ -35,6 +35,8 @@ struct Slot {
     shown: bool,
     /// Changes when its blocks do (not its light), from `next_rev`.
     rev: u32,
+    /// Changes when anything of it does, light too, from `next_rev`.
+    stamp: u32,
 }
 
 pub struct ClientWorld {
@@ -232,6 +234,11 @@ impl ClientWorld {
         self.cubes.get(&p).map(|s| (&s.cube, s.rev))
     }
 
+    /// With a number that changes whenever anything of it does (`Slot::stamp`).
+    pub fn cube_stamped(&self, p: IVec3) -> Option<(&Arc<Cube>, u32)> {
+        self.cubes.get(&p).map(|s| (&s.cube, s.stamp))
+    }
+
     /// Whether cube `p` is here and has been drawn.
     pub fn cube_shown(&self, p: IVec3) -> bool {
         self.cubes.get(&p).is_some_and(|s| s.shown)
@@ -402,7 +409,16 @@ impl ClientWorld {
         match self.cubes.entry(pos) {
             std::collections::hash_map::Entry::Vacant(e) => {
                 self.next_rev += 1;
-                e.insert(Slot { cube, version: 0, hidden, sky, dirty: false, shown: false, rev: self.next_rev });
+                e.insert(Slot {
+                    cube,
+                    version: 0,
+                    hidden,
+                    sky,
+                    dirty: false,
+                    shown: false,
+                    rev: self.next_rev,
+                    stamp: self.next_rev,
+                });
                 self.changed_columns.insert(col);
                 if let Some(b) = &mut self.open {
                     b.fresh.push(pos);
@@ -415,8 +431,9 @@ impl ClientWorld {
                 let fresh_hidden = std::mem::replace(&mut s.hidden, hidden) != hidden;
                 let fresh_hidden = (std::mem::replace(&mut s.sky, sky) != sky) | fresh_hidden;
                 let old = std::mem::replace(&mut s.cube, cube);
+                self.next_rev += 1;
+                s.stamp = self.next_rev;
                 if !s.cube.same_blocks(&old) {
-                    self.next_rev += 1;
                     s.rev = self.next_rev;
                 }
                 if fresh_hidden {
@@ -457,7 +474,7 @@ impl ClientWorld {
         let Some(slot) = self.cubes.get_mut(&cp) else { return };
         Arc::make_mut(&mut slot.cube).set(local_index(p), state);
         self.next_rev += 1;
-        slot.rev = self.next_rev;
+        (slot.rev, slot.stamp) = (self.next_rev, self.next_rev);
         if let Some(b) = &mut self.open {
             b.update = true;
         }

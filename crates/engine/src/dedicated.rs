@@ -13,7 +13,7 @@ use crate::{config, modloader, net, saves, settings::Settings};
 
 pub fn run(opts: Options) -> Result<(), String> {
     let off = modloader::off_file(&opts.run_dir, false);
-    let _mods = modloader::load(&opts.mod_dirs, &opts.run_dir.join("cache"), &off)?;
+    let _mods = modloader::load(&opts.mod_dirs, &opts.cache_dir, &off)?;
     crate::settings::migrate(&opts.run_dir);
     config::load(&opts.run_dir);
     if let Some(port) = crate::app::api::launch_options().get("port") {
@@ -41,7 +41,7 @@ pub fn run(opts: Options) -> Result<(), String> {
         log::warn!("the world was played with mod {m}, which is not loaded");
     }
     let storage = saves::Storage::open(meta.clone(), content());
-    let whitelist = opts.run_dir.join("config").join("whitelist.txt");
+    let whitelist = crate::paths::config(&opts.run_dir).join("whitelist.txt");
     let mut server = server::spawn(
         ServerConfig {
             seed: meta.seed,
