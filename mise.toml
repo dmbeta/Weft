@@ -66,6 +66,9 @@ description = "Format everything and restage what it changed"
 depends = ["fmt"]
 run = '''
 git diff --cached --name-only -z | while IFS= read -r -d '' file; do
-  git add -- "$file"
+  # A staged deletion has no working-tree file to re-add; skip it so `git add` doesn't fail.
+  if [ -e "$file" ]; then
+    git add -- "$file"
+  fi
 done
 '''
