@@ -1160,7 +1160,18 @@ pub fn freeze_entities(raws: &mut [RawGame], errors: &mut Vec<String>) -> Entiti
     let mut player = builtin(PLAYER, 0.6, 1.8, ef::FALL_DAMAGE | ef::PUSHABLE);
     player.eye = 1.62;
     player.texture = "core:entity/player".into();
-    entities.push(RawEntity { name: PLAYER.into(), cell: 0, desc: player, replace: false, components: Vec::new() });
+    entities.push(RawEntity {
+        name: PLAYER.into(),
+        cell: 0,
+        desc: player,
+        replace: false,
+        components: vec![RawValue {
+            name: abi::comp::SOUND.into(),
+            schema: "str".into(),
+            bytes: Vec::new(),
+            text: Some("core:entity.player".into()),
+        }],
+    });
     entities.push(RawEntity {
         name: ITEM.into(),
         cell: 0,
@@ -1924,6 +1935,8 @@ fn engine_sounds() -> Vec<(usize, SoundDef)> {
     vec![
         one("core:ui.click", "core:ui/click", "core:ui", 0.6, [1.0, 1.0]),
         one("core:item.pickup", "core:item/pickup", "core:players", 0.4, [1.4, 2.2]),
+        one("core:entity.player.hurt", "core:entity/player/hurt*", "core:players", 1.0, [0.8, 1.2]),
+        one("core:entity.player.death", "core:entity/player/death*", "core:players", 1.0, [0.8, 1.2]),
     ]
 }
 

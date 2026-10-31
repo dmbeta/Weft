@@ -20,6 +20,9 @@ pub static SKELETON: Entity = Entity::named("skeleton");
 pub static SHEEP: Entity = Entity::named("sheep");
 pub static CHICKEN: Entity = Entity::named("chicken");
 pub static ARROW: Entity = Entity::named("arrow");
+/// Vanilla's fuse hiss (`entity.creeper.primed`) and blast (`entity.generic.explode`).
+static CREEPER_FUSE: Sound = Sound::named("entity.creeper.primed");
+static EXPLOSION: Sound = Sound::named("entity.generic.explode");
 static EGG: Item = Item::named("egg");
 /// Ticks of whatever a mob counts: a creeper's fuse, a skeleton's reload, a chicken's next egg.
 static FUSE: Component<u32> = Component::named("fuse");
@@ -161,6 +164,10 @@ fn pig_model() -> Model {
 pub static COW: Entity = Entity::named("cow");
 
 pub fn register(r: &mut Registry) {
+    r.sound(&CREEPER_FUSE).files(&["entity/creeper/primed"]).category(&sound_categories::CREATURES);
+    r.sound(&EXPLOSION)
+        .files(&["random/explode1", "random/explode2", "random/explode3", "random/explode4"])
+        .category(&sound_categories::CREATURES);
     // The engine's player kind, drawn as the same humanoid as the zombie.
     r.entity_model(&Entity::named("core:player"), biped(false));
     r.entity_component(&BRAIN, Brain::default(), 0);
@@ -323,15 +330,21 @@ pub fn register(r: &mut Registry) {
 fn creeper() -> ai::Goals {
     ai::Goals::new()
         .then(|w: &World, id: u64, st: &EntityState| {
-            let near = ai::nearest_player(w, st, 7.0);
+            let near = ai::nearest_player(w, st, 16.0);
             let d2 = near.as_ref().map_or(f64::MAX, |(_, p)| (0..3).map(|i| (p.pos[i] - st.pos[i]).powi(2)).sum());
-            let Some(fuse) = w.component_mut(id, &FUSE) else { return false };
-            if d2 < 9.0 || (*fuse > 0 && d2 < 49.0) {
-                *fuse += 1;
-            } else {
-                *fuse = fuse.saturating_sub(1);
+            let (lit, was) = {
+                let Some(fuse) = w.component_mut(id, &FUSE) else { return false };
+                let was = *fuse;
+                if d2 < 9.0 || (*fuse > 0 && d2 < 49.0) {
+                    *fuse += 1;
+                } else {
+                    *fuse = fuse.saturating_sub(1);
+                }
+                (*fuse, was)
+            };
+            if was == 0 && lit > 0 {
+                w.play_sound(&CREEPER_FUSE, st.pos, 1.0);
             }
-            let lit = *fuse;
             // Faster as it nears the end.
             if lit > 0 && lit % (if lit > 20 { 3 } else { 8 }) == 0 {
                 w.flash(id);
@@ -340,15 +353,28 @@ fn creeper() -> ai::Goals {
                 blast(w, id, st.pos, 3.0);
                 return true;
             }
-            lit > 0
+            if lit > 0 {
+                // Swell in place and stare at the player instead of walking through the fuse.
+                w.navigate(id, st.pos, 0.0);
+                if let Some((_, p)) = near {
+                    let (dx, dz) = (p.pos[0] - st.pos[0], p.pos[2] - st.pos[2]);
+                    let dy = p.pos[1] + p.size[2] as f64 - (st.pos[1] + st.size[2] as f64);
+                    let mut now = *st;
+                    now.yaw = (-dx).atan2(-dz) as f32;
+                    now.pitch = dy.atan2((dx * dx + dz * dz).sqrt()) as f32;
+                    w.set_entity(id, &now);
+                }
+                return true;
+            }
+            false
         })
-        .then(ai::watch_player(8.0))
         .then(ai::follow_player(16.0, 1.0))
         .then(ai::wander(0.6, 10.0))
 }
 
 /// Vanilla's explosion in short: a hole, and damage falling off to nothing at twice the radius.
 fn blast(w: &World, id: u64, at: [f64; 3], radius: f64) {
+    w.play_sound(&EXPLOSION, at, 4.0);
     for other in w.near(at, radius * 2.0, None) {
         let Some(s) = w.entity(other).filter(|_| other != id) else { continue };
         let d = (0..3).map(|i| (s.pos[i] - at[i]).powi(2)).sum::<f64>().sqrt();

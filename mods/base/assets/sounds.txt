@@ -40,6 +40,8 @@ entity/chicken/death* = entity.chicken.death
 entity/skeleton/ambient* = entity.skeleton.ambient
 entity/skeleton/hurt* = entity.skeleton.hurt
 entity/skeleton/death* = entity.skeleton.death
-# Vanilla has no creeper ambient: it only speaks when hurt or killed.
+# Vanilla has no creeper ambient: it only speaks when hurt or killed, and hisses when lit.
 entity/creeper/hurt* = entity.creeper.hurt
 entity/creeper/death* = entity.creeper.death
+entity/creeper/primed = entity.creeper.primed
+random/explode* = entity.generic.explode

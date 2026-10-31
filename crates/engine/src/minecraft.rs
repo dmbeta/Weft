@@ -519,7 +519,10 @@ mod tests {
         assert!(pack.join("base/sounds/entity/chicken/ambient1.ogg").is_file());
         assert!(pack.join("base/sounds/entity/skeleton/ambient1.ogg").is_file());
         assert!(pack.join("base/sounds/entity/creeper/hurt1.ogg").is_file());
+        assert!(pack.join("base/sounds/entity/creeper/primed.ogg").is_file());
+        assert!(pack.join("base/sounds/random/explode1.ogg").is_file());
         assert!(pack.join("core/sounds/ui/click.ogg").is_file(), "and the click");
+        assert!(pack.join("core/sounds/entity/player/hurt1.ogg").is_file(), "and the player's oof");
         let assets = crate::assets::Assets::new(
             [
                 ("core".to_string(), root.join("crates/engine/assets")),
