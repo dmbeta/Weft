@@ -11,4 +11,3 @@
 **Mods:** put a mod's `.zip` into the mods folder: the Mods screen has a button that opens it. Mods are native libraries and have to be built for your system and the same engine version, see the [modding cheat sheet](https://github.com/Weft-Rust/Weft/blob/master/docs/modding.md).
 
 The mod interface and the save format can still change between versions.
-

@@ -54,7 +54,12 @@ pub fn set(looks: Looks) {
 /// for the texture table to load.
 pub fn load(assets: &Assets, c: &Content, next: u32) -> (Looks, Vec<String>) {
     let mut looks = Looks::default();
-    let mut ids: FxHashMap<String, u32> = c.textures.iter().enumerate().map(|(i, n)| (n.clone(), i as u32)).collect();
+    let mut ids: FxHashMap<String, u32> = c
+        .textures
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.clone(), i as u32))
+        .collect();
     let mut extra: Vec<String> = Vec::new();
     let mut id = |name: &str| -> u32 {
         if let Some(&i) = ids.get(name) {
@@ -65,7 +70,11 @@ pub fn load(assets: &Assets, c: &Content, next: u32) -> (Looks, Vec<String>) {
         ids.insert(name.to_string(), i);
         i
     };
-    let read = |name: &str| assets.read(name, "models", "json").map(|b| String::from_utf8_lossy(&b).into_owned());
+    let read = |name: &str| {
+        assets
+            .read(name, "models", "json")
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+    };
     let from_pack = |name: &str| -> Option<FileModel> {
         assets.pack_path(name, "models", "json")?;
         block_model::load(name, &read).unwrap_or_else(|e| {

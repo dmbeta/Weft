@@ -4,14 +4,21 @@ use super::add;
 use crate::runner::{R, T};
 
 async fn spawn(t: &T, kind: &str, p: [i32; 3]) -> Result<u64, String> {
-    let id = t.op(&format!("spawn {kind} {} {} {}", p[0], p[1], p[2])).await?;
+    let id = t
+        .op(&format!("spawn {kind} {} {} {}", p[0], p[1], p[2]))
+        .await?;
     id.trim().parse().map_err(|_| format!("spawn {kind}: {id}"))
 }
 
 /// Server position of an entity (`me`: the player as the server last heard).
 async fn pos_of(t: &T, id: &str) -> Result<[f64; 3], String> {
     let line = t.op(&format!("entity {id}")).await?;
-    let v: Vec<f64> = line.split_whitespace().skip(1).take(3).filter_map(|s| s.parse().ok()).collect();
+    let v: Vec<f64> = line
+        .split_whitespace()
+        .skip(1)
+        .take(3)
+        .filter_map(|s| s.parse().ok())
+        .collect();
     v.try_into().map_err(|_| format!("entity #{id}: {line}"))
 }
 
@@ -59,7 +66,8 @@ pub async fn ride_frames(t: T) -> R {
     t.check(still < 6, "the camera glides with the lift");
     t.check(big < 0.04, "no tick-sized jumps");
 
-    t.cmd(&format!("/tp {} {} {}", f[0], f[1], f[2] + 10)).await?;
+    t.cmd(&format!("/tp {} {} {}", f[0], f[1], f[2] + 10))
+        .await?;
     let skiff = spawn(&t, "testmod:skiff", add(f, [0, 3, -6])).await?;
     let idol = spawn(&t, "testmod:idol", add(f, [0, 0, -6])).await?;
     t.op(&format!("onto {skiff} 1.0 {idol}")).await?;
@@ -106,7 +114,10 @@ pub async fn skiff_smooth(t: T) -> R {
         (jump, slip) = (jump.max(d.abs() - 6.0 * (dt + before)), slip.max((now_rel - rel).abs()));
         (last, rel, before) = (now, now_rel, dt);
     }
-    t.note(format!("{turns} reversals in 3.5 s, jumps up to {jump:.3}, longest frame {:.0} ms, rider moves on the deck up to {slip:.4} a frame", longest * 1000.0));
+    t.note(format!(
+        "{turns} reversals in 3.5 s, jumps up to {jump:.3}, longest frame {:.0} ms, rider moves on the deck up to {slip:.4} a frame",
+        longest * 1000.0
+    ));
     t.check_eq(turns, 1, "the skiff turns once, without overshooting or jitter");
     t.check(jump < 0.15, "the skiff glides (no jumps)");
     t.check(slip < 0.02, "its rider stays on its spot of the deck");
@@ -147,7 +158,10 @@ pub async fn skiff(t: T) -> R {
     t.check((skiff[0] - p[0]).abs() > 5.0, "the skiff flew on");
     // The skiff moves on while the teleport arrives, so the player may stand anywhere on the
     // deck (1.5 + 0.3 from its middle); the server also hears the player a tick late (0.3).
-    t.check((me[0] - skiff[0]).abs() < 2.1 && (me[2] - skiff[2]).abs() < 2.1, format!("the player is still over it (x {:.2}, skiff {:.2})", me[0], skiff[0]));
+    t.check(
+        (me[0] - skiff[0]).abs() < 2.1 && (me[2] - skiff[2]).abs() < 2.1,
+        format!("the player is still over it (x {:.2}, skiff {:.2})", me[0], skiff[0]),
+    );
     t.check((me[1] - (skiff[1] + 1.0)).abs() < 0.15, format!("and back on its deck (feet {:.2}, deck {:.2})", me[1], skiff[1] + 1.0));
     Ok(())
 }
@@ -169,7 +183,10 @@ pub async fn skiff_pause(t: T) -> R {
         t.secs(1.0).await?;
     }
     let (me, skiff) = (t.state().pos, pos_of(&t, &format!("{id}")).await?);
-    t.check((me[0] - skiff[0]).abs() < 3.0 && (me[2] - skiff[2]).abs() < 3.0, format!("the player stays on the skiff (x {:.2}, skiff {:.2})", me[0], skiff[0]));
+    t.check(
+        (me[0] - skiff[0]).abs() < 3.0 && (me[2] - skiff[2]).abs() < 3.0,
+        format!("the player stays on the skiff (x {:.2}, skiff {:.2})", me[0], skiff[0]),
+    );
     Ok(())
 }
 
@@ -182,7 +199,10 @@ pub async fn natural_spawning(t: T) -> R {
     t.cmd("/rule core:mob_spawning 1").await?;
     t.secs(8.0).await?;
     let near = t.op("near ~ ~ ~ 64").await?;
-    let monsters = near.split_whitespace().filter(|e| e.ends_with(":base:zombie") || e.ends_with(":base:spider")).count();
+    let monsters = near
+        .split_whitespace()
+        .filter(|e| e.ends_with(":base:zombie") || e.ends_with(":base:spider"))
+        .count();
     t.check(monsters > 0, format!("monsters spawned at night ({near})"));
     t.check(!near.contains("base:pig") && !near.contains("base:cow"), "no animals at night or outside `animals` biomes");
     t.cmd("/rule core:mob_spawning 0").await?;
@@ -196,12 +216,16 @@ pub async fn morph(t: T) -> R {
     t.flat().await?;
     let f = t.feet();
     t.cmd("/morph base:pig 0.9 0.9").await?;
-    t.until("small box", std::time::Duration::from_secs(2), |t| t.c().entity(0).is_some()).await?;
+    t.until("small box", std::time::Duration::from_secs(2), |t| t.c().entity(0).is_some())
+        .await?;
     t.secs(0.3).await?;
     // A tunnel one block high: a pig fits.
-    t.fill(add(f, [-1, 1, -2]), add(f, [1, 1, -6]), "stone").await?;
-    t.fill(add(f, [-1, 0, -2]), add(f, [-1, 0, -6]), "stone").await?;
-    t.fill(add(f, [1, 0, -2]), add(f, [1, 0, -6]), "stone").await?;
+    t.fill(add(f, [-1, 1, -2]), add(f, [1, 1, -6]), "stone")
+        .await?;
+    t.fill(add(f, [-1, 0, -2]), add(f, [-1, 0, -6]), "stone")
+        .await?;
+    t.fill(add(f, [1, 0, -2]), add(f, [1, 0, -6]), "stone")
+        .await?;
     t.c().look(0.0, 0.0);
     t.hold("core:forward", 0.9);
     t.secs(1.0).await?;
@@ -209,7 +233,8 @@ pub async fn morph(t: T) -> R {
     t.check(z < f[2] as f64 - 2.5, format!("the morphed player went into the low tunnel (z {z:.2})"));
     t.shot("pig").await?;
     t.cmd("/morph").await?;
-    t.cmd(&format!("/tp {} {} {}", f[0], f[1], f[2] + 3)).await?;
+    t.cmd(&format!("/tp {} {} {}", f[0], f[1], f[2] + 3))
+        .await?;
     t.secs(0.3).await?;
     t.hold("core:forward", 1.0);
     t.secs(1.1).await?;
@@ -222,7 +247,8 @@ pub async fn morph(t: T) -> R {
 pub async fn zombie_chases(t: T) -> R {
     t.flat().await?;
     let f = t.feet();
-    t.fill(add(f, [4, 0, -6]), add(f, [4, 2, 6]), "cobblestone").await?;
+    t.fill(add(f, [4, 0, -6]), add(f, [4, 2, 6]), "cobblestone")
+        .await?;
     t.fill(add(f, [4, 0, 5]), add(f, [4, 1, 5]), "air").await?;
     let id = spawn(&t, "zombie", add(f, [8, 0, 0])).await?;
     t.secs(10.0).await?;
@@ -270,7 +296,8 @@ pub async fn skiff_blocks(t: T) -> R {
     let spot = [o[0] - 0.5 + 0.98, o[1] + 1.0, o[2] - 0.5 + 0.5 - 1.0];
     let eye = [st.shown[0], st.shown[1] + t.c().entity(0).map_or(1.62, |e| e.size[2] as f64), st.shown[2]];
     let (dx, dy, dz) = (spot[0] - eye[0], spot[1] - eye[1], spot[2] - eye[2]);
-    t.c().look((-dx).atan2(-dz).to_degrees() as f32, dy.atan2((dx * dx + dz * dz).sqrt()).to_degrees() as f32);
+    t.c()
+        .look((-dx).atan2(-dz).to_degrees() as f32, dy.atan2((dx * dx + dz * dz).sqrt()).to_degrees() as f32);
     t.frames(2).await?;
     let mut targets = std::collections::BTreeSet::new();
     for _ in 0..60 {
