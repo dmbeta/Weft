@@ -1,4 +1,8 @@
 # rustfmt for a codebase written at 120 columns, where a call, a closure, an if/else or a struct
 # literal stays on one line as long as it fits in that width instead of being broken up early.
-max_width = 120
+# Wide lines suit the dense engine code.
+max_width = 140
+# Keep short if/else, struct literals and call arguments on one line as long as they fit max_width.
 use_small_heuristics = "Max"
+# ...except method chains: longer than this, they get one call per line.
+chain_width = 60
