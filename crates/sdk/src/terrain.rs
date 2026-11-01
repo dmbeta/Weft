@@ -392,17 +392,7 @@ struct Op {
 
 impl Op {
     fn new(op: u32) -> Op {
-        Op {
-            op,
-            anchor: String::new(),
-            block: String::new(),
-            level: 0,
-            to: 0,
-            value: 0.0,
-            size: 0.0,
-            feature: None,
-            rule: None,
-        }
+        Op { op, anchor: String::new(), block: String::new(), level: 0, to: 0, value: 0.0, size: 0.0, feature: None, rule: None }
     }
 }
 
@@ -417,13 +407,8 @@ impl TerrainBuilder<'_> {
             if let Some(m) = &f.mask {
                 m.steps(&mut steps);
             }
-            feature = abi::FeatureDesc {
-                name: Str::new(&fname),
-                preset: f.preset,
-                params: f.params,
-                height: f.height,
-                mask: Slice::new(&steps),
-            };
+            feature =
+                abi::FeatureDesc { name: Str::new(&fname), preset: f.preset, params: f.params, height: f.height, mask: Slice::new(&steps) };
         }
         let r = o.rule.unwrap_or_else(BiomeRule::blank);
         let names = r.names(self.ns);
@@ -467,11 +452,7 @@ impl TerrainBuilder<'_> {
     }
     /// Limits the named feature further: its mask is multiplied by `mask`.
     pub fn mask_feature(self, name: &str, mask: Mask) -> Self {
-        self.send(Op {
-            anchor: name.to_string(),
-            feature: Some(Feature::preset(0, [0.0; 4]).mask(mask)),
-            ..Op::new(op::MASK_FEATURE)
-        })
+        self.send(Op { anchor: name.to_string(), feature: Some(Feature::preset(0, [0.0; 4]).mask(mask)), ..Op::new(op::MASK_FEATURE) })
     }
     /// A rule after all others.
     pub fn biome(self, rule: BiomeRule) -> Self {
@@ -499,13 +480,7 @@ impl TerrainBuilder<'_> {
     /// patches about `size` blocks across is above `threshold` (-1..1). Biomes are kept per
     /// column of each cube, so underground ones change every 16 blocks of height at most.
     pub fn cave_biome(self, biome: &str, depth: i32, size: f64, threshold: f64) -> Self {
-        self.send(Op {
-            rule: Some(BiomeRule::new(biome)),
-            level: depth,
-            size,
-            value: threshold,
-            ..Op::new(op::CAVE_BIOME)
-        })
+        self.send(Op { rule: Some(BiomeRule::new(biome)), level: depth, size, value: threshold, ..Op::new(op::CAVE_BIOME) })
     }
     pub fn remove_cave_biome(self, biome: &str) -> Self {
         self.send(Op { anchor: biome.to_string(), ..Op::new(op::REMOVE_CAVE_BIOME) })

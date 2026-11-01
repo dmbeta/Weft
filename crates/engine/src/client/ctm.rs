@@ -109,16 +109,12 @@ pub fn set(ctm: Ctm) {
 const CTM47: [u8; 256] = [
     0, 3, 0, 3, 12, 5, 12, 15, 0, 3, 0, 3, 12, 5, 12, 15, 1, 2, 1, 2, 4, 7, 4, 29, 1, 2, 1, 2, 13, 31, 13, 14, //
     0, 3, 0, 3, 12, 5, 12, 15, 0, 3, 0, 3, 12, 5, 12, 15, 1, 2, 1, 2, 4, 7, 4, 29, 1, 2, 1, 2, 13, 31, 13, 14, //
-    36, 17, 36, 17, 24, 19, 24, 43, 36, 17, 36, 17, 24, 19, 24, 43, 16, 18, 16, 18, 6, 46, 6, 21, 16, 18, 16, 18, 28,
-    9, 28, 22, //
-    36, 17, 36, 17, 24, 19, 24, 43, 36, 17, 36, 17, 24, 19, 24, 43, 37, 40, 37, 40, 30, 8, 30, 34, 37, 40, 37, 40, 25,
-    23, 25, 45, //
+    36, 17, 36, 17, 24, 19, 24, 43, 36, 17, 36, 17, 24, 19, 24, 43, 16, 18, 16, 18, 6, 46, 6, 21, 16, 18, 16, 18, 28, 9, 28, 22, //
+    36, 17, 36, 17, 24, 19, 24, 43, 36, 17, 36, 17, 24, 19, 24, 43, 37, 40, 37, 40, 30, 8, 30, 34, 37, 40, 37, 40, 25, 23, 25, 45, //
     0, 3, 0, 3, 12, 5, 12, 15, 0, 3, 0, 3, 12, 5, 12, 15, 1, 2, 1, 2, 4, 7, 4, 29, 1, 2, 1, 2, 13, 31, 13, 14, //
     0, 3, 0, 3, 12, 5, 12, 15, 0, 3, 0, 3, 12, 5, 12, 15, 1, 2, 1, 2, 4, 7, 4, 29, 1, 2, 1, 2, 13, 31, 13, 14, //
-    36, 39, 36, 39, 24, 41, 24, 27, 36, 39, 36, 39, 24, 41, 24, 27, 16, 42, 16, 42, 6, 20, 6, 10, 16, 42, 16, 42, 28,
-    35, 28, 44, //
-    36, 39, 36, 39, 24, 41, 24, 27, 36, 39, 36, 39, 24, 41, 24, 27, 37, 38, 37, 38, 30, 11, 30, 32, 37, 38, 37, 38, 25,
-    33, 25, 26,
+    36, 39, 36, 39, 24, 41, 24, 27, 36, 39, 36, 39, 24, 41, 24, 27, 16, 42, 16, 42, 6, 20, 6, 10, 16, 42, 16, 42, 28, 35, 28, 44, //
+    36, 39, 36, 39, 24, 41, 24, 27, 36, 39, 36, 39, 24, 41, 24, 27, 37, 38, 37, 38, 30, 11, 30, 32, 37, 38, 37, 38, 25, 33, 25, 26,
 ];
 
 /// Compact tile per quadrant (TL, TR, BL, BR) of each 47 template tile: 0 isolated, 1 connected
@@ -215,7 +211,9 @@ fn ranges(v: &str) -> Vec<(i32, i32)> {
 fn tile_names(v: &str, texture: &str) -> Vec<Option<String>> {
     let dir = match texture.rfind('/') {
         Some(i) => texture[..=i].to_string(),
-        None => texture.split_once(':').map_or(String::new(), |(ns, _)| format!("{ns}:")),
+        None => texture
+            .split_once(':')
+            .map_or(String::new(), |(ns, _)| format!("{ns}:")),
     };
     let full = |rel: &str| if rel.contains(':') { rel.to_string() } else { format!("{dir}{rel}") };
     let mut out = Vec::new();
@@ -226,7 +224,10 @@ fn tile_names(v: &str, texture: &str) -> Vec<Option<String>> {
         }
         let (prefix, last) = t.rsplit_once('/').map_or(("", t), |(p, l)| (p, l));
         let prefix = if prefix.is_empty() { String::new() } else { format!("{prefix}/") };
-        match last.split_once('-').and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?))) {
+        match last
+            .split_once('-')
+            .and_then(|(a, b)| Some((a.parse::<u32>().ok()?, b.parse::<u32>().ok()?)))
+        {
             Some((a, b)) => out.extend((a..=b).map(|i| Some(full(&format!("{prefix}{i}"))))),
             None => out.push(Some(full(t))),
         }
@@ -236,13 +237,7 @@ fn tile_names(v: &str, texture: &str) -> Vec<Option<String>> {
 
 /// Reads the `.ctm` files of all block textures. Tile textures get ids after the content's.
 /// Whether a block of this model shows `tex` other than on a cube's face, on a face in `faces`.
-fn off_cube<'a>(
-    model: weft_abi::Model,
-    textures: &[u32; 6],
-    mut boxes: impl Iterator<Item = &'a [u32; 6]>,
-    tex: u32,
-    faces: u8,
-) -> bool {
+fn off_cube<'a>(model: weft_abi::Model, textures: &[u32; 6], mut boxes: impl Iterator<Item = &'a [u32; 6]>, tex: u32, faces: u8) -> bool {
     match model {
         weft_abi::Model::Cross => faces & 1 != 0 && textures[0] == tex,
         weft_abi::Model::Boxes => boxes.any(|b| (0..6).any(|d| faces & (1 << d) != 0 && b[d] == tex)),
@@ -253,9 +248,13 @@ fn off_cube<'a>(
 pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
     let base = c.textures.len() as u32;
     let mut extra = Extra::default();
-    let mut ids: FxHashMap<String, u32> = c.textures.iter().enumerate().map(|(i, n)| (n.clone(), i as u32)).collect();
-    let mut ctm =
-        Ctm { by_texture: vec![(0, 0); c.textures.len()], rules: Vec::new(), overlay: vec![0; c.textures.len()] };
+    let mut ids: FxHashMap<String, u32> = c
+        .textures
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.clone(), i as u32))
+        .collect();
+    let mut ctm = Ctm { by_texture: vec![(0, 0); c.textures.len()], rules: Vec::new(), overlay: vec![0; c.textures.len()] };
     for (tex, name) in c.textures.iter().enumerate() {
         let over = format!("{name}_overlay");
         if assets.path(&over, "textures", "png").is_some() {
@@ -266,7 +265,10 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
     // Compact sets waiting for their composite ids, which come after every tile name.
     let mut compact: Vec<(usize, Vec<u32>)> = Vec::new();
     for (tex, name) in c.textures.iter().enumerate() {
-        let Some(src) = assets.read(name, "textures", "ctm").map(|b| String::from_utf8_lossy(&b).into_owned()) else {
+        let Some(src) = assets
+            .read(name, "textures", "ctm")
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
+        else {
             continue;
         };
         let start = ctm.rules.len() as u32;
@@ -308,8 +310,16 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
                 Method::Horizontal | Method::Vertical => 4,
                 Method::HorizontalVertical | Method::VerticalHorizontal => 7,
                 Method::Repeat => {
-                    let w = kv.get("width").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1).max(1);
-                    let h = kv.get("height").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1).max(1);
+                    let w = kv
+                        .get("width")
+                        .and_then(|v| v.parse::<usize>().ok())
+                        .unwrap_or(1)
+                        .max(1);
+                    let h = kv
+                        .get("height")
+                        .and_then(|v| v.parse::<usize>().ok())
+                        .unwrap_or(1)
+                        .max(1);
                     w * h
                 }
                 _ => 1,
@@ -318,19 +328,22 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
                 log::warn!("{name}.ctm: {:?} needs {needed} tiles, has {}", method, tiles.len());
                 continue;
             }
-            let (rule_faces, rule_blocks) =
-                (kv.get("faces").map_or(0b111111, |v| faces(v)), kv.get("blocks").is_some());
+            let (rule_faces, rule_blocks) = (kv.get("faces").map_or(0b111111, |v| faces(v)), kv.get("blocks").is_some());
             let rule_index = ctm.rules.len();
             if is_compact {
                 compact.push((rule_index, tiles[..5].to_vec()));
                 tiles.clear();
             }
             let pick = if method == Method::Random {
-                let given: Vec<u32> = kv
-                    .get("weights")
-                    .map_or(Vec::new(), |w| w.split_whitespace().filter_map(|x| x.parse().ok()).collect());
+                let given: Vec<u32> = kv.get("weights").map_or(Vec::new(), |w| {
+                    w.split_whitespace()
+                        .filter_map(|x| x.parse().ok())
+                        .collect()
+                });
                 let avg = if given.is_empty() { 1 } else { (given.iter().sum::<u32>() / given.len() as u32).max(1) };
-                let weights: Vec<u32> = (0..tiles.len()).map(|i| given.get(i).copied().unwrap_or(avg)).collect();
+                let weights: Vec<u32> = (0..tiles.len())
+                    .map(|i| given.get(i).copied().unwrap_or(avg))
+                    .collect();
                 let total: u32 = weights.iter().sum::<u32>().max(1);
                 let mut lut = Vec::with_capacity(256);
                 let (mut acc, mut i) = (0u32, 0usize);
@@ -348,9 +361,9 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
             // References like anywhere else: names, `name[prop=value]`, `#tag`, `#pattern/*`.
             let mut blocks = Vec::new();
             for b in kv.get("blocks").map_or("", |v| *v).split_whitespace() {
-                match crate::refs::Ref::parse(b).and_then(|r| {
-                    crate::refs::blocks(&r, &c.block_names, &c.blocks, &c.components, c.states.len() as u32)
-                }) {
+                match crate::refs::Ref::parse(b)
+                    .and_then(|r| crate::refs::blocks(&r, &c.block_names, &c.blocks, &c.components, c.states.len() as u32))
+                {
                     Ok(list) => blocks.extend(list),
                     Err(e) => log::error!("{name}.ctm: blocks: {e}"),
                 }
@@ -362,9 +375,10 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
                     match crate::refs::Ref::parse(b)
                         .and_then(|r| crate::refs::biomes(&r, &c.biome_names, &c.components, c.biomes.len() as u32))
                     {
-                        Ok(list) => {
-                            list.into_iter().filter(|&i| i < 256).for_each(|i| set[i as usize / 64] |= 1 << (i % 64))
-                        }
+                        Ok(list) => list
+                            .into_iter()
+                            .filter(|&i| i < 256)
+                            .for_each(|i| set[i as usize / 64] |= 1 << (i % 64)),
                         Err(e) => log::error!("{name}.ctm: biomes: {e}"),
                     }
                 }
@@ -390,8 +404,14 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
                     _ => 1,
                 },
                 size: (
-                    kv.get("width").and_then(|v| v.parse().ok()).unwrap_or(1).max(1),
-                    kv.get("height").and_then(|v| v.parse().ok()).unwrap_or(1).max(1),
+                    kv.get("width")
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(1)
+                        .max(1),
+                    kv.get("height")
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(1)
+                        .max(1),
                 ),
             });
             if !matches!(method, Method::Random | Method::Fixed) {
@@ -401,7 +421,11 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
                         && off_cube(s.model, &s.textures, s.boxes.iter().map(|b| &b.textures), tex as u32, rule_faces)
                 });
                 if let Some(s) = on {
-                    let block = c.block_names.iter().find(|n| *n.1 == s.block).map_or("?", |n| n.0.as_str());
+                    let block = c
+                        .block_names
+                        .iter()
+                        .find(|n| *n.1 == s.block)
+                        .map_or("?", |n| n.0.as_str());
                     let why = format!(
                         "{name}.ctm: {method:?} needs a cube's face, and {block} shows this texture without one: only random and fixed work there (or leave it out with blocks =)"
                     );
@@ -415,16 +439,13 @@ pub fn load(assets: &Assets, c: &Content) -> (Ctm, Extra) {
     let first_composite = base + extra.names.len() as u32;
     for (rule, src) in compact {
         let start = first_composite + extra.composites.len() as u32;
-        extra.composites.extend(COMPACT.iter().map(|q| q.map(|code| src[code as usize])));
+        extra
+            .composites
+            .extend(COMPACT.iter().map(|q| q.map(|code| src[code as usize])));
         ctm.rules[rule].tiles = (start..start + 47).collect();
     }
     if !ctm.rules.is_empty() {
-        log::info!(
-            "connected textures: {} rules, {} tiles, {} generated",
-            ctm.rules.len(),
-            extra.names.len(),
-            extra.composites.len()
-        );
+        log::info!("connected textures: {} rules, {} tiles, {} generated", ctm.rules.len(), extra.names.len(), extra.composites.len());
     }
     (ctm, extra)
 }
@@ -444,9 +465,7 @@ impl Ctm {
     #[allow(clippy::too_many_arguments)]
     pub fn resolve(&self, c: &Content, n: &Neighborhood, x: i32, y: i32, z: i32, dir: usize, tex: u32) -> u32 {
         match self.by_texture.get(tex as usize) {
-            Some(&(start, len)) if len > 0 => {
-                self.resolve_rules(c, n, x, y, z, dir, tex, start as usize..(start + len) as usize)
-            }
+            Some(&(start, len)) if len > 0 => self.resolve_rules(c, n, x, y, z, dir, tex, start as usize..(start + len) as usize),
             _ => tex,
         }
     }
@@ -469,17 +488,18 @@ impl Ctm {
         let (r, u) = AXES[dir];
         let nrm = NORMALS[dir];
         let at = |a: i32, b: i32, extra: [i32; 3]| {
-            pidx(
-                x + r[0] * a + u[0] * b + extra[0],
-                y + r[1] * a + u[1] * b + extra[1],
-                z + r[2] * a + u[2] * b + extra[2],
-            )
+            pidx(x + r[0] * a + u[0] * b + extra[0], y + r[1] * a + u[1] * b + extra[1], z + r[2] * a + u[2] * b + extra[2])
         };
         for rule in &self.rules[rules] {
             if rule.faces & (1 << dir) == 0 || (!rule.blocks.is_empty() && !rule.blocks.contains(&info.block)) {
                 continue;
             }
-            if !rule.heights.is_empty() && !rule.heights.iter().any(|&(lo, hi)| world[1] >= lo && world[1] <= hi) {
+            if !rule.heights.is_empty()
+                && !rule
+                    .heights
+                    .iter()
+                    .any(|&(lo, hi)| world[1] >= lo && world[1] <= hi)
+            {
                 continue;
             }
             if let Some((invert, set)) = rule.biomes {
@@ -504,8 +524,9 @@ impl Ctm {
             let tile = match rule.method {
                 Method::Ctm => {
                     let mut bits = 0usize;
-                    for (bit, (a, b)) in
-                        [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)].into_iter().enumerate()
+                    for (bit, (a, b)) in [(-1, 0), (-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1)]
+                        .into_iter()
+                        .enumerate()
                     {
                         if connects(a, b) {
                             bits |= 1 << bit;
@@ -581,10 +602,7 @@ mod tests {
         assert!(!off_cube(Model::Cube, &t, none.into_iter(), 7, 0b111111));
         let top = [0, 0, 0, 7, 0, 0];
         assert!(off_cube(Model::Boxes, &[0; 6], [&top].into_iter(), 7, 0b111111));
-        assert!(
-            !off_cube(Model::Boxes, &[0; 6], [&top].into_iter(), 7, sides_only),
-            "not on the faces the rule is for"
-        );
+        assert!(!off_cube(Model::Boxes, &[0; 6], [&top].into_iter(), 7, sides_only), "not on the faces the rule is for");
     }
 
     #[test]

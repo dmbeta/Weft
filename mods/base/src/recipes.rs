@@ -46,12 +46,11 @@ pub fn register(r: &mut Registry) {
     ] {
         r.shaped(C, &format!("#{tool}/{{m}}"), 1, pattern, &[('X', "#materials/{m}"), ('#', "#stick")]);
     }
-    for (slot, pattern) in crate::items::ARMOR_SLOTS.iter().zip([
-        &["XXX", "X X"][..],
-        &["X X", "XXX", "XXX"],
-        &["XXX", "X X", "X X"],
-        &["X X", "X X"],
-    ]) {
+    for (slot, pattern) in
+        crate::items::ARMOR_SLOTS
+            .iter()
+            .zip([&["XXX", "X X"][..], &["X X", "XXX", "XXX"], &["XXX", "X X", "X X"], &["X X", "X X"]])
+    {
         r.shaped(C, &format!("#{slot}/{{m}}"), 1, pattern, &[('X', "#materials/{m}")]);
     }
 

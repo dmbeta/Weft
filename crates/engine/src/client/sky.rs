@@ -50,9 +50,7 @@ fn turn_of(s: &SkyDef, d: &DimensionDef, time: f64) -> f64 {
 
 /// Its frame in the world at `turn`: x toward it, y along its way, z out of the orbit's plane.
 fn frame_of(s: &SkyDef, turn: f64) -> Mat3 {
-    Mat3::from_rotation_y(s.heading)
-        * Mat3::from_rotation_x(s.tilt)
-        * Mat3::from_rotation_z((turn * std::f64::consts::TAU) as f32)
+    Mat3::from_rotation_y(s.heading) * Mat3::from_rotation_x(s.tilt) * Mat3::from_rotation_z((turn * std::f64::consts::TAU) as f32)
 }
 
 /// How far around the sunset of a body is at `height` (the sine of its elevation): how much it
@@ -75,12 +73,14 @@ fn glow_color(glow: u32, along: f32) -> Vec3 {
 /// color so far (not linear), how strong, and how far along.
 fn glows(dim: usize, d: &DimensionDef, time: f64) -> impl Iterator<Item = (Vec3, Vec3, f32, f32)> {
     let list = content().game.sky.get(dim).map_or(&[][..], |l| &l[..]);
-    list.iter().filter(|s| s.glow != 0 && s.kind == sky_kind::BODY).filter_map(move |s| {
-        let toward = frame_of(s, turn_of(s, d, time)).x_axis;
-        let (strength, along) = sunset(toward.y)?;
-        let flat = Vec3::new(toward.x, 0.0, toward.z).try_normalize()?;
-        Some((flat, glow_color(s.glow, along), strength, along))
-    })
+    list.iter()
+        .filter(|s| s.glow != 0 && s.kind == sky_kind::BODY)
+        .filter_map(move |s| {
+            let toward = frame_of(s, turn_of(s, d, time)).x_axis;
+            let (strength, along) = sunset(toward.y)?;
+            let flat = Vec3::new(toward.x, 0.0, toward.z).try_normalize()?;
+            Some((flat, glow_color(s.glow, along), strength, along))
+        })
 }
 
 /// A fog color (not linear) warmed by the sunsets the camera looks at, like vanilla's.
@@ -146,7 +146,11 @@ fn average_color(assets: &Assets, l: &crate::content::LiquidDef) -> Vec3 {
         .and_then(|b| decode_png(&b));
     let Some(img) = img else { return Vec3::splat(0.5) };
     let (mut sum, mut weight) = (Vec3::ZERO, 0.0);
-    for p in img.rgba.chunks_exact(4).take((img.width * img.width) as usize) {
+    for p in img
+        .rgba
+        .chunks_exact(4)
+        .take((img.width * img.width) as usize)
+    {
         let a = p[3] as f32 / 255.0;
         sum += Vec3::new(p[0] as f32, p[1] as f32, p[2] as f32) / 255.0 * a;
         weight += a;
@@ -179,11 +183,16 @@ impl Sky {
         self.liquid_colors = content()
             .liquids
             .iter()
-            .map(|l| l.fog_color.map_or_else(|| average_color(assets, l), rgb).powf(2.2))
+            .map(|l| {
+                l.fog_color
+                    .map_or_else(|| average_color(assets, l), rgb)
+                    .powf(2.2)
+            })
             .collect();
         let snippets = crate::shaders::snippets(assets, &HOOK);
-        let made = crate::packs::compose(assets, "sky.wgsl", &[(&HOOK, &snippets)]).map_err(|e| e.0).and_then(
-            |(shader, mut slots)| {
+        let made = crate::packs::compose(assets, "sky.wgsl", &[(&HOOK, &snippets)])
+            .map_err(|e| e.0)
+            .and_then(|(shader, mut slots)| {
                 let pipe = gpu
                     .create_pipeline(&PipelineDesc {
                         label: "sky",
@@ -214,8 +223,7 @@ impl Sky {
                     })
                     .map_err(|e| e.0)?;
                 Ok((pipe, clouds, slots.pop().unwrap_or_default()))
-            },
-        );
+            });
         match made {
             Ok((pipe, clouds, slots)) => {
                 if let Some(old) = self.pipe.replace(pipe) {
@@ -231,7 +239,10 @@ impl Sky {
     }
 
     pub fn liquid_color(&self, liquid: u16) -> Vec3 {
-        self.liquid_colors.get(liquid as usize).copied().unwrap_or(Vec3::ZERO)
+        self.liquid_colors
+            .get(liquid as usize)
+            .copied()
+            .unwrap_or(Vec3::ZERO)
     }
 
     /// What goes over the screen, after the hand.
@@ -264,9 +275,19 @@ impl Sky {
     }
 
     fn set_slots(&mut self, slots: &Slots) {
-        self.slots =
-            content().game.sky.iter().map(|list| list.iter().map(|o| slots.slot(&o.shader)).collect()).collect();
-        for o in content().game.sky.iter().flatten().filter(|o| !o.shader.is_empty() && slots.slot(&o.shader) == 0) {
+        self.slots = content()
+            .game
+            .sky
+            .iter()
+            .map(|list| list.iter().map(|o| slots.slot(&o.shader)).collect())
+            .collect();
+        for o in content()
+            .game
+            .sky
+            .iter()
+            .flatten()
+            .filter(|o| !o.shader.is_empty() && slots.slot(&o.shader) == 0)
+        {
             log::warn!("sky object {}: no shader {}", o.name, o.shader);
         }
     }
@@ -279,7 +300,10 @@ impl Sky {
 
     pub fn destroy(&mut self, gpu: &mut dyn Backend) {
         self.drop_pictures(gpu);
-        for p in [self.pipe.take(), self.clouds_pipe.take()].into_iter().flatten() {
+        for p in [self.pipe.take(), self.clouds_pipe.take()]
+            .into_iter()
+            .flatten()
+        {
             gpu.destroy_pipeline(p);
         }
         for (b, _) in self.buffers.drain(..) {
@@ -292,19 +316,16 @@ impl Sky {
             return None;
         }
         if !self.pictures.contains_key(name) {
-            let loaded = self.assets.read(name, "textures", "png").and_then(|b| decode_png(&b));
+            let loaded = self
+                .assets
+                .read(name, "textures", "png")
+                .and_then(|b| decode_png(&b));
             if loaded.is_none() {
                 log::error!("sky: no picture {name}");
             }
             let picture = loaded.map(|img| {
                 let texture = gpu.create_texture(
-                    &TextureDesc {
-                        width: img.width,
-                        height: img.height,
-                        mips: 1,
-                        format: Format::Rgba8Srgb,
-                        render_target: false,
-                    },
+                    &TextureDesc { width: img.width, height: img.height, mips: 1, format: Format::Rgba8Srgb, render_target: false },
                     "sky picture",
                 );
                 gpu.write_texture(texture, 0, &img.rgba);
@@ -350,8 +371,7 @@ impl Sky {
                     usage::STORAGE,
                     "sky",
                 );
-                gpu.mapped(buf)[..self.list.len() * size_of::<GpuSky>()]
-                    .copy_from_slice(bytemuck::cast_slice(&self.list));
+                gpu.mapped(buf)[..self.list.len() * size_of::<GpuSky>()].copy_from_slice(bytemuck::cast_slice(&self.list));
                 self.overlay = Some((buf, 0, n));
             }
             return;
@@ -365,9 +385,7 @@ impl Sky {
         self.list.clear();
         let aspect = frame.width as f32 / frame.height.max(1) as f32;
         let (o, px, py) = screen_rays(cam, aspect);
-        let axes = |m: Mat3| {
-            [m.x_axis.extend(0.0).to_array(), m.y_axis.extend(0.0).to_array(), m.z_axis.extend(0.0).to_array()]
-        };
+        let axes = |m: Mat3| [m.x_axis.extend(0.0).to_array(), m.y_axis.extend(0.0).to_array(), m.z_axis.extend(0.0).to_array()];
         let below = d.sea_level().is_some_and(|sea| eye_y < sea as f64);
         self.list.push(GpuSky {
             axes: axes(Mat3::from_cols(px - o, py - o, o)),
@@ -385,15 +403,21 @@ impl Sky {
         let mut clouds = None;
         for (i, s) in objects.iter().enumerate() {
             // Rain hides what is up there, domes aside: those are the sky.
-            let opacity = (s.opacity[0] + (s.opacity[1] - s.opacity[0]) * night)
-                * if s.kind == sky_kind::DOME { 1.0 } else { 1.0 - rain };
+            let opacity = (s.opacity[0] + (s.opacity[1] - s.opacity[0]) * night) * if s.kind == sky_kind::DOME { 1.0 } else { 1.0 - rain };
             if s.kind == sky_kind::CLOUDS {
                 let Some((index, [w, h])) = self.picture(gpu, &s.texture) else { continue };
                 const CELL: f64 = 12.0;
-                let setting = |name: &str| c.game.config_names.get(name).map_or(0.0, |&id| crate::config::get(id));
+                let setting = |name: &str| {
+                    c.game
+                        .config_names
+                        .get(name)
+                        .map_or(0.0, |&id| crate::config::get(id))
+                };
                 // Past all the terrain there is, distant terrain too; the cost doesn't depend on it.
-                let reach =
-                    (setting("core:view_distance") * 16.0).max(super::lod::Lod::distance() as f64).max(1365.0) * 1.5;
+                let reach = (setting("core:view_distance") * 16.0)
+                    .max(super::lod::Lod::distance() as f64)
+                    .max(1365.0)
+                    * 1.5;
                 let lifted = s.height as f64 + setting("core:cloud_height");
                 let (x, z) = ((cam.pos.x + time * s.drift as f64) / CELL, cam.pos.z / CELL);
                 let brightness = (light * 0.9 + 0.1).max(0.1);
@@ -406,7 +430,10 @@ impl Sky {
                         x.floor().rem_euclid(4096.0) as f32,
                         z.floor().rem_euclid(4096.0) as f32,
                     ],
-                    color: rained(rgb(s.color) * brightness, rain, 0.75).powf(2.2).extend(1.0).to_array(),
+                    color: rained(rgb(s.color) * brightness, rain, 0.75)
+                        .powf(2.2)
+                        .extend(1.0)
+                        .to_array(),
                     ids: [index, kind::CLOUDS, w, h],
                     extra: [CELL as f32, 4.0, (lifted - cam.pos.y) as f32, reach as f32],
                 });
@@ -416,14 +443,16 @@ impl Sky {
                 continue;
             }
             let t = turn_of(s, d, time);
-            let spin = if s.spin != 0.0 {
-                Mat3::from_rotation_x((time / s.spin as f64 * std::f64::consts::TAU) as f32)
-            } else {
-                Mat3::IDENTITY
-            };
+            let spin =
+                if s.spin != 0.0 { Mat3::from_rotation_x((time / s.spin as f64 * std::f64::consts::TAU) as f32) } else { Mat3::IDENTITY };
             let m = frame_of(s, t) * spin;
             let picture = self.picture(gpu, &s.texture);
-            let slot = self.slots.get(dim).and_then(|l| l.get(i)).copied().unwrap_or(0);
+            let slot = self
+                .slots
+                .get(dim)
+                .and_then(|l| l.get(i))
+                .copied()
+                .unwrap_or(0);
             let ticks = if s.frame_ticks != 0 {
                 s.frame_ticks as u64
             } else if d.day_length != 0 {

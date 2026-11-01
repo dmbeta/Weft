@@ -347,11 +347,7 @@ pub(crate) fn raw_pools(ns: &str, pools: &[Pool]) -> RawPools {
     let mut names: Vec<String> = Vec::new();
     for p in pools {
         for e in &p.entries {
-            names.push(if e.item.is_empty() || e.item.starts_with('#') {
-                e.item.clone()
-            } else {
-                qualify(ns, &e.item)
-            });
+            names.push(if e.item.is_empty() || e.item.starts_with('#') { e.item.clone() } else { qualify(ns, &e.item) });
         }
     }
     let mut out = RawPools { conds: Vec::new(), entries: Vec::new(), pools: Vec::new(), _names: Vec::new() };
@@ -435,8 +431,7 @@ impl Drop for LootBuilder<'_> {
             return;
         }
         let raw = raw_pools(self.reg.ns, &self.pools);
-        let desc =
-            abi::LootDesc { name: Str::new(&self.name), pools: Slice::new(&raw.pools), ..abi::LootDesc::DEFAULT };
+        let desc = abi::LootDesc { name: Str::new(&self.name), pools: Slice::new(&raw.pools), ..abi::LootDesc::DEFAULT };
         unsafe { (host().reg_loot)(self.reg.raw, &desc) }
     }
 }
@@ -521,11 +516,7 @@ impl<T> SystemBatch<'_, T> {
 impl Registry {
     /// A system over a per-entity component (`Registry::entity_component`): once per tick and
     /// region with all values in one slice, no host call per entity.
-    pub fn system<T: Value>(
-        &mut self,
-        comp: &crate::Component<T>,
-        f: impl Fn(&mut SystemBatch<T>) + Send + Sync + 'static,
-    ) {
+    pub fn system<T: Value>(&mut self, comp: &crate::Component<T>, f: impl Fn(&mut SystemBatch<T>) + Send + Sync + 'static) {
         let cb = callback(move |a: &mut abi::SystemArgs| {
             if a.stride as usize != size_of::<T>() || a.count == 0 {
                 return;
@@ -580,8 +571,7 @@ impl Registry {
     /// A step on value `chain` (`chain::*` or a mod's own) at `stage` (`stage::*`).
     pub fn modify(&mut self, chain: &Chain, stage: u32, f: impl Fn(&mut Modify) + Send + Sync + 'static) {
         let cb = callback(move |a: &mut abi::ModifyArgs| {
-            let mut m =
-                Modify { world: World::from_raw(a.world), query: unsafe { *a.ctx }, base: a.base, value: a.value };
+            let mut m = Modify { world: World::from_raw(a.world), query: unsafe { *a.ctx }, base: a.base, value: a.value };
             f(&mut m);
             a.value = m.value;
         });
@@ -656,9 +646,7 @@ impl World {
 
     /// Adds or replaces modifier `id` on an attribute for `ticks` (0 = until removed).
     pub fn add_modifier(&self, entity: u64, attr: &Attribute, id: &str, op: u32, amount: f64, ticks: u64) {
-        unsafe {
-            (host().attribute_modifier)(self.raw(), entity, Str::new(attr.name()), Str::new(id), op, amount, ticks)
-        }
+        unsafe { (host().attribute_modifier)(self.raw(), entity, Str::new(attr.name()), Str::new(id), op, amount, ticks) }
     }
 
     pub fn remove_modifier(&self, entity: u64, attr: &Attribute, id: &str) {

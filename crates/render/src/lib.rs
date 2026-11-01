@@ -240,7 +240,8 @@ impl CommandList {
     pub fn push_constants<T: bytemuck::Pod>(&mut self, value: &T) {
         let start = self.data.len() as u32;
         self.data.extend_from_slice(bytemuck::bytes_of(value));
-        self.cmds.push(Cmd::PushConstants { start, len: size_of::<T>() as u32 });
+        self.cmds
+            .push(Cmd::PushConstants { start, len: size_of::<T>() as u32 });
     }
 
     pub fn pipeline(&mut self, p: PipelineId) {
@@ -248,15 +249,18 @@ impl CommandList {
     }
 
     pub fn bind(&mut self, binding: u32, buffer: BufferId) {
-        self.cmds.push(Cmd::BindBuffer { binding, buffer, offset: 0, size: u64::MAX });
+        self.cmds
+            .push(Cmd::BindBuffer { binding, buffer, offset: 0, size: u64::MAX });
     }
 
     pub fn bind_range(&mut self, binding: u32, buffer: BufferId, offset: u64, size: u64) {
-        self.cmds.push(Cmd::BindBuffer { binding, buffer, offset, size });
+        self.cmds
+            .push(Cmd::BindBuffer { binding, buffer, offset, size });
     }
 
     pub fn draw(&mut self, vertices: u32, instances: u32) {
-        self.cmds.push(Cmd::Draw { vertices, instances, first_vertex: 0, first_instance: 0 });
+        self.cmds
+            .push(Cmd::Draw { vertices, instances, first_vertex: 0, first_instance: 0 });
     }
 }
 

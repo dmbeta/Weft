@@ -33,14 +33,7 @@ impl Look {
         let mut namespaces: Vec<String> = mods.iter().rev().cloned().collect();
         namespaces.push("core".into());
         let (colors, nones) = lang.colors();
-        Look {
-            namespaces,
-            textures: Default::default(),
-            sidecars: Default::default(),
-            colors,
-            nones,
-            assets: assets.clone(),
-        }
+        Look { namespaces, textures: Default::default(), sidecars: Default::default(), colors, nones, assets: assets.clone() }
     }
 
     /// The texture of `class` in `state` ("" for its plain look), `ns:gui/<class>[_<state>]`.
@@ -50,9 +43,7 @@ impl Look {
             return t.clone();
         }
         let found = match key.split_once(':') {
-            Some((ns, path)) => {
-                Some(format!("{ns}:gui/{path}")).filter(|n| self.assets.path(n, "textures", "png").is_some())
-            }
+            Some((ns, path)) => Some(format!("{ns}:gui/{path}")).filter(|n| self.assets.path(n, "textures", "png").is_some()),
             None => self
                 .namespaces
                 .iter()
@@ -65,7 +56,8 @@ impl Look {
 
     /// A state's texture, else the class's own.
     pub fn texture_or_plain(&self, class: &str, state: &str) -> Option<String> {
-        self.texture(class, state).or_else(|| self.texture(class, ""))
+        self.texture(class, state)
+            .or_else(|| self.texture(class, ""))
     }
 
     /// A value from the `.gui` sidecar of the class's texture (`shader`, `animation`).
@@ -74,10 +66,13 @@ impl Look {
         if let Some(v) = self.sidecars.borrow().get(&cache) {
             return v.clone();
         }
-        let v = self.texture(class, "").and_then(|t| self.assets.read(&t, "textures", "gui")).and_then(|b| {
-            let src = String::from_utf8_lossy(&b).into_owned();
-            crate::kv::get(&src, key).map(str::to_string)
-        });
+        let v = self
+            .texture(class, "")
+            .and_then(|t| self.assets.read(&t, "textures", "gui"))
+            .and_then(|b| {
+                let src = String::from_utf8_lossy(&b).into_owned();
+                crate::kv::get(&src, key).map(str::to_string)
+            });
         self.sidecars.borrow_mut().insert(cache, v.clone());
         v
     }
@@ -93,8 +88,12 @@ impl Look {
 
     /// Text color of `class` in `state` ("", "hover", "disabled", "dim").
     pub fn text(&self, class: &str, state: &str) -> u32 {
-        let own = (!state.is_empty()).then(|| self.color(&format!("{class}_{state}"))).flatten();
-        own.or_else(|| self.color(class)).or_else(|| self.color("default")).unwrap_or(0xFFFFFFFF)
+        let own = (!state.is_empty())
+            .then(|| self.color(&format!("{class}_{state}")))
+            .flatten();
+        own.or_else(|| self.color(class))
+            .or_else(|| self.color("default"))
+            .unwrap_or(0xFFFFFFFF)
     }
 
     /// Its text's shadow, `None` for none.
@@ -102,6 +101,7 @@ impl Look {
         if self.nones.contains(&format!("{class}_shadow")) {
             return None;
         }
-        self.color(&format!("{class}_shadow")).or_else(|| self.color("default_shadow"))
+        self.color(&format!("{class}_shadow"))
+            .or_else(|| self.color("default_shadow"))
     }
 }

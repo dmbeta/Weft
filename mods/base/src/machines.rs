@@ -50,11 +50,15 @@ pub fn register(r: &mut Registry) {
                     ui.column(S::col().gap(2.0), |ui| {
                         ui.group("input");
                         ui.progress_bind_dir("flame", S::default().size(14.0, 14.0), abi::ui_dir::UP, |c| {
-                            c.menu_component(&SMELTING).map_or(0.0, |s| ratio(s.burn, s.burn_max))
+                            c.menu_component(&SMELTING)
+                                .map_or(0.0, |s| ratio(s.burn, s.burn_max))
                         });
                         ui.group("fuel");
                     });
-                    ui.recipe_arrow_bind(|c| c.menu_component(&SMELTING).map_or(0.0, |s| ratio(s.cook, s.cook_max)));
+                    ui.recipe_arrow_bind(|c| {
+                        c.menu_component(&SMELTING)
+                            .map_or(0.0, |s| ratio(s.cook, s.cook_max))
+                    });
                     ui.group("output");
                     ui.spacer();
                 });
@@ -112,13 +116,17 @@ fn catch_up(w: &World, id: u64, s: &mut Smelting, ticks: u32) {
     let (input_slot, fuel_slot, output_slot) = (inv.group("input"), inv.group("fuel"), inv.group("output"));
     let (input, fuel, output) = (input_slot.get(0), fuel_slot.get(0), output_slot.get(0));
     let mut idle = ticks as u64;
-    if let Some((out, time)) =
-        (!input.is_empty()).then(|| recipe_process(&crate::recipes::SMELTING, input.item)).flatten()
+    if let Some((out, time)) = (!input.is_empty())
+        .then(|| recipe_process(&crate::recipes::SMELTING, input.item))
+        .flatten()
     {
         let q = abi::Query { entity: id, item: input.item, ..query() };
         s.cook_max = w.compute(&SMELT_TIME, time as f64, &q).round().max(1.0) as u32;
         let items = (input.count).min(room_for(output, out)) as u64;
-        let per_fuel = FUEL.on_item(fuel.item).filter(|_| !fuel.is_empty()).unwrap_or(0) as u64;
+        let per_fuel = FUEL
+            .on_item(fuel.item)
+            .filter(|_| !fuel.is_empty())
+            .unwrap_or(0) as u64;
         let fuel_items = if per_fuel > 0 { fuel.count as u64 } else { 0 };
         let work = (items * s.cook_max as u64).saturating_sub(s.cook as u64);
         let worked = idle.min(work).min(s.burn as u64 + fuel_items * per_fuel);
@@ -137,14 +145,8 @@ fn catch_up(w: &World, id: u64, s: &mut Smelting, ticks: u32) {
         s.cook = (total % s.cook_max as u64) as u32;
         if done > 0 {
             input_slot.set(0, input.shrink(done));
-            output_slot.set(
-                0,
-                if output.is_empty() {
-                    ItemStack { count: out.count * done, ..out }
-                } else {
-                    output.grow(out.count * done)
-                },
-            );
+            output_slot
+                .set(0, if output.is_empty() { ItemStack { count: out.count * done, ..out } } else { output.grow(out.count * done) });
             for _ in 0..done {
                 w.emit(&SMELTED, Smelted { furnace: id, input: input.item, output: out });
             }
@@ -177,10 +179,11 @@ fn tick_furnaces(b: &mut SystemBatch<Smelting>) {
         if s.burn > 0 {
             s.burn -= 1;
         }
-        let recipe = (!input.is_empty()).then(|| recipe_process(&crate::recipes::SMELTING, input.item)).flatten();
-        let fits = recipe.is_some_and(|(out, _)| {
-            output.is_empty() || (output.stacks_with(&out) && output.count + out.count <= max_stack(out.item))
-        });
+        let recipe = (!input.is_empty())
+            .then(|| recipe_process(&crate::recipes::SMELTING, input.item))
+            .flatten();
+        let fits = recipe
+            .is_some_and(|(out, _)| output.is_empty() || (output.stacks_with(&out) && output.count + out.count <= max_stack(out.item)));
         if s.burn == 0 && fits {
             if let Some(ticks) = FUEL.on_item(fuel.item).filter(|_| !fuel.is_empty()) {
                 s.burn = ticks;

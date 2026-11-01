@@ -23,7 +23,9 @@ impl Server {
             send_block_changes(p, dim);
             send_mining(p, &mining_now[d], *tick);
             send_clock(p, dim, *tick);
-            let viewer = dim.entity(p.entity).map_or((DVec3::ZERO, GameMode::Survival), |e| (e.pos, e.mode));
+            let viewer = dim
+                .entity(p.entity)
+                .map_or((DVec3::ZERO, GameMode::Survival), |e| (e.pos, e.mode));
             send_entities(c, p, dim, &moved[d], *tick, view.radius, viewer);
             send_own_state(c, p, dim);
             if !p.gizmos.is_empty() {
@@ -49,8 +51,12 @@ impl Server {
             let Some((0, pos, start)) = p.mining else { continue };
             let Some(r) = self.dims[p.dim as usize].entity_region_ref(p.entity) else { continue };
             let (Some(e), Some(state)) = (r.entities.get(p.entity), r.get(pos)) else { continue };
-            let held =
-                r.entities.inventories.get(&p.entity).and_then(|i| i.get(e.selected as usize)).map_or(0, |s| s.item);
+            let held = r
+                .entities
+                .inventories
+                .get(&p.entity)
+                .and_then(|i| i.get(e.selected as usize))
+                .map_or(0, |s| s.item);
             let need = dim::mining_time(
                 c,
                 state,
@@ -80,7 +86,12 @@ impl Server {
                 }
                 r.mirror_fields(c);
                 r.entities.find_changes(&c.game.synced_comps);
-                for e in r.entities.list.iter_mut().filter(|e| !e.removed && e.anchor.is_none()) {
+                for e in r
+                    .entities
+                    .list
+                    .iter_mut()
+                    .filter(|e| !e.removed && e.anchor.is_none())
+                {
                     let now = (e.pos, e.yaw, e.pitch, e.pose);
                     // Solid bodies every tick: clients show them between server positions, and a
                     // body that stops must say so (two equal positions).
@@ -142,12 +153,17 @@ fn send_block_changes(p: &mut Player, dim: &DimSet) {
     for reg in &dim.regions {
         for (pos, cube) in &reg.resend {
             if p.sent.contains(pos) {
-                p.conn.send(ToClient::Cube { dim: p.dim, pos: *pos, cube: cube.clone(), edit: true });
+                p.conn
+                    .send(ToClient::Cube { dim: p.dim, pos: *pos, cube: cube.clone(), edit: true });
             }
         }
         if !reg.changes.is_empty() {
-            let changes: Vec<(IVec3, u32)> =
-                reg.changes.iter().filter(|(b, _)| p.sent.contains(&(*b >> 4))).copied().collect();
+            let changes: Vec<(IVec3, u32)> = reg
+                .changes
+                .iter()
+                .filter(|(b, _)| p.sent.contains(&(*b >> 4)))
+                .copied()
+                .collect();
             if !changes.is_empty() {
                 p.conn.send(ToClient::Blocks { dim: p.dim, changes });
             }
@@ -157,14 +173,20 @@ fn send_block_changes(p: &mut Player, dim: &DimSet) {
 
 /// Everyone else's mining in this dimension: cracks for those near, and their arms.
 fn send_mining(p: &mut Player, cracks: &[(u64, IVec3, f32)], tick: u64) {
-    let mine: Vec<(u64, IVec3, f32)> =
-        cracks.iter().copied().filter(|m| m.0 != p.entity && p.known.contains(&m.0)).collect();
+    let mine: Vec<(u64, IVec3, f32)> = cracks
+        .iter()
+        .copied()
+        .filter(|m| m.0 != p.entity && p.known.contains(&m.0))
+        .collect();
     if mine != p.sent_cracks {
         p.conn.send(ToClient::Cracks(mine.clone()));
         p.sent_cracks = mine;
     }
     if tick % 5 == 0 {
-        for m in cracks.iter().filter(|m| m.0 != p.entity && p.known.contains(&m.0)) {
+        for m in cracks
+            .iter()
+            .filter(|m| m.0 != p.entity && p.known.contains(&m.0))
+        {
             p.conn.send(ToClient::EntitySwing(m.0));
         }
     }
@@ -172,10 +194,12 @@ fn send_mining(p: &mut Player, cracks: &[(u64, IVec3, f32)], tick: u64) {
 
 fn send_clock(p: &mut Player, dim: &DimSet, tick: u64) {
     if dim.weather_moved || p.first_sync {
-        p.conn.send(ToClient::Weather { raining: dim.raining, thunder: dim.thunder });
+        p.conn
+            .send(ToClient::Weather { raining: dim.raining, thunder: dim.thunder });
     }
     if tick % TPS as u64 == 0 || dim.day_moved {
-        p.conn.send(ToClient::Time { dim: p.dim, time: dim.day_time() });
+        p.conn
+            .send(ToClient::Time { dim: p.dim, time: dim.day_time() });
     }
 }
 
@@ -200,13 +224,7 @@ fn send_entities(
             .entities
             .list
             .iter()
-            .filter(|e| {
-                !e.removed
-                    && e.id != p.entity
-                    && e.anchor.is_none()
-                    && e.kind != c.game.virtual_kind
-                    && (!e.player || e.alive())
-            })
+            .filter(|e| !e.removed && e.id != p.entity && e.anchor.is_none() && e.kind != c.game.virtual_kind && (!e.player || e.alive()))
             .filter(shown)
         {
             if (e.pos - me).length_squared() > range2 {
@@ -225,15 +243,25 @@ fn send_entities(
             }
         }
     }
-    let taken: Vec<(u64, u64)> =
-        dim.regions.iter().flat_map(|r| r.entities.taken.iter()).filter(|t| p.known.contains(&t.0)).copied().collect();
+    let taken: Vec<(u64, u64)> = dim
+        .regions
+        .iter()
+        .flat_map(|r| r.entities.taken.iter())
+        .filter(|t| p.known.contains(&t.0))
+        .copied()
+        .collect();
     if !taken.is_empty() {
         p.conn.send(ToClient::Taken(taken));
     }
     // A mob killed this tick is gone already: the flag starts its death animation.
     let killed = |id: &u64| dim.regions.iter().any(|r| r.entities.killed.contains(id));
-    let gone: Vec<(u64, bool)> =
-        p.known.iter().copied().filter(|id| !visible.contains(id)).map(|id| (id, killed(&id))).collect();
+    let gone: Vec<(u64, bool)> = p
+        .known
+        .iter()
+        .copied()
+        .filter(|id| !visible.contains(id))
+        .map(|id| (id, killed(&id)))
+        .collect();
     if !gone.is_empty() {
         p.conn.send(ToClient::Despawn(gone));
     }
@@ -246,12 +274,22 @@ fn send_entities(
                 && visible.contains(&id)
                 && c.game.components[comp as usize].flags & cf::SYNC_WATCHERS != 0
             {
-                shared.extend(reg.entities.comps.get(&(id, comp)).map(|b| (id, comp, b.to_vec())));
+                shared.extend(
+                    reg.entities
+                        .comps
+                        .get(&(id, comp))
+                        .map(|b| (id, comp, b.to_vec())),
+                );
             }
         }
         for v in &spawn {
             for &comp in &c.game.watched_comps {
-                shared.extend(reg.entities.comps.get(&(v.id, comp)).map(|b| (v.id, comp, b.to_vec())));
+                shared.extend(
+                    reg.entities
+                        .comps
+                        .get(&(v.id, comp))
+                        .map(|b| (v.id, comp, b.to_vec())),
+                );
             }
         }
     }
@@ -260,11 +298,7 @@ fn send_entities(
     for reg in &dim.regions {
         for (&id, st) in &reg.structures {
             if spawn.iter().any(|v| v.id == id) {
-                structures.push(ToClient::Structure {
-                    id,
-                    cubes: st.cubes.iter().map(|(p, c)| (*p, c.clone())).collect(),
-                    full: true,
-                });
+                structures.push(ToClient::Structure { id, cubes: st.cubes.iter().map(|(p, c)| (*p, c.clone())).collect(), full: true });
             } else if !st.resend.is_empty() && p.known.contains(&id) && visible.contains(&id) {
                 structures.push(ToClient::Structure { id, cubes: st.resend.clone(), full: false });
             }
@@ -279,8 +313,11 @@ fn send_entities(
     if !shared.is_empty() {
         p.conn.send(ToClient::EntityComponents(shared));
     }
-    let moves: Vec<crate::net::Move> =
-        moved.iter().filter(|m| p.known.contains(&m.0) && visible.contains(&m.0)).copied().collect();
+    let moves: Vec<crate::net::Move> = moved
+        .iter()
+        .filter(|m| p.known.contains(&m.0) && visible.contains(&m.0))
+        .copied()
+        .collect();
     if !moves.is_empty() {
         p.conn.send(ToClient::Moves { tick, moves });
     }
@@ -311,7 +348,10 @@ fn send_own_state(c: &'static Content, p: &mut Player, dim: &mut DimSet) {
     if p.first_sync || reg.entities.dirty_inv.contains(&p.entity) {
         if let Some(inv) = reg.entities.inventories.get(&p.entity) {
             p.conn.send(ToClient::Inventory(
-                inv.iter().enumerate().map(|(i, s)| (i as u32, crate::stack::for_client(*s))).collect(),
+                inv.iter()
+                    .enumerate()
+                    .map(|(i, s)| (i as u32, crate::stack::for_client(*s)))
+                    .collect(),
             ));
         }
     }
@@ -339,7 +379,12 @@ fn send_own_state(c: &'static Content, p: &mut Player, dim: &mut DimSet) {
             .menu_comps
             .iter()
             .filter(|&&comp| owner != 0 && (first || reg.entities.dirty_comp.contains(&(owner, comp))))
-            .filter_map(|&comp| reg.entities.comps.get(&(owner, comp)).map(|b| (owner, comp, b.to_vec())))
+            .filter_map(|&comp| {
+                reg.entities
+                    .comps
+                    .get(&(owner, comp))
+                    .map(|b| (owner, comp, b.to_vec()))
+            })
             .collect();
         if !comps.is_empty() {
             p.conn.send(ToClient::EntityComponents(comps));
@@ -356,14 +401,7 @@ fn send_own_state(c: &'static Content, p: &mut Player, dim: &mut DimSet) {
 
 /// Cubes that came into view, nearest first, and unloading those far behind. Returns how many are
 /// still waiting for their turn.
-fn send_cubes(
-    p: &mut Player,
-    dim: &DimSet,
-    def: &crate::content::DimensionDef,
-    view: View,
-    full: View,
-    settled: &[IVec3],
-) -> u64 {
+fn send_cubes(p: &mut Player, dim: &DimSet, def: &crate::content::DimensionDef, view: View, full: View, settled: &[IVec3]) -> u64 {
     let (center, r, h, down) = (view.center, view.radius, view.up, view.down);
     let in_range = |pos: IVec3| view.contains_in(def, pos);
     let moved = p.sync_range != Some(view);
@@ -375,11 +413,7 @@ fn send_cubes(
             for dz in -r..=r {
                 for dx in -r..=r {
                     let pos = center + IVec3::new(dx, dy, dz);
-                    if in_range(pos)
-                        && !was.is_some_and(|w| w.contains(pos))
-                        && !p.sent.contains(&pos)
-                        && dim.settled(pos)
-                    {
+                    if in_range(pos) && !was.is_some_and(|w| w.contains(pos)) && !p.sent.contains(&pos) && dim.settled(pos) {
                         p.unsent.insert(pos);
                     }
                 }
@@ -387,7 +421,12 @@ fn send_cubes(
         }
         p.sync_range = Some(view);
     }
-    p.unsent.extend(settled.iter().copied().filter(|&q| in_range(q) && !p.sent.contains(&q)));
+    p.unsent.extend(
+        settled
+            .iter()
+            .copied()
+            .filter(|&q| in_range(q) && !p.sent.contains(&q)),
+    );
     // Send a cube once its neighbors exist and its sky light is final.
     let mut to_send: Vec<(i32, IVec3)> = p
         .unsent
@@ -408,7 +447,8 @@ fn send_cubes(
     let unsent = to_send.len().saturating_sub(SEND_PER_TICK) as u64;
     for &(_, pos) in to_send.iter().take(SEND_PER_TICK) {
         if let Some(cube) = dim.snapshot(pos) {
-            p.conn.send(ToClient::Cube { dim: p.dim, pos, cube, edit: false });
+            p.conn
+                .send(ToClient::Cube { dim: p.dim, pos, cube, edit: false });
             p.sent.insert(pos);
             p.unsent.remove(&pos);
         }
@@ -435,7 +475,12 @@ pub(super) fn gizmos_for(p: &Player, dim: &DimSet, tick: u64, me: DVec3) -> Vec<
     use crate::net::GizmoShape;
     let mut out: Vec<GizmoShape> = Vec::new();
     for r in &dim.regions {
-        out.extend(r.gizmos.iter().filter(|g| p.gizmos.contains(&g.group)).cloned());
+        out.extend(
+            r.gizmos
+                .iter()
+                .filter(|g| p.gizmos.contains(&g.group))
+                .cloned(),
+        );
     }
     if tick % TPS as u64 != 0 {
         return out;
@@ -453,9 +498,7 @@ pub(super) fn gizmos_for(p: &Player, dim: &DimSet, tick: u64, me: DVec3) -> Vec<
     if on("regions") {
         const COLORS: [u32; 6] = [0xFF4040FF, 0x40FF40FF, 0x4080FFFF, 0xFFFF40FF, 0xFF40FFFF, 0x40FFFFFF];
         for (i, r) in dim.regions.iter().enumerate() {
-            let (Some(lo), Some(hi)) =
-                (r.cubes.keys().copied().reduce(IVec3::min), r.cubes.keys().copied().reduce(IVec3::max))
-            else {
+            let (Some(lo), Some(hi)) = (r.cubes.keys().copied().reduce(IVec3::min), r.cubes.keys().copied().reduce(IVec3::max)) else {
                 continue;
             };
             let (a, b) = ((lo * 16).as_dvec3() + 0.05, ((hi + 1) * 16).as_dvec3() - 0.05);

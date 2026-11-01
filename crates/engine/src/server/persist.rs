@@ -102,7 +102,11 @@ impl R<'_> {
         }
         let data = crate::stack::from_names(list);
         // Items of removed mods are dropped rather than turned into something else.
-        Some(c.item_names.get(&name).map_or(ItemStack::EMPTY, |&i| ItemStack { item: i, count, data }))
+        Some(
+            c.item_names
+                .get(&name)
+                .map_or(ItemStack::EMPTY, |&i| ItemStack { item: i, count, data }),
+        )
     }
 }
 
@@ -138,8 +142,10 @@ pub fn write(c: &Content, out: &mut Vec<u8>, list: &[ToSave<'_>]) {
             }
             None => w.u16(u16::MAX),
         }
-        let saved: Vec<&(u32, &[u8])> =
-            comps.iter().filter(|(id, _)| c.game.components[*id as usize].flags & cf::SAVE != 0).collect();
+        let saved: Vec<&(u32, &[u8])> = comps
+            .iter()
+            .filter(|(id, _)| c.game.components[*id as usize].flags & cf::SAVE != 0)
+            .collect();
         w.u16(saved.len() as u16);
         for (id, bytes) in saved {
             w.str(&c.game.components[*id as usize].name);
@@ -181,7 +187,10 @@ pub fn append_ticks(out: &mut Vec<u8>, ticks: &[(u16, u32)]) {
 }
 
 pub fn read_ticks(data: &[u8]) -> Vec<(u16, u32)> {
-    let word = |at: usize| data.get(at..at + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()));
+    let word = |at: usize| {
+        data.get(at..at + 4)
+            .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+    };
     let Some(end) = data.len().checked_sub(8) else { return Vec::new() };
     if word(end + 4) != Some(TICKS_MAGIC) {
         return Vec::new();
@@ -280,5 +289,7 @@ pub fn hex(bytes: &[u8]) -> String {
 }
 
 pub fn unhex(s: &str) -> Vec<u8> {
-    (0..s.len() / 2).filter_map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()).collect()
+    (0..s.len() / 2)
+        .filter_map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok())
+        .collect()
 }

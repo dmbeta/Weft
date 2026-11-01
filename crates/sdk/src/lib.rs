@@ -123,13 +123,7 @@ macro_rules! declare_mod {
 }
 
 #[doc(hidden)]
-pub unsafe fn __init(
-    host: *const Host,
-    me: ModId,
-    reg: *mut abi::Registrar,
-    id: &'static str,
-    f: fn(&mut Registry),
-) -> u32 {
+pub unsafe fn __init(host: *const Host, me: ModId, reg: *mut abi::Registrar, id: &'static str, f: fn(&mut Registry)) -> u32 {
     HOST.store(host as *mut Host, Ordering::Relaxed);
     ME.store(me.0, Ordering::Relaxed);
     let _ = MOD_ID.set(id);
@@ -174,9 +168,16 @@ fn asset_check(folder: &str, ns: &str, path: &str) -> Result<(), &'static str> {
         Some("an empty name")
     } else if path.starts_with('/') || path.contains('\\') || path.contains(':') {
         Some("not a name inside the folder")
-    } else if path.split('/').any(|p| p.is_empty() || p == "." || p == "..") {
+    } else if path
+        .split('/')
+        .any(|p| p.is_empty() || p == "." || p == "..")
+    {
         Some("a path leaving the folder")
-    } else if TEXTURE_FOLDERS.contains(&folder) && path.split('/').next().is_some_and(|f| TEXTURE_FOLDERS.contains(&f))
+    } else if TEXTURE_FOLDERS.contains(&folder)
+        && path
+            .split('/')
+            .next()
+            .is_some_and(|f| TEXTURE_FOLDERS.contains(&f))
     {
         Some("names start inside the folder, without it")
     } else {
@@ -189,7 +190,10 @@ fn install_panic_hook() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
         std::panic::set_hook(Box::new(|info| {
-            let loc = info.location().map(|l| format!(" at {}:{}", l.file(), l.line())).unwrap_or_default();
+            let loc = info
+                .location()
+                .map(|l| format!(" at {}:{}", l.file(), l.line()))
+                .unwrap_or_default();
             let msg = info
                 .payload()
                 .downcast_ref::<&str>()
@@ -231,11 +235,7 @@ pub(crate) fn full_name(name: &str) -> String {
 /// vocabulary and stay as written.
 pub(crate) fn qualify(ns: &str, name: &str) -> String {
     let base = name.split('[').next().unwrap_or(name);
-    if name.starts_with('#') || base.contains(':') || name.is_empty() {
-        name.to_string()
-    } else {
-        format!("{ns}:{name}")
-    }
+    if name.starts_with('#') || base.contains(':') || name.is_empty() { name.to_string() } else { format!("{ns}:{name}") }
 }
 
 #[cfg(test)]
@@ -243,7 +243,13 @@ mod tests {
     #[test]
     fn limbs_at_minus_x_are_mirrored() {
         let model = crate::biped(false);
-        let mirror = |name: &str| model.parts.iter().find(|p| p.name == name).map(|p| p.boxes[0].mirror);
+        let mirror = |name: &str| {
+            model
+                .parts
+                .iter()
+                .find(|p| p.name == name)
+                .map(|p| p.boxes[0].mirror)
+        };
         // Else a sleeve's long side, on the outside of the arm, is on the inside of one of them.
         assert_eq!((mirror("rightArm"), mirror("rightLeg")), (Some(1), Some(1)));
         assert_eq!((mirror("leftArm"), mirror("leftLeg")), (Some(0), Some(0)));

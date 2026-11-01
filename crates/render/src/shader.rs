@@ -54,9 +54,7 @@ impl Shader {
                     }
                     let kind = match var.space {
                         naga::AddressSpace::Uniform => BufferKind::Uniform,
-                        naga::AddressSpace::Storage { access } if access.contains(naga::StorageAccess::STORE) => {
-                            BufferKind::StorageWrite
-                        }
+                        naga::AddressSpace::Storage { access } if access.contains(naga::StorageAccess::STORE) => BufferKind::StorageWrite,
                         _ => BufferKind::StorageRead,
                     };
                     buffers.push((b.binding, kind));

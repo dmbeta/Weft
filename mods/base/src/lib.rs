@@ -43,7 +43,11 @@ fn init(r: &mut Registry) {
     advancements::register(r);
     beds::register(r);
     // Its terrain is described in `worldgen`.
-    r.dimension(&OVERWORLD).player_spawn().sky_above(16).day_length(24000).weather();
+    r.dimension(&OVERWORLD)
+        .player_spawn()
+        .sky_above(16)
+        .day_length(24000)
+        .weather();
     // Second dimension on purpose: nothing in the engine may assume there is only one world.
     r.dimension(&FLATLANDS)
         .generator(worldgen::flat)
@@ -57,7 +61,14 @@ fn init(r: &mut Registry) {
     for dim in [&OVERWORLD, &FLATLANDS] {
         r.sky_stars(dim, &STARS).count(1500);
         r.sky_clouds(dim, &CLOUDS).texture("clouds");
-        r.sky_body(dim, &SUN).texture("sun").size(33.0).glow(0xFFE633);
-        r.sky_body(dim, &MOON).texture("moon_phases").frames(4, 2).size(23.0).phase(0.5);
+        r.sky_body(dim, &SUN)
+            .texture("sun")
+            .size(33.0)
+            .glow(0xFFE633);
+        r.sky_body(dim, &MOON)
+            .texture("moon_phases")
+            .frames(4, 2)
+            .size(23.0)
+            .phase(0.5);
     }
 }

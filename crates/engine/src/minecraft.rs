@@ -18,7 +18,9 @@ pub const PACK: &str = "minecraft";
 
 fn get_roots_from_home() -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = Vec::new();
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from);
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from);
 
     if let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) {
         roots.push(appdata.join(".minecraft"));
@@ -34,7 +36,13 @@ fn get_roots_from_home() -> Vec<PathBuf> {
 }
 
 fn get_roots_from_env() -> Option<Vec<PathBuf>> {
-    Some(std::env::var_os("MINECRAFT_DIR_LOOKUP")?.to_str()?.split(':').map(PathBuf::from).collect())
+    Some(
+        std::env::var_os("MINECRAFT_DIR_LOOKUP")?
+            .to_str()?
+            .split(':')
+            .map(PathBuf::from)
+            .collect(),
+    )
 }
 
 /// Client jars the launchers keep, newest first, with the launcher folder they came from.
@@ -49,12 +57,20 @@ fn jars() -> Vec<(PathBuf, String, PathBuf)> {
     };
     for root in roots {
         // Official launcher: versions/<v>/<v>.jar.
-        for e in std::fs::read_dir(root.join("versions")).into_iter().flatten().flatten() {
+        for e in std::fs::read_dir(root.join("versions"))
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             let v = e.file_name().to_string_lossy().into_owned();
             add(&root, e.path().join(format!("{v}.jar")), v);
         }
         // Prism: libraries/com/mojang/minecraft/<v>/minecraft-<v>-client.jar.
-        for e in std::fs::read_dir(root.join("libraries/com/mojang/minecraft")).into_iter().flatten().flatten() {
+        for e in std::fs::read_dir(root.join("libraries/com/mojang/minecraft"))
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             let v = e.file_name().to_string_lossy().into_owned();
             add(&root, e.path().join(format!("minecraft-{v}-client.jar")), v);
         }
@@ -66,8 +82,11 @@ fn jars() -> Vec<(PathBuf, String, PathBuf)> {
 /// The launcher's index of the assets for this version, if the launcher downloaded it.
 fn asset_index(root: &Path, version: &str) -> Option<PathBuf> {
     let meta = [
-        root.join("versions").join(version).join(format!("{version}.json")),
-        root.join("meta/net.minecraft").join(format!("{version}.json")),
+        root.join("versions")
+            .join(version)
+            .join(format!("{version}.json")),
+        root.join("meta/net.minecraft")
+            .join(format!("{version}.json")),
     ]
     .into_iter()
     .find(|p| p.is_file())?;
@@ -102,7 +121,12 @@ fn sound_store(root: &Path, version: &str) -> Option<SoundStore> {
         .as_object()?
         .iter()
         .filter_map(|(name, def)| {
-            let sounds: Vec<String> = def.get("sounds")?.as_array()?.iter().filter_map(event_sound).collect();
+            let sounds: Vec<String> = def
+                .get("sounds")?
+                .as_array()?
+                .iter()
+                .filter_map(event_sound)
+                .collect();
             (!sounds.is_empty()).then(|| (name.clone(), sounds))
         })
         .collect();
@@ -133,12 +157,7 @@ pub fn ensure_pack(run_dir: &Path, mods: &[(String, PathBuf)]) -> bool {
         .filter_map(|(ns, dir)| {
             let textures = std::fs::read_to_string(dir.join("minecraft.txt")).unwrap_or_default();
             let sounds = std::fs::read_to_string(dir.join("sounds.txt")).unwrap_or_default();
-            (!textures.is_empty() || !sounds.is_empty()).then(|| ModMaps {
-                ns: ns.clone(),
-                dir: dir.clone(),
-                textures,
-                sounds,
-            })
+            (!textures.is_empty() || !sounds.is_empty()).then(|| ModMaps { ns: ns.clone(), dir: dir.clone(), textures, sounds })
         })
         .collect();
     if maps.is_empty() {
@@ -186,7 +205,12 @@ pub fn ensure_pack(run_dir: &Path, mods: &[(String, PathBuf)]) -> bool {
 
 /// A mod's own files for the pack, for the pack to be made again when they change.
 fn own_files(dir: &Path, key: &mut String) {
-    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .collect();
     entries.sort();
     for path in entries {
         key.push_str(&path.file_name().unwrap_or_default().to_string_lossy());
@@ -199,8 +223,7 @@ fn own_files(dir: &Path, key: &mut String) {
 }
 
 fn build(jar: &Path, version: &str, root: &Path, maps: &[ModMaps], out: &Path, key: &str) -> Result<usize, String> {
-    let mut zip =
-        zip::ZipArchive::new(std::fs::File::open(jar).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipArchive::new(std::fs::File::open(jar).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
     const T: &str = "assets/minecraft/textures/";
     if zip.by_name(&format!("{T}block/dirt.png")).is_err() {
         return Err("no textures in it".into());
@@ -245,18 +268,26 @@ fn build(jar: &Path, version: &str, root: &Path, maps: &[ModMaps], out: &Path, k
             let next = words.next();
             let lower = (mode == "stack").then_some(next).flatten();
             let overlay = (mode == "dyed").then_some(next).flatten();
-            let color = words.clone().next().and_then(|w| u32::from_str_radix(w, 16).ok()).filter(|_| mode == "dyed");
-            let turned = (mode == "turned").then_some(next).flatten().and_then(|w| w.parse::<u32>().ok());
+            let color = words
+                .clone()
+                .next()
+                .and_then(|w| u32::from_str_radix(w, 16).ok())
+                .filter(|_| mode == "dyed");
+            let turned = (mode == "turned")
+                .then_some(next)
+                .flatten()
+                .and_then(|w| w.parse::<u32>().ok());
             let numbers: Vec<u32> = if mode == "pieces" {
-                next.into_iter().chain(words.clone()).filter_map(|w| w.parse().ok()).collect()
+                next.into_iter()
+                    .chain(words.clone())
+                    .filter_map(|w| w.parse().ok())
+                    .collect()
             } else {
                 Vec::new()
             };
             let crop: Vec<u32> = match next {
                 Some("crop") => words.filter_map(|w| w.parse().ok()).collect(),
-                _ if turned.is_some() && words.clone().next() == Some("crop") => {
-                    words.skip(1).filter_map(|w| w.parse().ok()).collect()
-                }
+                _ if turned.is_some() && words.clone().next() == Some("crop") => words.skip(1).filter_map(|w| w.parse().ok()).collect(),
                 _ => Vec::new(),
             };
             // Names change between versions: the first one this version has.
@@ -312,8 +343,9 @@ fn build(jar: &Path, version: &str, root: &Path, maps: &[ModMaps], out: &Path, k
                 if meta.contains("\"gui\"") {
                     let _ = std::fs::write(dst.with_extension("png.mcmeta"), &meta);
                 }
-                if let Some(a) =
-                    serde_json::from_str::<serde_json::Value>(&meta).ok().and_then(|v| v.get("animation").cloned())
+                if let Some(a) = serde_json::from_str::<serde_json::Value>(&meta)
+                    .ok()
+                    .and_then(|v| v.get("animation").cloned())
                 {
                     let mut s = format!("frametime = {}\n", a.get("frametime").and_then(|f| f.as_u64()).unwrap_or(1));
                     if a.get("interpolate").and_then(|i| i.as_bool()) == Some(true) {
@@ -355,7 +387,11 @@ fn import_sounds(store: &SoundStore, ns: &str, map: &str, tmp: &Path, files: &mu
         };
         for (name, source) in sound_names(ours, sounds.len()).into_iter().zip(sounds) {
             let object = sound_object(source);
-            let Some((prefix, hash)) = store.hashes.get(&object).and_then(|h| Some((h.get(..2)?, h))) else {
+            let Some((prefix, hash)) = store
+                .hashes
+                .get(&object)
+                .and_then(|h| Some((h.get(..2)?, h)))
+            else {
                 log::debug!("{ns}/sounds.txt:{}: no {object} in this version", n + 1);
                 continue;
             };
@@ -376,7 +412,9 @@ fn import_sounds(store: &SoundStore, ns: &str, map: &str, tmp: &Path, files: &mu
 /// Our file names for a vanilla event's `count` sounds. `*` numbers them from one.
 fn sound_names(ours: &str, count: usize) -> Vec<String> {
     if ours.contains('*') {
-        (1..=count).map(|i| ours.replace('*', &i.to_string())).collect()
+        (1..=count)
+            .map(|i| ours.replace('*', &i.to_string()))
+            .collect()
     } else {
         (count > 0).then(|| ours.to_string()).into_iter().collect()
     }
@@ -422,8 +460,7 @@ fn dye(px: &mut [u8], overlay: &[u8], color: u32) {
 
 /// The part `crop` (x, y, w, h) of a picture, or all of it: its width, height and pixels.
 fn cropped(img: &crate::assets::Image, crop: &[u32]) -> (u32, u32, Vec<u8>) {
-    let (x0, y0, w, h) =
-        if crop.len() == 4 { (crop[0], crop[1], crop[2], crop[3]) } else { (0, 0, img.width, img.height) };
+    let (x0, y0, w, h) = if crop.len() == 4 { (crop[0], crop[1], crop[2], crop[3]) } else { (0, 0, img.width, img.height) };
     let mut px = Vec::with_capacity((w * h * 4) as usize);
     for y in y0..(y0 + h).min(img.height) {
         let row = ((y * img.width + x0) * 4) as usize;
@@ -489,7 +526,8 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
 }
 
 fn fnv(s: &str) -> u64 {
-    s.bytes().fold(0xcbf29ce484222325, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3))
+    s.bytes()
+        .fold(0xcbf29ce484222325, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3))
 }
 
 #[cfg(test)]
@@ -502,12 +540,12 @@ mod tests {
     #[ignore]
     fn real_pack() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let roots = [
-            ("core".to_string(), root.join("crates/engine/assets")),
-            ("base".to_string(), root.join("mods/base/assets")),
-        ];
+        let roots = [("core".to_string(), root.join("crates/engine/assets")), ("base".to_string(), root.join("mods/base/assets"))];
         super::ensure_pack(&root.join("run"), &roots);
-        let sky = root.join("run/resourcepacks").join(super::PACK).join("base/textures");
+        let sky = root
+            .join("run/resourcepacks")
+            .join(super::PACK)
+            .join("base/textures");
         let sun = crate::assets::decode_png(&std::fs::read(sky.join("sky/sun.png")).unwrap()).unwrap();
         assert_eq!(sun.rgba[3], 0, "the corner of the sun is transparent");
         assert!(sky.join("gui/attack_bar_fill.png").is_file());
@@ -516,18 +554,21 @@ mod tests {
         assert!(pack.join("base/sounds/step/grass1.ogg").is_file(), "footsteps come from the pack too");
         assert!(pack.join("base/sounds/entity/cow/ambient1.ogg").is_file(), "so do mob voices");
         assert!(pack.join("base/sounds/entity/sheep/ambient1.ogg").is_file());
-        assert!(pack.join("base/sounds/entity/chicken/ambient1.ogg").is_file());
-        assert!(pack.join("base/sounds/entity/skeleton/ambient1.ogg").is_file());
+        assert!(
+            pack.join("base/sounds/entity/chicken/ambient1.ogg")
+                .is_file()
+        );
+        assert!(
+            pack.join("base/sounds/entity/skeleton/ambient1.ogg")
+                .is_file()
+        );
         assert!(pack.join("base/sounds/entity/creeper/hurt1.ogg").is_file());
         assert!(pack.join("base/sounds/entity/creeper/primed.ogg").is_file());
         assert!(pack.join("base/sounds/random/explode1.ogg").is_file());
         assert!(pack.join("core/sounds/ui/click.ogg").is_file(), "and the click");
         assert!(pack.join("core/sounds/entity/player/hurt1.ogg").is_file(), "and the player's oof");
         let assets = crate::assets::Assets::new(
-            [
-                ("core".to_string(), root.join("crates/engine/assets")),
-                ("base".to_string(), root.join("mods/base/assets")),
-            ],
+            [("core".to_string(), root.join("crates/engine/assets")), ("base".to_string(), root.join("mods/base/assets"))],
             vec![pack.clone()],
         );
         assert!(assets.path("base:step/grass1", "sounds", "ogg").is_some(), "the pack's sounds are found");
@@ -536,10 +577,7 @@ mod tests {
 
     #[test]
     fn sounds_number_with_a_star() {
-        assert_eq!(
-            sound_names("step/grass*", 3),
-            vec!["step/grass1".to_string(), "step/grass2".to_string(), "step/grass3".to_string()]
-        );
+        assert_eq!(sound_names("step/grass*", 3), vec!["step/grass1".to_string(), "step/grass2".to_string(), "step/grass3".to_string()]);
         assert_eq!(sound_names("ui/click", 3), vec!["ui/click".to_string()], "one file takes the first sound");
         assert!(sound_names("ui/click", 0).is_empty());
         assert_eq!(sound_object("minecraft:sounds/step/grass1.ogg"), "minecraft/sounds/step/grass1.ogg");

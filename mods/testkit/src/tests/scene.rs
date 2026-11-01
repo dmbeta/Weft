@@ -65,8 +65,13 @@ async fn chained(t: T, o: [i32; 3]) -> R {
 }
 
 async fn count_at(t: &T, kind: &str, p: [i32; 3], r: f64) -> Result<usize, String> {
-    let list = t.op(&format!("near {} {} {} {r}", p[0], p[1], p[2])).await?;
-    Ok(list.split_whitespace().filter(|e| e.ends_with(&format!(":{kind}"))).count())
+    let list = t
+        .op(&format!("near {} {} {} {r}", p[0], p[1], p[2]))
+        .await?;
+    Ok(list
+        .split_whitespace()
+        .filter(|e| e.ends_with(&format!(":{kind}")))
+        .count())
 }
 
 fn counts(s: &str) -> HashMap<String, u32> {
@@ -78,7 +83,10 @@ fn counts(s: &str) -> HashMap<String, u32> {
 
 /// First number of an `attr`/`damage` answer ("6.08 | damage: 8, ...").
 fn value(s: &str) -> f64 {
-    s.split('|').next().and_then(|v| v.trim().parse().ok()).unwrap_or(f64::NAN)
+    s.split('|')
+        .next()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(f64::NAN)
 }
 
 async fn spawn(t: &T, kind: &str, p: [i32; 3]) -> Result<u64, String> {
@@ -88,20 +96,28 @@ async fn spawn(t: &T, kind: &str, p: [i32; 3]) -> Result<u64, String> {
 
 async fn pos_of(t: &T, id: u64) -> Result<[f64; 3], String> {
     let line = t.op(&format!("entity {id}")).await?;
-    let v: Vec<f64> = line.split_whitespace().skip(1).take(3).filter_map(|s| s.parse().ok()).collect();
+    let v: Vec<f64> = line
+        .split_whitespace()
+        .skip(1)
+        .take(3)
+        .filter_map(|s| s.parse().ok())
+        .collect();
     v.try_into().map_err(|_| format!("entity #{id}: {line}"))
 }
 
 /// Edits on the server reach the client block for block; an entity is where the server has it.
 async fn sync_edits(t: T, o: [i32; 3]) -> R {
     t.fill(o, add(o, [4, 2, 4]), "cobblestone").await?;
-    t.fill(add(o, [1, 1, 1]), add(o, [3, 1, 3]), "glass").await?;
-    t.set(add(o, [2, 2, 2]), "furnace[facing=east,lit=true]").await?;
+    t.fill(add(o, [1, 1, 1]), add(o, [3, 1, 3]), "glass")
+        .await?;
+    t.set(add(o, [2, 2, 2]), "furnace[facing=east,lit=true]")
+        .await?;
     t.set(add(o, [0, 2, 0]), "air").await?;
     t.frames(5).await?;
     t.sync_blocks(o, add(o, [4, 2, 4])).await?;
     let pig = spawn(&t, "pig", add(o, [0, 0, 8])).await?;
-    t.until("client sees the pig", Duration::from_secs(5), |t| t.c().entities().contains(&pig)).await?;
+    t.until("client sees the pig", Duration::from_secs(5), |t| t.c().entities().contains(&pig))
+        .await?;
     t.frames(20).await?;
     let s = pos_of(&t, pig).await?;
     if let Some(e) = t.c().entity(pig) {
@@ -206,7 +222,8 @@ async fn infinite_water(t: T, a: [i32; 3]) -> R {
 /// into water makes stone.
 async fn lava_and_water(t: T, o: [i32; 3]) -> R {
     let a = o;
-    t.fill(add(a, [-1, -1, -1]), add(a, [3, -1, 1]), "stone").await?;
+    t.fill(add(a, [-1, -1, -1]), add(a, [3, -1, 1]), "stone")
+        .await?;
     t.set(a, "lava").await?;
     t.set(add(a, [2, 0, 0]), "water").await?;
     let b = add(o, [0, 0, 14]);
@@ -258,7 +275,8 @@ async fn energy_grid(t: T, g: [i32; 3]) -> R {
 
 /// Navigation finds the way around a wall through its only gap.
 async fn pathfinding(t: T, o: [i32; 3]) -> R {
-    t.fill(add(o, [3, 0, -6]), add(o, [3, 2, 6]), "cobblestone").await?;
+    t.fill(add(o, [3, 0, -6]), add(o, [3, 2, 6]), "cobblestone")
+        .await?;
     t.fill(add(o, [3, 0, 5]), add(o, [3, 1, 5]), "air").await?;
     let id = spawn(&t, "testmod:idol", o).await?;
     let goal = add(o, [7, 0, 0]);
@@ -279,10 +297,7 @@ async fn crate_and_crowd(t: T, o: [i32; 3]) -> R {
     let c = pos_of(&t, id).await?;
     t.check((c[1] - o[1] as f64).abs() < 0.01, format!("the crate landed (y {:.2})", c[1]));
     let (pa, pb) = (pos_of(&t, a).await?, pos_of(&t, b).await?);
-    t.check(
-        ((pa[0] - pb[0]).powi(2) + (pa[2] - pb[2]).powi(2)).sqrt() > 0.4,
-        "two idols in one spot pushed each other apart",
-    );
+    t.check(((pa[0] - pb[0]).powi(2) + (pa[2] - pb[2]).powi(2)).sqrt() > 0.4, "two idols in one spot pushed each other apart");
     Ok(())
 }
 
@@ -317,10 +332,7 @@ async fn damage_chain(t: &T) -> R {
     let both = t.op("damage 8 0").await?;
     t.cmd("/rule testkit:half_damage 0").await?;
     t.check((value(&both) - 3.68).abs() < 1e-4, format!("armor then halved: {both}"));
-    t.check(
-        both.contains("base at stage 200") && both.contains("testkit at stage 300"),
-        format!("explanation names both steps: {both}"),
-    );
+    t.check(both.contains("base at stage 200") && both.contains("testkit at stage 300"), format!("explanation names both steps: {both}"));
     Ok(())
 }
 
@@ -406,15 +418,14 @@ async fn interceptor(t: &T, p: [i32; 3]) -> R {
 /// Components of other entities reach everyone who sees them, also when a system changes them.
 async fn watcher_sync(t: &T, o: [i32; 3]) -> R {
     let pig = spawn(t, "pig", o).await?;
-    t.until("pig known", Duration::from_secs(5), |t| t.c().entities().contains(&pig)).await?;
+    t.until("pig known", Duration::from_secs(5), |t| t.c().entities().contains(&pig))
+        .await?;
     t.op(&format!("mark {pig} 77")).await?;
     t.until("mark on the client", Duration::from_secs(5), |t| t.c().view().component_of(pig, &MARK) == Some(77))
         .await?;
     t.op(&format!("mark {pig} 78")).await?;
-    t.until("changed mark on the client", Duration::from_secs(5), |t| {
-        t.c().view().component_of(pig, &MARK) == Some(78)
-    })
-    .await?;
+    t.until("changed mark on the client", Duration::from_secs(5), |t| t.c().view().component_of(pig, &MARK) == Some(78))
+        .await?;
     // The test kit's system counts marks up once a tick while the rule is on.
     t.cmd("/rule testkit:count_marks 1").await?;
     t.secs(1.5).await?;
@@ -436,11 +447,7 @@ async fn facing_states(t: &T) -> R {
     t.check_eq(TORCH.with(&[("facing", "down")]), u32::MAX, "the torch never faces down");
     let lit = FURNACE.with(&[("facing", "east"), ("lit", "true")]);
     t.check_eq(state_prop(lit, "facing"), Some("east"), "facing of a lit furnace");
-    t.check_eq(
-        state_with(lit, "lit", "false").and_then(|s| state_prop(s, "facing")),
-        Some("east"),
-        "putting it out keeps its facing",
-    );
+    t.check_eq(state_with(lit, "lit", "false").and_then(|s| state_prop(s, "facing")), Some("east"), "putting it out keeps its facing");
     t.check_eq(block_name(lit).to_string(), "base:furnace[facing=east,lit=true]".to_string(), "the state's name");
     Ok(())
 }

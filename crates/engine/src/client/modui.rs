@@ -68,14 +68,7 @@ unsafe fn view<'a>(c: *mut abi::ClientCtx) -> Option<&'a Client> {
 }
 
 /// Runs a mod's UI builder callback into `ui`.
-pub fn build(
-    ui: &mut Ui,
-    lang: &Lang,
-    input: Option<&crate::input::Input>,
-    owner: ModId,
-    cb: Callback,
-    client: Option<&Client>,
-) {
+pub fn build(ui: &mut Ui, lang: &Lang, input: Option<&crate::input::Input>, owner: ModId, cb: Callback, client: Option<&Client>) {
     let menu = client.and_then(|c| c.menu.as_ref()).map(|m| m.kind);
     let mut b = UiBuild { tag: 1, owner, ui, lang, input, depth: 0, menu, recipe: None, client };
     let mut v = ClientView::new(client);
@@ -87,16 +80,14 @@ pub fn build(
 }
 
 /// What mods add to place `area` of `screen`, in order, into the open node.
-pub fn parts(
-    ui: &mut Ui,
-    lang: &Lang,
-    input: Option<&crate::input::Input>,
-    client: Option<&Client>,
-    screen: &str,
-    area: &str,
-) {
+pub fn parts(ui: &mut Ui, lang: &Lang, input: Option<&crate::input::Input>, client: Option<&Client>, screen: &str, area: &str) {
     let Some(c) = crate::content::try_content() else { return };
-    for p in c.game.screen_parts.iter().filter(|p| p.screen == screen && p.area == area) {
+    for p in c
+        .game
+        .screen_parts
+        .iter()
+        .filter(|p| p.screen == screen && p.area == area)
+    {
         build(ui, lang, input, p.owner, p.cb, client);
     }
 }
@@ -113,24 +104,9 @@ pub fn build_recipe(
     kind: &str,
     recipe: u32,
 ) {
-    let mut b = UiBuild {
-        tag: 1,
-        owner,
-        ui,
-        lang,
-        input,
-        depth: 0,
-        menu: None,
-        recipe: Some((kind.to_string(), recipe)),
-        client,
-    };
+    let mut b = UiBuild { tag: 1, owner, ui, lang, input, depth: 0, menu: None, recipe: Some((kind.to_string(), recipe)), client };
     let mut v = ClientView::new(client);
-    let mut args = abi::RecipeUiArgs {
-        ui: &mut b as *mut UiBuild as *mut abi::UiCtx,
-        client: v.raw(),
-        kind: abi::Str::new(kind),
-        recipe,
-    };
+    let mut args = abi::RecipeUiArgs { ui: &mut b as *mut UiBuild as *mut abi::UiCtx, client: v.raw(), kind: abi::Str::new(kind), recipe };
     host::invoke(owner, cb, &mut args);
     for _ in 0..b.depth {
         b.ui.close();
@@ -174,8 +150,7 @@ fn float_bind(owner: ModId, cb: Callback) -> Box<dyn Fn(&Ctx) -> f32> {
     Box::new(move |ctx: &Ctx| {
         let mut v = ClientView::bound(ctx);
         let mut sink = TextSink { tag: 2, out: None };
-        let mut a =
-            abi::UiBindArgs { client: v.raw(), value: 0.0, text: &mut sink as *mut TextSink as *mut abi::UiCtx };
+        let mut a = abi::UiBindArgs { client: v.raw(), value: 0.0, text: &mut sink as *mut TextSink as *mut abi::UiCtx };
         host::invoke(owner, cb, &mut a);
         a.value
     })
@@ -240,24 +215,23 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
         let change = n.on_change;
         let on_change = move |ctx: &mut Ctx, text: String, value: f32| {
             if change.is_some() {
-                ctx.requests.push(crate::app::Request::ModChange(owner, change, text, value));
+                ctx.requests
+                    .push(crate::app::Request::ModChange(owner, change, text, value));
             }
         };
         let id = match n.kind {
             uk::TEXT => {
                 // Without a class the text takes the colors of the panel it sits on.
-                let node = b.ui.text(spans(n.text, n.args), if class.is_empty() { "default" } else { &class });
+                let node =
+                    b.ui.text(spans(n.text, n.args), if class.is_empty() { "default" } else { &class });
                 if n.bind.is_some() {
                     let cb = n.bind;
                     if let Kind::Text(t) = &mut b.ui.nodes[node].kind {
                         t.bind = Some(Box::new(move |ctx: &Ctx| {
                             let mut v = ClientView::bound(ctx);
                             let mut sink = TextSink { tag: 2, out: None };
-                            let mut a = abi::UiBindArgs {
-                                client: v.raw(),
-                                value: 0.0,
-                                text: &mut sink as *mut TextSink as *mut abi::UiCtx,
-                            };
+                            let mut a =
+                                abi::UiBindArgs { client: v.raw(), value: 0.0, text: &mut sink as *mut TextSink as *mut abi::UiCtx };
                             host::invoke(owner, cb, &mut a);
                             sink.out.unwrap_or_default()
                         }));
@@ -275,11 +249,9 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
             uk::INPUT => {
                 let value = n.text.as_str().to_string();
                 let max = if n.count == 0 { usize::MAX } else { n.count as usize };
-                let on_change: Rc<dyn Fn(&mut Ctx, &str)> =
-                    Rc::new(move |ctx: &mut Ctx, t: &str| on_change(ctx, t.to_string(), 0.0));
-                let id = b
-                    .ui
-                    .open(Kind::Input { caret: value.chars().count(), value, max, on_change: Some(on_change) }, style);
+                let on_change: Rc<dyn Fn(&mut Ctx, &str)> = Rc::new(move |ctx: &mut Ctx, t: &str| on_change(ctx, t.to_string(), 0.0));
+                let id =
+                    b.ui.open(Kind::Input { caret: value.chars().count(), value, max, on_change: Some(on_change) }, style);
                 // Its class names it, for the chat line of a screen that shows the chat.
                 if !class.is_empty() {
                     b.ui.nodes[id].id = Some(class);
@@ -287,13 +259,9 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                 id
             }
             uk::SLIDER => {
-                let bind = if n.bind.is_some() {
-                    float_bind(owner, n.bind)
-                } else {
-                    Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32>
-                };
-                let on_change: Rc<dyn Fn(&mut Ctx, f32)> =
-                    Rc::new(move |ctx: &mut Ctx, v: f32| on_change(ctx, String::new(), v));
+                let bind =
+                    if n.bind.is_some() { float_bind(owner, n.bind) } else { Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32> };
+                let on_change: Rc<dyn Fn(&mut Ctx, f32)> = Rc::new(move |ctx: &mut Ctx, v: f32| on_change(ctx, String::new(), v));
                 b.ui.open(Kind::Slider { value: 0.0, bind, on_change }, style)
             }
             uk::ITEM => {
@@ -304,8 +272,7 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                 let cb = n.on_click;
                 // Run after the input with the whole client API: a mod's menu can open screens,
                 // worlds or quit like the engine's.
-                let action: crate::ui::Action =
-                    Rc::new(move |ctx: &mut Ctx| ctx.requests.push(crate::app::Request::ModCall(owner, cb)));
+                let action: crate::ui::Action = Rc::new(move |ctx: &mut Ctx| ctx.requests.push(crate::app::Request::ModCall(owner, cb)));
                 let (enabled, selected) = (!flag(abi::ui_flags::DISABLED), flag(abi::ui_flags::SELECTED));
                 // Unless the mod sizes it, as high and padded as the engine's buttons.
                 let mut style = style;
@@ -317,12 +284,7 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                 }
                 // Labels sit in the middle, like on the engine's buttons.
                 b.ui.open(
-                    Kind::Button {
-                        class: if class.is_empty() { "button".into() } else { class },
-                        action: Some(action),
-                        enabled,
-                        selected,
-                    },
+                    Kind::Button { class: if class.is_empty() { "button".into() } else { class }, action: Some(action), enabled, selected },
                     style.center(),
                 )
             }
@@ -407,10 +369,13 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                 // A recipe's inputs or outputs in a kind's own display.
                 let c = crate::content::content();
                 let id = b.ui.open(Kind::Container { class: None }, style);
-                let found = b
-                    .recipe
-                    .as_ref()
-                    .and_then(|(k, i)| c.game.recipes.get(k).and_then(|l| l.get(*i as usize)).map(|r| (k.clone(), r)));
+                let found = b.recipe.as_ref().and_then(|(k, i)| {
+                    c.game
+                        .recipes
+                        .get(k)
+                        .and_then(|l| l.get(*i as usize))
+                        .map(|r| (k.clone(), r))
+                });
                 match (found, input) {
                     (Some((kind, r)), Some(input)) if n.slot == u32::MAX => {
                         crate::game_screens::recipe_grid(b.ui, lang, input, &kind, r, n.data == 1)
@@ -423,7 +388,10 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                                 .map_or((Ingredient::Empty, 0, 1.0), |o| (o.what.clone(), o.count, o.chance))
                         } else {
                             (
-                                r.inputs.get(n.slot as usize).cloned().unwrap_or(Ingredient::Empty),
+                                r.inputs
+                                    .get(n.slot as usize)
+                                    .cloned()
+                                    .unwrap_or(Ingredient::Empty),
                                 r.input_counts.get(n.slot as usize).copied().unwrap_or(1),
                                 1.0,
                             )
@@ -441,11 +409,8 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                 id
             }
             uk::RECIPE_ARROW => {
-                let bind = if n.bind.is_some() {
-                    float_bind(owner, n.bind)
-                } else {
-                    Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32>
-                };
+                let bind =
+                    if n.bind.is_some() { float_bind(owner, n.bind) } else { Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32> };
                 let [w, h] = crate::ui::RECIPE_ARROW;
                 let style = Style {
                     w: if n.width.is_nan() { Len::Px(w) } else { style.w },
@@ -453,39 +418,23 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                     ..style
                 };
                 let id = b.ui.open(
-                    Kind::Progress {
-                        class: if class.is_empty() { "arrow".into() } else { class },
-                        bind,
-                        value: 0.0,
-                        dir: n.dir,
-                    },
+                    Kind::Progress { class: if class.is_empty() { "arrow".into() } else { class }, bind, value: 0.0, dir: n.dir },
                     style,
                 );
                 b.ui.nodes[id].recipes = true;
                 id
             }
             uk::PROGRESS => {
-                let bind = if n.bind.is_some() {
-                    float_bind(owner, n.bind)
-                } else {
-                    Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32>
-                };
+                let bind =
+                    if n.bind.is_some() { float_bind(owner, n.bind) } else { Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32> };
                 b.ui.open(
-                    Kind::Progress {
-                        class: if class.is_empty() { "progress".into() } else { class },
-                        bind,
-                        value: 0.0,
-                        dir: n.dir,
-                    },
+                    Kind::Progress { class: if class.is_empty() { "progress".into() } else { class }, bind, value: 0.0, dir: n.dir },
                     style,
                 )
             }
             uk::ICONS => {
-                let bind = if n.bind.is_some() {
-                    float_bind(owner, n.bind)
-                } else {
-                    Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32>
-                };
+                let bind =
+                    if n.bind.is_some() { float_bind(owner, n.bind) } else { Box::new(|_: &Ctx| 0.0f32) as Box<dyn Fn(&Ctx) -> f32> };
                 b.ui.open(
                     Kind::Icons {
                         class,
@@ -498,13 +447,19 @@ pub unsafe extern "C" fn ui_open(u: *mut abi::UiCtx, node: *const abi::UiNode) {
                     style,
                 )
             }
-            uk::IMAGE => b.ui.open(Kind::Image { texture: n.text.as_str().to_string(), color: 0xFFFFFFFF }, style),
+            uk::IMAGE => {
+                b.ui.open(Kind::Image { texture: n.text.as_str().to_string(), color: 0xFFFFFFFF }, style)
+            }
             uk::ENTITY => b.ui.open(Kind::Custom { tag: TAG_ENTITY, data: 0 }, style),
-            uk::SPACER => b.ui.open(Kind::Container { class: None }, Style { grow: n.grow.max(1.0), ..style }),
+            uk::SPACER => {
+                b.ui.open(Kind::Container { class: None }, Style { grow: n.grow.max(1.0), ..style })
+            }
             uk::PANEL => {
                 b.ui.open(Kind::Container { class: Some(if class.is_empty() { "panel".into() } else { class }) }, style)
             }
-            _ => b.ui.open(Kind::Container { class: (!class.is_empty()).then_some(class) }, style),
+            _ => {
+                b.ui.open(Kind::Container { class: (!class.is_empty()).then_some(class) }, style)
+            }
         };
         if n.tooltip.len > 0 {
             b.ui.nodes[id].tooltip = Some(spans(n.tooltip, n.tooltip_args));
@@ -544,8 +499,13 @@ pub unsafe extern "C" fn client_player(c: *mut abi::ClientCtx) -> u64 {
 
 pub unsafe extern "C" fn client_attribute(c: *mut abi::ClientCtx, name: abi::Str) -> f64 {
     unsafe {
-        let id = crate::content::content().game.attr_names.get(name.as_str()).copied();
-        id.and_then(|id| view(c)?.attributes.get(id as usize).copied()).map_or(f64::NAN, |v| v as f64)
+        let id = crate::content::content()
+            .game
+            .attr_names
+            .get(name.as_str())
+            .copied();
+        id.and_then(|id| view(c)?.attributes.get(id as usize).copied())
+            .map_or(f64::NAN, |v| v as f64)
     }
 }
 
@@ -607,7 +567,11 @@ fn unsynced(comp: u32, own: bool) {
 }
 
 pub unsafe extern "C" fn client_menu_owner(c: *mut abi::ClientCtx) -> u64 {
-    unsafe { view(c).and_then(|cl| cl.menu.as_ref()).map_or(0, |m| m.owner) }
+    unsafe {
+        view(c)
+            .and_then(|cl| cl.menu.as_ref())
+            .map_or(0, |m| m.owner)
+    }
 }
 
 pub unsafe extern "C" fn client_entity(c: *mut abi::ClientCtx, id: u64, out: *mut abi::EntityState) -> u32 {
@@ -650,7 +614,11 @@ pub unsafe extern "C" fn client_entity(c: *mut abi::ClientCtx, id: u64, out: *mu
                     max_health: {
                         let attr = &content.game.attributes[crate::server::MAX_HEALTH as usize];
                         attr.comp
-                            .and_then(|id| content.components.get::<f64>(crate::components::ENTITY, e.kind, id))
+                            .and_then(|id| {
+                                content
+                                    .components
+                                    .get::<f64>(crate::components::ENTITY, e.kind, id)
+                            })
                             .unwrap_or(attr.default) as f32
                     },
                     size: {

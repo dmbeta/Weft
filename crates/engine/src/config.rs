@@ -41,13 +41,14 @@ impl ConfigDef {
         }
         match self.kind {
             ck::BOOL => (v != 0.0) as u8 as f64,
-            ck::CHOICE => v.round().clamp(0.0, self.choices.len().saturating_sub(1) as f64),
+            ck::CHOICE => v
+                .round()
+                .clamp(0.0, self.choices.len().saturating_sub(1) as f64),
             ck::TEXT => 0.0,
             _ => {
                 let mut v = v.clamp(self.min.min(self.max), self.max.max(self.min));
                 if self.step > 0.0 {
-                    v = (self.min + ((v - self.min) / self.step).round() * self.step)
-                        .clamp(self.min.min(self.max), self.max.max(self.min));
+                    v = (self.min + ((v - self.min) / self.step).round() * self.step).clamp(self.min.min(self.max), self.max.max(self.min));
                 }
                 if self.kind == ck::INT { v.round() } else { v }
             }
@@ -116,7 +117,14 @@ static OVERRIDES: Mutex<Vec<(u32, String, String)>> = Mutex::new(Vec::new());
 static FROM_SERVER: Mutex<Vec<(u32, String, String)>> = Mutex::new(Vec::new());
 
 fn values() -> &'static [AtomicU64] {
-    VALUES.get_or_init(|| content().game.configs.iter().map(|d| AtomicU64::new(d.default.to_bits())).collect())
+    VALUES.get_or_init(|| {
+        content()
+            .game
+            .configs
+            .iter()
+            .map(|d| AtomicU64::new(d.default.to_bits()))
+            .collect()
+    })
 }
 
 fn def(id: u32) -> Option<&'static ConfigDef> {
@@ -124,11 +132,18 @@ fn def(id: u32) -> Option<&'static ConfigDef> {
 }
 
 pub fn get(id: u32) -> f64 {
-    values().get(id as usize).map_or(0.0, |v| f64::from_bits(v.load(Ordering::Relaxed)))
+    values()
+        .get(id as usize)
+        .map_or(0.0, |v| f64::from_bits(v.load(Ordering::Relaxed)))
 }
 
 pub fn text(id: u32) -> String {
-    TEXTS.read().unwrap().get(id as usize).cloned().unwrap_or_default()
+    TEXTS
+        .read()
+        .unwrap()
+        .get(id as usize)
+        .cloned()
+        .unwrap_or_default()
 }
 
 /// Changes so far; compare with an earlier value to see whether anything was set.
@@ -201,7 +216,10 @@ pub fn put_from_server(id: u32, v: f64) {
     if now != saved {
         let mut server = FROM_SERVER.lock().unwrap();
         // A later value from the server: what the file should keep is still the first one's.
-        let saved = server.iter().position(|o| o.0 == id).map_or(saved, |i| server.remove(i).2);
+        let saved = server
+            .iter()
+            .position(|o| o.0 == id)
+            .map_or(saved, |i| server.remove(i).2);
         server.push((id, now, saved));
     }
 }
@@ -249,7 +267,12 @@ pub fn load(run_dir: &Path) {
     for (id, d) in c.game.configs.iter().enumerate() {
         put(id as u32, d.default);
     }
-    let mut namespaces: Vec<&str> = c.game.configs.iter().filter_map(|d| d.name.split_once(':').map(|x| x.0)).collect();
+    let mut namespaces: Vec<&str> = c
+        .game
+        .configs
+        .iter()
+        .filter_map(|d| d.name.split_once(':').map(|x| x.0))
+        .collect();
     namespaces.dedup();
     for ns in namespaces {
         let Ok(src) = std::fs::read_to_string(file(run_dir, false, ns)) else { continue };
@@ -281,10 +304,18 @@ pub fn save(run_dir: &Path, ns: &str) {
     let c = content();
     let (overrides, server) = (OVERRIDES.lock().unwrap().clone(), FROM_SERVER.lock().unwrap().clone());
     let mut out = String::new();
-    for (id, d) in c.game.configs.iter().enumerate().filter(|(_, d)| d.scope != scope::WORLD) {
+    for (id, d) in c
+        .game
+        .configs
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.scope != scope::WORLD)
+    {
         let Some(key) = d.name.strip_prefix(ns).and_then(|k| k.strip_prefix(':')) else { continue };
         let kept = |list: &[(u32, String, String)], now: String| {
-            list.iter().find(|o| o.0 == id as u32 && o.1 == now).map_or(now.clone(), |o| o.2.clone())
+            list.iter()
+                .find(|o| o.0 == id as u32 && o.1 == now)
+                .map_or(now.clone(), |o| o.2.clone())
         };
         let value = kept(&overrides, kept(&server, shown(id as u32)));
         out.push_str(&format!("{key} = {value}\n"));
@@ -322,8 +353,20 @@ pub fn world_values() -> Vec<(String, f64)> {
 
 /// Opening a world: its settings as it saved them, defaults for the rest.
 pub fn load_world(saved: &[(String, f64)]) {
-    for (id, d) in content().game.configs.iter().enumerate().filter(|(_, d)| d.scope == scope::WORLD) {
-        put(id as u32, saved.iter().find(|s| s.0 == d.name).map_or(d.default, |s| s.1));
+    for (id, d) in content()
+        .game
+        .configs
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| d.scope == scope::WORLD)
+    {
+        put(
+            id as u32,
+            saved
+                .iter()
+                .find(|s| s.0 == d.name)
+                .map_or(d.default, |s| s.1),
+        );
     }
 }
 
@@ -331,7 +374,9 @@ pub fn load_world(saved: &[(String, f64)]) {
 /// a binding per key (`core:key.<action>`, from `keys`: action and default key); each sound
 /// category adds its volume (`volume`).
 pub fn engine_configs(keys: &[(String, String)]) -> Vec<ConfigDef> {
-    let user = std::env::var("USERNAME").or_else(|_| std::env::var("USER")).unwrap_or_else(|_| "Player".into());
+    let user = std::env::var("USERNAME")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "Player".into());
     let mut out = vec![
         volume("core:volume_master"),
         ConfigDef::text("core:language", &crate::settings::system_language()),
@@ -361,12 +406,12 @@ pub fn engine_configs(keys: &[(String, String)]) -> Vec<ConfigDef> {
         ConfigDef::text("core:resource_packs", ""),
         ConfigDef::text("core:shader_pack", ""),
         ConfigDef { scope: scope::WORLD, ..ConfigDef::number("core:mob_spawning", ck::BOOL, 1.0, 0.0, 1.0, 0.0) },
-        ConfigDef {
-            scope: scope::WORLD,
-            ..ConfigDef::number("core:simulation_distance", ck::INT, 8.0, 2.0, 64.0, 1.0)
-        },
+        ConfigDef { scope: scope::WORLD, ..ConfigDef::number("core:simulation_distance", ck::INT, 8.0, 2.0, 64.0, 1.0) },
     ];
-    out.extend(keys.iter().map(|(action, key)| ConfigDef::text(&format!("core:key.{action}"), key)));
+    out.extend(
+        keys.iter()
+            .map(|(action, key)| ConfigDef::text(&format!("core:key.{action}"), key)),
+    );
     out
 }
 

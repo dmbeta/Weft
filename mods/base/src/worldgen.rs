@@ -115,15 +115,20 @@ pub fn register(r: &mut Registry) {
         .set(&TREES, 0.06)
         .set(&GRASS_COVER, 0.05)
         .set_text(&TREE_KINDS, "base:spruce_log");
-    r.biome(&OCEAN).surface("sand", "sand", 3).deep_top("gravel", SEA - 8).tag("ocean");
+    r.biome(&OCEAN)
+        .surface("sand", "sand", 3)
+        .deep_top("gravel", SEA - 8)
+        .tag("ocean");
     r.biome(&BEACH).surface("sand", "sand", 3).tag("beach");
     // Underground (3D): whole cubes deep under the surface; spiders like it there.
     r.biome(&DEEP_CAVES).tag("cave").tag("dark");
 
-    for (ore, max_y, veins, size) in
-        [(&COAL_ORE, 128, 8, 12), (&IRON_ORE, 64, 6, 8), (&GOLD_ORE, 32, 2, 7), (&DIAMOND_ORE, 16, 1, 6)]
-    {
-        r.ore(ore).y(i32::MIN, max_y).veins(veins).size(size).replace("#stone_ore_replaceables");
+    for (ore, max_y, veins, size) in [(&COAL_ORE, 128, 8, 12), (&IRON_ORE, 64, 6, 8), (&GOLD_ORE, 32, 2, 7), (&DIAMOND_ORE, 16, 1, 6)] {
+        r.ore(ore)
+            .y(i32::MIN, max_y)
+            .veins(veins)
+            .size(size)
+            .replace("#stone_ore_replaceables");
     }
 
     // The overworld's shape. Other mods add to it by these names (`base:desert`, `base:mountains`).
@@ -138,12 +143,21 @@ pub fn register(r: &mut Registry) {
         .feature(preset::dunes(4.0, 26.0).mask(Mask::Temperature(0.25, 0.45).and(Mask::Humidity(0.1, -0.05))))
         .feature(
             preset::mountains(150.0, 260.0)
-                .mask(Mask::noise(700.0, -0.1, 0.3).salt(0x44).and(Mask::Continent(0.0, 0.2)))
+                .mask(
+                    Mask::noise(700.0, -0.1, 0.3)
+                        .salt(0x44)
+                        .and(Mask::Continent(0.0, 0.2)),
+                )
                 .named("mountains"),
         )
         // Biomes bring their climate and surface; rules only add where else they must hold.
         .biome(BiomeRule::new("ocean").height(..=SEA - 2))
-        .biome(BiomeRule::new("snowy_plains").named("snowy_coast").height(..=SEA + 1).continent(..0.1))
+        .biome(
+            BiomeRule::new("snowy_plains")
+                .named("snowy_coast")
+                .height(..=SEA + 1)
+                .continent(..0.1),
+        )
         .biome(BiomeRule::new("beach").height(..=SEA + 1).continent(..0.1))
         .biome(BiomeRule::new("mountains").feature("mountains", 0.45..))
         .biome(BiomeRule::new("snowy_plains"))
@@ -156,15 +170,19 @@ pub fn register(r: &mut Registry) {
         .caves(Caves::new("lava", i32::MIN, 11));
 
     // Trees wherever a biome asks for them, in any dimension.
-    r.scatter(&TREE_SITES).cell(5).reach(3).density(&TREES).shape(|s| {
-        let [x, y, z] = s.pos();
-        let log = TREE_KINDS.on_biome(s.biome()).and_then(|l| l.pick(s.random() >> 40)).unwrap_or(OAK_LOG.id());
-        let Some(t) = tree_at(log, x, y, z, s.random() >> 32) else { return };
-        tree_blocks(
-            &t,
-            |x, y, z, state, force| if force { s.force([x, y, z], state) } else { s.put([x, y, z], state) },
-        );
-    });
+    r.scatter(&TREE_SITES)
+        .cell(5)
+        .reach(3)
+        .density(&TREES)
+        .shape(|s| {
+            let [x, y, z] = s.pos();
+            let log = TREE_KINDS
+                .on_biome(s.biome())
+                .and_then(|l| l.pick(s.random() >> 40))
+                .unwrap_or(OAK_LOG.id());
+            let Some(t) = tree_at(log, x, y, z, s.random() >> 32) else { return };
+            tree_blocks(&t, |x, y, z, state, force| if force { s.force([x, y, z], state) } else { s.put([x, y, z], state) });
+        });
     r.decorate(decorate);
 }
 
@@ -282,10 +300,9 @@ fn decorate(g: &mut Gen) {
             let below = if y == 0 { g.surface_block(wx, wz) } else { g.get(x, y - 1, z) };
             if PLANT_SOIL.on_block(below) {
                 if roll < 0.012 {
-                    let flower = FLOWERS.on_biome(b).map_or_else(
-                        || [DANDELION.id(), ROSE.id()][(h >> 32) as usize % 2],
-                        |l| l.pick(h >> 32).unwrap_or(0),
-                    );
+                    let flower = FLOWERS
+                        .on_biome(b)
+                        .map_or_else(|| [DANDELION.id(), ROSE.id()][(h >> 32) as usize % 2], |l| l.pick(h >> 32).unwrap_or(0));
                     if flower != 0 {
                         g.set(x, y, z, flower);
                     }
@@ -301,7 +318,9 @@ fn decorate(g: &mut Gen) {
                 && col.height == SEA
                 && roll < 0.08
                 && y + 2 < 16
-                && [(1, 0), (-1, 0), (0, 1), (0, -1)].iter().any(|&(dx, dz)| g.column(wx + dx, wz + dz).height < SEA)
+                && [(1, 0), (-1, 0), (0, 1), (0, -1)]
+                    .iter()
+                    .any(|&(dx, dz)| g.column(wx + dx, wz + dz).height < SEA)
             {
                 let n = 1 + (h >> 40) % 3;
                 for k in 0..n as usize {

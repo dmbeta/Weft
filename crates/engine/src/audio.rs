@@ -67,14 +67,12 @@ pub struct Audio {
 }
 
 fn sound_path(assets: &Assets, name: &str) -> Option<std::path::PathBuf> {
-    assets.path(name, "sounds", "ogg").or_else(|| assets.path(name, "sounds", "wav"))
+    assets
+        .path(name, "sounds", "ogg")
+        .or_else(|| assets.path(name, "sounds", "wav"))
 }
 
-const QUICK: Tween = Tween {
-    start_time: kira::StartTime::Immediate,
-    duration: Duration::from_millis(400),
-    easing: kira::Easing::Linear,
-};
+const QUICK: Tween = Tween { start_time: kira::StartTime::Immediate, duration: Duration::from_millis(400), easing: kira::Easing::Linear };
 
 fn db(volume: f64) -> Decibels {
     if volume <= 0.001 { Decibels::SILENCE } else { Decibels((20.0 * volume.log10()) as f32) }
@@ -92,14 +90,23 @@ impl Audio {
         let made = (|| -> Result<Audio, kira::ResourceLimitReached> {
             let listener = mgr.add_listener(glam::Vec3::ZERO, Quat::IDENTITY)?;
             let reverb = mgr.add_send_track(
-                SendTrackBuilder::new().with_effect(ReverbBuilder::new().mix(Mix::WET).damping(0.6).feedback(0.85)),
+                SendTrackBuilder::new().with_effect(
+                    ReverbBuilder::new()
+                        .mix(Mix::WET)
+                        .damping(0.6)
+                        .feedback(0.85),
+                ),
             )?;
-            let mut wb = TrackBuilder::new().sub_track_capacity(64).with_send(&reverb, Decibels::SILENCE);
+            let mut wb = TrackBuilder::new()
+                .sub_track_capacity(64)
+                .with_send(&reverb, Decibels::SILENCE);
             let lowpass = wb.add_effect(FilterBuilder::new().cutoff(20_000.0));
             let mut world = mgr.add_sub_track(wb)?;
             let mut groups = Vec::new();
             for k in &crate::content::content().game.sound_categories {
-                let b = TrackBuilder::new().sub_track_capacity(256).sound_capacity(256);
+                let b = TrackBuilder::new()
+                    .sub_track_capacity(256)
+                    .sound_capacity(256);
                 groups.push(if k.world { world.add_sub_track(b)? } else { mgr.add_sub_track(b)? });
             }
             Ok(Audio {
@@ -174,7 +181,10 @@ impl Audio {
             ids
         });
         // UI has no setting of its own: full volume.
-        let mut volumes: Vec<f64> = ids.iter().map(|id| id.map_or(1.0, |id| crate::config::get(id) / 100.0)).collect();
+        let mut volumes: Vec<f64> = ids
+            .iter()
+            .map(|id| id.map_or(1.0, |id| crate::config::get(id) / 100.0))
+            .collect();
         if self.muted {
             *volumes.last_mut().unwrap() = 0.0;
         }
@@ -182,7 +192,9 @@ impl Audio {
             for (g, v) in self.groups.iter_mut().zip(&volumes) {
                 g.set_volume(db(*v), Tween::default());
             }
-            self.mgr.main_track().set_volume(db(*volumes.last().unwrap()), Tween::default());
+            self.mgr
+                .main_track()
+                .set_volume(db(*volumes.last().unwrap()), Tween::default());
             self.volumes = volumes;
         }
         let Some(l) = l else {
@@ -193,16 +205,17 @@ impl Audio {
             return;
         };
         let orientation = Quat::from_rotation_y(l.yaw) * Quat::from_rotation_x(l.pitch);
-        self.listener.set_position(l.pos.as_vec3(), Tween::default());
+        self.listener
+            .set_position(l.pos.as_vec3(), Tween::default());
         self.listener.set_orientation(orientation, Tween::default());
         if (l.underwater, l.enclosed) != self.state {
             self.state = (l.underwater, l.enclosed);
-            self.lowpass.set_cutoff(if l.underwater { 900.0 } else { 20_000.0 }, QUICK);
-            if let Err(e) = self.world.set_send(
-                &self.reverb,
-                if l.enclosed && !l.underwater { Decibels(-9.0) } else { Decibels::SILENCE },
-                QUICK,
-            ) {
+            self.lowpass
+                .set_cutoff(if l.underwater { 900.0 } else { 20_000.0 }, QUICK);
+            if let Err(e) =
+                self.world
+                    .set_send(&self.reverb, if l.enclosed && !l.underwater { Decibels(-9.0) } else { Decibels::SILENCE }, QUICK)
+            {
                 log::debug!("cave reverb: {e:?}");
             }
         }
@@ -211,7 +224,10 @@ impl Audio {
 
     fn music(&mut self, assets: &Assets, l: &Listener) {
         use weft_abi::music_when as mw;
-        if self.music.as_ref().is_some_and(|m| m.state() != kira::sound::PlaybackState::Stopped)
+        if self
+            .music
+            .as_ref()
+            .is_some_and(|m| m.state() != kira::sound::PlaybackState::Stopped)
             || Instant::now() < self.next_music
         {
             return;
@@ -229,7 +245,14 @@ impl Audio {
         };
         // Quiet for a few minutes between tracks, like vanilla's (shorter: there is less music).
         self.next_music = Instant::now() + Duration::from_secs(120 + (self.random() * 180.0) as u64);
-        let Some(m) = c.game.music.iter().find(|m| fits(m) && !m.tracks.is_empty()) else { return };
+        let Some(m) = c
+            .game
+            .music
+            .iter()
+            .find(|m| fits(m) && !m.tracks.is_empty())
+        else {
+            return;
+        };
         let track = m.tracks[(self.random() * m.tracks.len() as f32) as usize % m.tracks.len()].clone();
         let Some(path) = sound_path(assets, &track) else {
             log::warn!("missing music {track}");
@@ -259,7 +282,9 @@ impl Audio {
     }
 
     pub fn music_playing(&self) -> bool {
-        self.music.as_ref().is_some_and(|m| m.state() != kira::sound::PlaybackState::Stopped)
+        self.music
+            .as_ref()
+            .is_some_and(|m| m.state() != kira::sound::PlaybackState::Stopped)
     }
 
     pub fn play(&mut self, assets: &Assets, p: Play) {
@@ -302,7 +327,9 @@ impl Audio {
             Some(pos) => {
                 // Heard up to `range` blocks (further for loud ones), full volume within one.
                 let reach = def.range * volume.max(1.0);
-                let b = SpatialTrackBuilder::new().distances((1.0, reach.max(1.5))).persist_until_sounds_finish(true);
+                let b = SpatialTrackBuilder::new()
+                    .distances((1.0, reach.max(1.5)))
+                    .persist_until_sounds_finish(true);
                 group
                     .add_spatial_sub_track(&self.listener, pos.as_vec3(), b)
                     .map_err(|e| format!("{e:?}"))

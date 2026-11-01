@@ -104,7 +104,12 @@ impl Cube {
         // A word at a time, like `decode`.
         let words: Box<[u64]> = indices
             .chunks_exact(64 / bits as usize)
-            .map(|group| group.iter().enumerate().fold(0u64, |w, (k, &p)| w | (p as u64) << (k as u32 * bits)))
+            .map(|group| {
+                group
+                    .iter()
+                    .enumerate()
+                    .fold(0u64, |w, (k, &p)| w | (p as u64) << (k as u32 * bits))
+            })
             .collect();
         c.blocks = Blocks::Packed { palette, bits, words };
         c
@@ -394,7 +399,10 @@ impl Cube {
             }
             let count = VOLUME * bits as usize / 64;
             let raw = take_bytes(data, count * 8)?;
-            let words: Box<[u64]> = raw.chunks_exact(8).map(|c| u64::from_le_bytes(c.try_into().unwrap())).collect();
+            let words: Box<[u64]> = raw
+                .chunks_exact(8)
+                .map(|c| u64::from_le_bytes(c.try_into().unwrap()))
+                .collect();
             Blocks::Packed { palette, bits, words }
         };
         let light = match take_bytes(data, 1)?[0] {
@@ -475,7 +483,9 @@ pub const ALL_CONNECTED: u16 = 0x7FFF;
 
 /// Faces reachable from face `from` through the inside of a cube with connectivity `conn`.
 pub fn exits(conn: u16, from: usize) -> u8 {
-    (0..6).filter(|&f| f != from && conn & face_pair(from, f) != 0).fold(0, |m, f| m | 1 << f)
+    (0..6)
+        .filter(|&f| f != from && conn & face_pair(from, f) != 0)
+        .fold(0, |m, f| m | 1 << f)
 }
 
 impl Cube {

@@ -121,7 +121,9 @@ fn span_of(s: &crate::content::StateInfo) -> u32 {
         return 0;
     }
     let (lo, hi) = if !s.collision.is_empty() {
-        s.collision.iter().fold((1.0f32, 0.0f32), |(l, h), b| (l.min(b[1]), h.max(b[4])))
+        s.collision
+            .iter()
+            .fold((1.0f32, 0.0f32), |(l, h), b| (l.min(b[1]), h.max(b[4])))
     } else if s.model != weft_abi::Model::Boxes {
         (0.0, 1.0)
     } else {
@@ -201,18 +203,8 @@ impl Particles {
                 })
                 .map_err(|e| e.0)
             };
-            let cut = make(
-                "particles cutout",
-                "fs_cutout",
-                DepthState { write: true, compare: Compare::GreaterEqual },
-                Blend::None,
-            )?;
-            let blend = make(
-                "particles blended",
-                "fs_blend",
-                DepthState { write: false, compare: Compare::GreaterEqual },
-                Blend::Alpha,
-            )?;
+            let cut = make("particles cutout", "fs_cutout", DepthState { write: true, compare: Compare::GreaterEqual }, Blend::None)?;
+            let blend = make("particles blended", "fs_blend", DepthState { write: false, compare: Compare::GreaterEqual }, Blend::Alpha)?;
             Ok(([cut, blend], slots))
         });
         match made {
@@ -220,8 +212,17 @@ impl Particles {
                 if let Some(old) = self.pipes.replace(pipes) {
                     old.into_iter().for_each(|p| gpu.destroy_pipeline(p));
                 }
-                self.kind_slots = content().game.particles.iter().map(|k| slots.slot(&k.shader)).collect();
-                for k in content().game.particles.iter().filter(|k| !k.shader.is_empty() && slots.slot(&k.shader) == 0)
+                self.kind_slots = content()
+                    .game
+                    .particles
+                    .iter()
+                    .map(|k| slots.slot(&k.shader))
+                    .collect();
+                for k in content()
+                    .game
+                    .particles
+                    .iter()
+                    .filter(|k| !k.shader.is_empty() && slots.slot(&k.shader) == 0)
                 {
                     log::warn!("particle {}: no shader {}", k.name, k.shader);
                 }
@@ -229,13 +230,12 @@ impl Particles {
             Err(e) => log::error!("particle shader: {e}"),
         }
         // Not a shader packs may replace: it decides where things are, not how they look.
-        let sim =
-            crate::packs::engine_shader(assets, "particle_sim.wgsl", &crate::gpu_layout::particle_sim_prelude(REACH))
-                .map_err(|e| e.0)
-                .and_then(|s| {
-                    gpu.create_compute(&ComputeDesc { label: "particles", shader: &s, entry: "simulate" })
-                        .map_err(|e| e.0)
-                });
+        let sim = crate::packs::engine_shader(assets, "particle_sim.wgsl", &crate::gpu_layout::particle_sim_prelude(REACH))
+            .map_err(|e| e.0)
+            .and_then(|s| {
+                gpu.create_compute(&ComputeDesc { label: "particles", shader: &s, entry: "simulate" })
+                    .map_err(|e| e.0)
+            });
         match sim {
             Ok(pipe) => {
                 if let Some(old) = self.sim_pipe.replace(pipe) {
@@ -249,7 +249,13 @@ impl Particles {
     }
 
     pub fn destroy(&mut self, gpu: &mut dyn Backend) {
-        for p in self.pipes.take().into_iter().flatten().chain(self.sim_pipe.take()) {
+        for p in self
+            .pipes
+            .take()
+            .into_iter()
+            .flatten()
+            .chain(self.sim_pipe.take())
+        {
             gpu.destroy_pipeline(p);
         }
         for b in [self.sim, self.dst, self.cells] {
@@ -286,19 +292,26 @@ impl Particles {
             Some(b) if s.model == weft_abi::Model::Boxes => b.textures[1],
             _ => s.textures[1],
         };
-        let dust = c.states.get(b.block as usize).filter(|_| k.frames.is_empty());
+        let dust = c
+            .states
+            .get(b.block as usize)
+            .filter(|_| k.frames.is_empty());
         let layer = dust.map_or(0, side);
         // Only if the side it shows is a tinted one: grass blocks' sides are dirt with a tinted
         // overlay, and their dust stays brown like vanilla's.
-        let tint = dust.filter(|s| s.tint != 0 && s.tint_faces & 2 != 0).map_or(0xFF_FFFF, |s| {
-            let p = pos.floor().as_ivec3();
-            let biome = world.cube(p >> 4i32).map_or(0, |cube| cube.biome((p.x & 15) as usize, (p.z & 15) as usize));
-            c.biomes
-                .get(biome as usize)
-                .and_then(|b| b.tints.get(s.tint as usize - 1))
-                .copied()
-                .unwrap_or_else(|| crate::content::item_tint(s.tint))
-        });
+        let tint = dust
+            .filter(|s| s.tint != 0 && s.tint_faces & 2 != 0)
+            .map_or(0xFF_FFFF, |s| {
+                let p = pos.floor().as_ivec3();
+                let biome = world
+                    .cube(p >> 4i32)
+                    .map_or(0, |cube| cube.biome((p.x & 15) as usize, (p.z & 15) as usize));
+                c.biomes
+                    .get(biome as usize)
+                    .and_then(|b| b.tints.get(s.tint as usize - 1))
+                    .copied()
+                    .unwrap_or_else(|| crate::content::item_tint(s.tint))
+            });
         // Drawn apart by how they blend; bursts beyond what there is room for are dropped.
         let which = (k.flags & pf::TRANSLUCENT != 0) as usize;
         let (head, capacity, start) = {
@@ -328,25 +341,15 @@ impl Particles {
             let piece = [(self.random() * 12.0) as u8, (self.random() * 12.0) as u8];
             let at = pos + off.as_dvec3();
             // A block can still be here on this client: the news of it going come separately.
-            let through =
-                k.flags & pf::COLLIDE != 0 && crate::physics::collides(c, &|p| world.block_or_air(p), particle_box(at));
+            let through = k.flags & pf::COLLIDE != 0 && crate::physics::collides(c, &|p| world.block_or_air(p), particle_box(at));
             let slot = start + ((head + i as u64) % capacity) as u32;
-            self.spawned.push(Spawned {
-                slot,
-                through,
-                pos: at,
-                vel,
-                life,
-                size,
-                kind: b.kind as u16,
-                layer,
-                piece,
-                tint,
-            });
+            self.spawned
+                .push(Spawned { slot, through, pos: at, vel, life, size, kind: b.kind as u16, layer, piece, tint });
         }
         let r = &mut self.rings[which];
         r.head += n as u64;
-        r.bursts.push_back((r.head, self.clock + k.life[1].max(k.life[0])));
+        r.bursts
+            .push_back((r.head, self.clock + k.life[1].max(k.life[0])));
     }
 
     /// `dt` seconds more for the next `simulate`, and the slots of what has lived given back.
@@ -473,12 +476,11 @@ impl Particles {
         if frames.is_empty() {
             frames.push(0);
         }
-        let upload =
-            |gpu: &mut dyn Backend, slots: &mut Vec<(BufferId, u32)>, bytes: &[u8], n: u32, each: u64, label: &str| {
-                let buf = crate::gpu_layout::frame_buffer(gpu, slots, slot, n, each, usage::STORAGE, label);
-                gpu.mapped(buf)[..bytes.len()].copy_from_slice(bytes);
-                buf
-            };
+        let upload = |gpu: &mut dyn Backend, slots: &mut Vec<(BufferId, u32)>, bytes: &[u8], n: u32, each: u64, label: &str| {
+            let buf = crate::gpu_layout::frame_buffer(gpu, slots, slot, n, each, usage::STORAGE, label);
+            gpu.mapped(buf)[..bytes.len()].copy_from_slice(bytes);
+            buf
+        };
         let kinds_buf = upload(
             gpu,
             &mut self.kinds_buf,
@@ -487,8 +489,7 @@ impl Particles {
             size_of::<GpuParticleKind>() as u64,
             "particle kinds",
         );
-        let frames_buf =
-            upload(gpu, &mut self.frames_buf, bytemuck::cast_slice(&frames), frames.len() as u32, 4, "particle frames");
+        let frames_buf = upload(gpu, &mut self.frames_buf, bytemuck::cast_slice(&frames), frames.len() as u32, 4, "particle frames");
         use crate::gpu_layout::bind::particle_sim as b;
         // The last frame's drawing is done with what this one writes.
         list.push(Cmd::Barrier);

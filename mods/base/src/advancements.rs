@@ -105,7 +105,9 @@ pub fn register(r: &mut Registry) {
         component_flags::SAVE | component_flags::SYNC_OWNER | component_flags::KEEP,
     );
     r.attach(&PLAYER, &ADVANCEMENTS);
-    r.sound(&CHIME).files(&["random/advancement"]).category(&sound_categories::UI);
+    r.sound(&CHIME)
+        .files(&["random/advancement"])
+        .category(&sound_categories::UI);
 
     r.world_tick(check_players);
     r.on(&BLOCK_BROKEN, |b| {
@@ -156,10 +158,16 @@ fn check_players(w: &World) {
             continue;
         }
         let inv = w.inventory(id);
-        let items: Vec<u32> = (0..inv.size()).map(|i| inv.get(i)).filter(|s| !s.is_empty()).map(|s| s.item).collect();
-        let worn = inv
-            .find_group(EQUIPMENT_GROUP)
-            .map_or(0, |g| (0..g.len()).filter(|&i| ARMOR.on_item(g.get(i).item).is_some()).count() as u32);
+        let items: Vec<u32> = (0..inv.size())
+            .map(|i| inv.get(i))
+            .filter(|s| !s.is_empty())
+            .map(|s| s.item)
+            .collect();
+        let worn = inv.find_group(EQUIPMENT_GROUP).map_or(0, |g| {
+            (0..g.len())
+                .filter(|&i| ARMOR.on_item(g.get(i).item).is_some())
+                .count() as u32
+        });
         let y = st.pos[1];
         grant_where(w, id, |rule| match *rule {
             Rule::Have(tag) => items.iter().any(|&i| tag.on_item(i)),
@@ -215,7 +223,9 @@ fn client(r: &mut Registry) {
         }
         // Slides in from the right edge, eased, and back out at the end. Screen text is placed by
         // fractions of the window, centered on x with its top at y, so GUI pixels are converted.
-        let shown = (t / SLIDE_SECS).min((TOAST_SECS - t) / SLIDE_SECS).clamp(0.0, 1.0);
+        let shown = (t / SLIDE_SECS)
+            .min((TOAST_SECS - t) / SLIDE_SECS)
+            .clamp(0.0, 1.0);
         let ease = 1.0 - (1.0 - shown).powi(3);
         let st = c.state();
         let scale = st.gui_scale.max(1.0);
@@ -242,7 +252,9 @@ fn client(r: &mut Registry) {
                 ui.text_styled(S::col().class("title").scale(1.5).no_wrap(), "advancements.base.title", &[]);
                 ui.spacer();
                 ui.text_bind_styled(S::col().class("dim").no_wrap(), |v, out| {
-                    let done = v.component(&ADVANCEMENTS).map_or(0, |a| a.done.count_ones());
+                    let done = v
+                        .component(&ADVANCEMENTS)
+                        .map_or(0, |a| a.done.count_ones());
                     out.set("advancements.base.progress", &[Arg::Int(done as i64), Arg::Int(ALL.len() as i64)]);
                 });
             });
@@ -250,22 +262,22 @@ fn client(r: &mut Registry) {
                 for (g, group) in GROUPS.iter().enumerate() {
                     ui.row(S::row(), |ui| {
                         ui.text_styled(S::col().w(90.0).no_wrap(), &format!("advancements.base.group.{group}"), &[]);
-                        for (n, (i, adv)) in ALL.iter().enumerate().filter(|(_, a)| a.group == g).enumerate() {
+                        for (n, (i, adv)) in ALL
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, a)| a.group == g)
+                            .enumerate()
+                        {
                             let made = done & (1 << i) != 0;
                             if n > 0 {
-                                ui.image(
-                                    if made { "base:gui/advancement_line_done" } else { "base:gui/advancement_line" },
-                                    6.0,
-                                    2.0,
-                                );
+                                ui.image(if made { "base:gui/advancement_line_done" } else { "base:gui/advancement_line" }, 6.0, 2.0);
                             }
-                            let (title, desc) =
-                                (format!("advancement.base.{}", adv.id), format!("advancement.base.{}.desc", adv.id));
+                            let (title, desc) = (format!("advancement.base.{}", adv.id), format!("advancement.base.{}.desc", adv.id));
                             let status = if made { "advancements.base.done" } else { "advancements.base.locked" };
-                            let tile = S::row().size(26.0, 26.0).center().tooltip_args(
-                                "advancements.base.tip",
-                                &[Arg::Key(&title), Arg::Key(&desc), Arg::Key(status)],
-                            );
+                            let tile = S::row()
+                                .size(26.0, 26.0)
+                                .center()
+                                .tooltip_args("advancements.base.tip", &[Arg::Key(&title), Arg::Key(&desc), Arg::Key(status)]);
                             ui.panel(if made { "advancement_tile_done" } else { "advancement_tile" }, tile, |ui| {
                                 ui.item(adv.icon.id(), 1, S::default());
                             });

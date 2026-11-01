@@ -32,34 +32,42 @@ pub fn required_extensions(display: RawDisplayHandle) -> VkResult<&'static [*con
 ///
 /// Both handles must belong to a live window and display connection that outlive the surface, and
 /// `instance` must have been made with `required_extensions` of that display.
-pub unsafe fn create(
-    entry: &Entry,
-    instance: &Instance,
-    display: RawDisplayHandle,
-    window: RawWindowHandle,
-) -> VkResult<vk::SurfaceKHR> {
+pub unsafe fn create(entry: &Entry, instance: &Instance, display: RawDisplayHandle, window: RawWindowHandle) -> VkResult<vk::SurfaceKHR> {
     unsafe {
         match (display, window) {
             (RawDisplayHandle::Windows(_), RawWindowHandle::Win32(w)) => {
                 let info = vk::Win32SurfaceCreateInfoKHR::default()
                     .hwnd(w.hwnd.get())
-                    .hinstance(w.hinstance.ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?.get());
+                    .hinstance(
+                        w.hinstance
+                            .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
+                            .get(),
+                    );
                 khr::win32_surface::Instance::new(entry, instance).create_win32_surface(&info, None)
             }
             (RawDisplayHandle::Wayland(d), RawWindowHandle::Wayland(w)) => {
-                let info =
-                    vk::WaylandSurfaceCreateInfoKHR::default().display(d.display.as_ptr()).surface(w.surface.as_ptr());
+                let info = vk::WaylandSurfaceCreateInfoKHR::default()
+                    .display(d.display.as_ptr())
+                    .surface(w.surface.as_ptr());
                 khr::wayland_surface::Instance::new(entry, instance).create_wayland_surface(&info, None)
             }
             (RawDisplayHandle::Xlib(d), RawWindowHandle::Xlib(w)) => {
                 let info = vk::XlibSurfaceCreateInfoKHR::default()
-                    .dpy(d.display.ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?.as_ptr())
+                    .dpy(
+                        d.display
+                            .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
+                            .as_ptr(),
+                    )
                     .window(w.window);
                 khr::xlib_surface::Instance::new(entry, instance).create_xlib_surface(&info, None)
             }
             (RawDisplayHandle::Xcb(d), RawWindowHandle::Xcb(w)) => {
                 let info = vk::XcbSurfaceCreateInfoKHR::default()
-                    .connection(d.connection.ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?.as_ptr())
+                    .connection(
+                        d.connection
+                            .ok_or(vk::Result::ERROR_INITIALIZATION_FAILED)?
+                            .as_ptr(),
+                    )
                     .window(w.window.get());
                 khr::xcb_surface::Instance::new(entry, instance).create_xcb_surface(&info, None)
             }

@@ -68,9 +68,7 @@ pub fn nearest_player(w: &World, st: &EntityState, range: f64) -> Option<(u64, E
     w.each_player()
         .filter_map(|p| w.entity(p).map(|s| (p, s)))
         .filter(|(p, s)| {
-            s.health > 0.0
-                && (s.pos[1] - st.pos[1]).abs() < 8.0
-                && d2(s) < (range * w.attribute(*p, &crate::attribute::VISIBILITY)).powi(2)
+            s.health > 0.0 && (s.pos[1] - st.pos[1]).abs() < 8.0 && d2(s) < (range * w.attribute(*p, &crate::attribute::VISIBILITY)).powi(2)
         })
         .min_by(|a, b| d2(&a.1).total_cmp(&d2(&b.1)))
 }

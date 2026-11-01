@@ -283,10 +283,7 @@ impl Lookup {
             }
         }
         entry < s.entries.load(Ordering::Relaxed)
-            && unsafe { *bits.add((entry * s.words.load(Ordering::Relaxed)) as usize) }
-                >> (self.id.load(Ordering::Relaxed) % 64)
-                & 1
-                != 0
+            && unsafe { *bits.add((entry * s.words.load(Ordering::Relaxed)) as usize) } >> (self.id.load(Ordering::Relaxed) % 64) & 1 != 0
     }
 
     #[inline]
@@ -297,7 +294,11 @@ impl Lookup {
         let s = &self.slots[kind as usize];
         let stride = s.stride.load(Ordering::Relaxed);
         (stride as usize == size_of::<T>()).then(|| unsafe {
-            std::ptr::read_unaligned(s.data.load(Ordering::Relaxed).add((entry * stride) as usize) as *const T)
+            std::ptr::read_unaligned(
+                s.data
+                    .load(Ordering::Relaxed)
+                    .add((entry * stride) as usize) as *const T,
+            )
         })
     }
 
@@ -457,9 +458,7 @@ pub fn stack_name(stack: &ItemStack) -> Option<String> {
 /// it is broken back into an item.
 pub fn with_name(stack: ItemStack, name: Option<&str>) -> ItemStack {
     let b = name.filter(|n| !n.is_empty()).map(str::as_bytes);
-    let data = unsafe {
-        (host().stack_with)(stack.data, NAME.id(), b.map_or(abi::Slice::EMPTY, abi::Slice::new), b.is_none() as u32)
-    };
+    let data = unsafe { (host().stack_with)(stack.data, NAME.id(), b.map_or(abi::Slice::EMPTY, abi::Slice::new), b.is_none() as u32) };
     ItemStack { data, ..stack }
 }
 

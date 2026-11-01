@@ -34,9 +34,7 @@ impl Client {
                 self.seed = seed;
                 self.reset_terrain(dim, fwd);
             }
-            ToClient::Cube { dim, pos, cube, edit } if dim == self.world.dim => {
-                fwd.push(terrain::In::Cube { pos, cube, edit })
-            }
+            ToClient::Cube { dim, pos, cube, edit } if dim == self.world.dim => fwd.push(terrain::In::Cube { pos, cube, edit }),
             ToClient::Unload { dim, pos } if dim == self.world.dim => fwd.push(terrain::In::Unload(pos)),
             ToClient::Blocks { dim, changes } if dim == self.world.dim => fwd.push(terrain::In::Blocks(changes)),
             ToClient::Saved { dim, cubes } if dim == self.world.dim => fwd.push(terrain::In::Saved(cubes)),
@@ -76,15 +74,14 @@ impl Client {
                 }
             }
             ToClient::Despawn(ids) => {
-                self.entity_components.retain(|(e, _), _| !ids.iter().any(|g| g.0 == *e));
+                self.entity_components
+                    .retain(|(e, _), _| !ids.iter().any(|g| g.0 == *e));
                 for (id, killed) in ids {
                     // Killed mobs stay a moment for the death animation, taken items until
                     // they reach the taker.
                     match self.entities.get_mut(&id) {
                         Some(e) if e.pulled.is_some() => {}
-                        Some(e) if (killed || e.health <= 0.0) && e.item.is_empty() && e.dying.is_none() => {
-                            e.dying = Some(0.0)
-                        }
+                        Some(e) if (killed || e.health <= 0.0) && e.item.is_empty() && e.dying.is_none() => e.dying = Some(0.0),
                         _ => {
                             self.entities.remove(&id);
                         }
@@ -213,20 +210,17 @@ impl Client {
             ToClient::Animate(list) => {
                 for (id, name, looping) in list {
                     if id == self.player_id {
-                        self.self_anim =
-                            (!name.is_empty()).then(|| (name, self.start.elapsed().as_secs_f32(), looping));
+                        self.self_anim = (!name.is_empty()).then(|| (name, self.start.elapsed().as_secs_f32(), looping));
                     } else if let Some(e) = self.entities.get_mut(&id) {
                         e.anim = (!name.is_empty()).then(|| (name, e.age, looping));
                     }
                 }
             }
             ToClient::Sounds(list) => {
-                self.sounds.extend(list.into_iter().map(|(sound, pos, volume, pitch)| crate::audio::Play {
-                    sound,
-                    pos: Some(pos),
-                    volume,
-                    pitch,
-                }));
+                self.sounds.extend(
+                    list.into_iter()
+                        .map(|(sound, pos, volume, pitch)| crate::audio::Play { sound, pos: Some(pos), volume, pitch }),
+                );
             }
             ToClient::Particles(list) => {
                 for b in &list {
@@ -334,7 +328,11 @@ impl Client {
         }
         // Riders relative to their body, both where the server had them this tick.
         for &(id, pos, .., frame) in &list {
-            let body = self.entities.get(&frame).filter(|_| frame != 0).map(|b| (b.target, b.pos));
+            let body = self
+                .entities
+                .get(&frame)
+                .filter(|_| frame != 0)
+                .map(|b| (b.target, b.pos));
             let Some(e) = self.entities.get_mut(&id) else { continue };
             match body {
                 Some((target, shown)) => {

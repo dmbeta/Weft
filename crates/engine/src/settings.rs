@@ -28,7 +28,12 @@ fn number(name: &str) -> f64 {
 }
 
 fn list(name: &str) -> Vec<String> {
-    config::text(id(name)).split(',').map(str::trim).filter(|p| !p.is_empty()).map(String::from).collect()
+    config::text(id(name))
+        .split(',')
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(String::from)
+        .collect()
 }
 
 impl Settings {
@@ -180,8 +185,7 @@ pub fn key_id(k: Key) -> String {
     }
 }
 
-const MODIFIERS: [(u8, &str); 3] =
-    [(crate::input::CTRL, "ctrl"), (crate::input::SHIFT, "shift"), (crate::input::ALT, "alt")];
+const MODIFIERS: [(u8, &str); 3] = [(crate::input::CTRL, "ctrl"), (crate::input::SHIFT, "shift"), (crate::input::ALT, "alt")];
 
 /// `ctrl+shift+KeyT`: the modifiers, then the key.
 pub fn chord_id(c: Chord) -> String {
@@ -351,7 +355,9 @@ pub fn parse_key(s: &str) -> Option<Key> {
         "right" => "ArrowRight".into(),
         _ => s.into(),
     };
-    ALL.iter().find(|c| format!("{c:?}").eq_ignore_ascii_case(&short)).map(|c| Key::Code(*c))
+    ALL.iter()
+        .find(|c| format!("{c:?}").eq_ignore_ascii_case(&short))
+        .map(|c| Key::Code(*c))
 }
 
 #[cfg(test)]

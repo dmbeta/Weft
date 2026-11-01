@@ -372,23 +372,24 @@ impl Ui {
     }
 
     pub fn clear(&mut self) {
-        let (scroll, shown, size, owned) =
-            (std::mem::take(&mut self.scroll), self.shown, self.size, std::mem::take(&mut self.owned));
+        let (scroll, shown, size, owned) = (std::mem::take(&mut self.scroll), self.shown, self.size, std::mem::take(&mut self.owned));
         *self = Ui::new();
         (self.scroll, self.shown, self.size, self.retired) = (scroll, shown, size, owned);
     }
 
     fn scroll_key(&self, id: NodeId) -> String {
-        self.nodes[id].id.clone().unwrap_or_else(|| format!("#{id}"))
+        self.nodes[id]
+            .id
+            .clone()
+            .unwrap_or_else(|| format!("#{id}"))
     }
 
     /// Scrolls the innermost scrolling node under `p` by `lines` wheel steps; true if one moved.
     pub fn scroll_at(&mut self, p: Vec2, lines: f32) -> bool {
-        let Some(id) = (0..self.nodes.len()).rev().find(|&i| {
-            self.nodes[i].style.scroll
-                && self.nodes[i].rect.contains(p)
-                && self.nodes[i].clip.is_none_or(|c| c.contains(p))
-        }) else {
+        let Some(id) = (0..self.nodes.len())
+            .rev()
+            .find(|&i| self.nodes[i].style.scroll && self.nodes[i].rect.contains(p) && self.nodes[i].clip.is_none_or(|c| c.contains(p)))
+        else {
             return false;
         };
         let key = self.scroll_key(id);
@@ -401,10 +402,9 @@ impl Ui {
     /// Mouse pressed at `p`: on a scroll bar it starts dragging (a click on the track jumps
     /// there). True if a bar took the click.
     pub fn bar_press(&mut self, p: Vec2) -> bool {
-        let hit = (0..self.nodes.len()).rev().find(|&i| {
-            self.nodes[i].scrollbar.is_some_and(|b| b.track.contains(p))
-                && self.nodes[i].clip.is_none_or(|c| c.contains(p))
-        });
+        let hit = (0..self.nodes.len())
+            .rev()
+            .find(|&i| self.nodes[i].scrollbar.is_some_and(|b| b.track.contains(p)) && self.nodes[i].clip.is_none_or(|c| c.contains(p)));
         let Some(id) = hit else { return false };
         self.dragging = Some(id);
         self.bar_drag(p);
@@ -540,11 +540,7 @@ impl Ui {
     }
 
     pub fn button(&mut self, class: &str, style: Style, action: Action, f: impl FnOnce(&mut Ui)) -> NodeId {
-        self.with(
-            Kind::Button { class: class.to_string(), action: Some(action), enabled: true, selected: false },
-            style.center(),
-            f,
-        )
+        self.with(Kind::Button { class: class.to_string(), action: Some(action), enabled: true, selected: false }, style.center(), f)
     }
 
     pub fn text_mut(&mut self, id: NodeId) -> Option<&mut TextNode> {
@@ -576,8 +572,7 @@ impl Ui {
         let inner = if self.nodes[id].style.scroll {
             let r = self.nodes[id].rect;
             let p = self.nodes[id].style.pad;
-            let own =
-                Rect { x: r.x + p[0], y: r.y + p[1], w: (r.w - p[0] - p[2]).max(0.0), h: (r.h - p[1] - p[3]).max(0.0) };
+            let own = Rect { x: r.x + p[0], y: r.y + p[1], w: (r.w - p[0] - p[2]).max(0.0), h: (r.h - p[1] - p[3]).max(0.0) };
             Some(match clip {
                 Some(c) => c.intersect(own),
                 None => own,
@@ -624,13 +619,18 @@ impl Ui {
                     let children = self.nodes[id].children.clone();
                     let (mut main, mut cross) = (0.0f32, 0.0f32);
                     // Nodes placed at a point take no room in the flow.
-                    let placed: Vec<NodeId> =
-                        children.iter().copied().filter(|&c| self.nodes[c].style.at.is_some()).collect();
+                    let placed: Vec<NodeId> = children
+                        .iter()
+                        .copied()
+                        .filter(|&c| self.nodes[c].style.at.is_some())
+                        .collect();
                     for c in placed {
                         self.measure(c, avail, font);
                     }
-                    let children: Vec<NodeId> =
-                        children.into_iter().filter(|&c| self.nodes[c].style.at.is_none()).collect();
+                    let children: Vec<NodeId> = children
+                        .into_iter()
+                        .filter(|&c| self.nodes[c].style.at.is_none())
+                        .collect();
                     for (i, c) in children.iter().enumerate() {
                         let m = self.measure(*c, inner_avail, font);
                         let (cm, cc) = if style.row { (m[0], m[1]) } else { (m[1], m[0]) };
@@ -641,7 +641,10 @@ impl Ui {
                 }
             }
         };
-        let w = fixed_w.unwrap_or(content[0] + pad_w).max(style.min[0]).min(style.max_w);
+        let w = fixed_w
+            .unwrap_or(content[0] + pad_w)
+            .max(style.min[0])
+            .min(style.max_w);
         let h = fixed_h.unwrap_or(content[1] + pad_h).max(style.min[1]);
         self.nodes[id].measured = [w, h];
         [w, h]
@@ -661,13 +664,8 @@ impl Ui {
             // Final fit: wrap to the box we actually got, or shrink if wrapping is off.
             if t.layout.width * t.scale * unit > inner.w + 0.5 {
                 if t.wrap {
-                    t.layout = text::layout_with(
-                        &t.spans,
-                        font,
-                        Some(inner.w / (t.scale * unit)),
-                        t.line.unwrap_or(font.line_height),
-                        t.mono,
-                    );
+                    t.layout =
+                        text::layout_with(&t.spans, font, Some(inner.w / (t.scale * unit)), t.line.unwrap_or(font.line_height), t.mono);
                 } else if t.layout.width > 0.0 {
                     t.scale = (inner.w / (t.layout.width * unit)).max(0.25);
                 }
@@ -675,12 +673,19 @@ impl Ui {
             return;
         }
         let children = self.nodes[id].children.clone();
-        let placed: Vec<NodeId> = children.iter().copied().filter(|&c| self.nodes[c].style.at.is_some()).collect();
+        let placed: Vec<NodeId> = children
+            .iter()
+            .copied()
+            .filter(|&c| self.nodes[c].style.at.is_some())
+            .collect();
         for c in placed {
             let ([x, y, px, py], [w, h]) = (self.nodes[c].style.at.unwrap(), self.nodes[c].measured);
             self.arrange(c, Rect { x: inner.x + x - px * w, y: inner.y + y - py * h, w, h }, font);
         }
-        let children: Vec<NodeId> = children.into_iter().filter(|&c| self.nodes[c].style.at.is_none()).collect();
+        let children: Vec<NodeId> = children
+            .into_iter()
+            .filter(|&c| self.nodes[c].style.at.is_none())
+            .collect();
         if children.is_empty() {
             return;
         }
@@ -702,8 +707,9 @@ impl Ui {
             free = 0.0;
         } else if free < 0.0 && style.row {
             // Too wide: squeeze wrapping text children, they re-measure with less width.
-            let texts: Vec<usize> =
-                (0..children.len()).filter(|&i| matches!(self.nodes[children[i]].kind, Kind::Text(_))).collect();
+            let texts: Vec<usize> = (0..children.len())
+                .filter(|&i| matches!(self.nodes[children[i]].kind, Kind::Text(_)))
+                .collect();
             if !texts.is_empty() {
                 let take = -free / texts.len() as f32;
                 for i in texts {
@@ -727,12 +733,7 @@ impl Ui {
             free = free.max(0.0);
             if max > 0.0 && !style.row && cross_size > Scrollbar::ROOM * 2.0 {
                 cross_size -= Scrollbar::ROOM;
-                let track = Rect {
-                    x: inner.x + inner.w - Scrollbar::HANDLE[0],
-                    y: inner.y,
-                    w: Scrollbar::HANDLE[0],
-                    h: inner.h,
-                };
+                let track = Rect { x: inner.x + inner.w - Scrollbar::HANDLE[0], y: inner.y, w: Scrollbar::HANDLE[0], h: inner.h };
                 self.nodes[id].scrollbar = Some(Scrollbar { track, offset: scrolled, max });
             }
         }
@@ -748,8 +749,7 @@ impl Ui {
             let s = sizes[i];
             let (cm, mut cc) = if style.row { (s[0], s[1]) } else { (s[1], s[0]) };
             let align = self.nodes[c].style.self_align.unwrap_or(style.align);
-            let fixed_cross =
-                if style.row { self.nodes[c].style.h != Len::Auto } else { self.nodes[c].style.w != Len::Auto };
+            let fixed_cross = if style.row { self.nodes[c].style.h != Len::Auto } else { self.nodes[c].style.w != Len::Auto };
             if align == Align::Stretch && !fixed_cross {
                 cc = cross_size;
             }

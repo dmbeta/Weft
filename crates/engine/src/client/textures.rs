@@ -97,8 +97,12 @@ impl GameTextures {
                 entries.len() as u32 - 1
             })
         };
-        let mut ids: Vec<u32> =
-            c.textures.iter().chain(&extra.names).map(|n| add(n.clone(), Source::File, &mut entries)).collect();
+        let mut ids: Vec<u32> = c
+            .textures
+            .iter()
+            .chain(&extra.names)
+            .map(|n| add(n.clone(), Source::File, &mut entries))
+            .collect();
         for parts in &extra.composites {
             let parts = parts.map(|p| ids.get(p as usize).copied().unwrap_or(0));
             let name = composite_name(&parts.map(|i| entries[i as usize].name.clone()));
@@ -281,7 +285,9 @@ impl GameTextures {
             let mut n = self.inner.borrow_mut();
             // Only what was loaded is compared; the rest loads fresh when first used anyway.
             let unchanged = |name: &str| {
-                loaded.get(name).is_some_and(|&o| assets::texture_stamp(assets, name) == old.entries[o as usize].stamp)
+                loaded
+                    .get(name)
+                    .is_some_and(|&o| assets::texture_stamp(assets, name) == old.entries[o as usize].stamp)
             };
             let entries = &n.entries;
             let same: Vec<bool> = entries
@@ -304,7 +310,12 @@ impl GameTextures {
                         oe.anim.take(),
                         oe.stamp,
                     );
-                    let pairs: Vec<(u32, u32)> = ne.frames.iter().copied().zip(ne.glow.iter().copied()).collect();
+                    let pairs: Vec<(u32, u32)> = ne
+                        .frames
+                        .iter()
+                        .copied()
+                        .zip(ne.glow.iter().copied())
+                        .collect();
                     for (f, g) in pairs {
                         set_glow(&mut n.glow_map, f, g);
                     }
@@ -332,9 +343,9 @@ impl GameTextures {
 
 /// A composite changes when any of its parts does.
 fn composite_stamp(assets: &Assets, entries: &[Entry], parts: [u32; 4]) -> u64 {
-    parts.iter().fold(weft_noise::FNV, |h, &p| {
-        weft_noise::fnv_step(h, assets::texture_stamp(assets, &entries[p as usize].name))
-    })
+    parts
+        .iter()
+        .fold(weft_noise::FNV, |h, &p| weft_noise::fnv_step(h, assets::texture_stamp(assets, &entries[p as usize].name)))
 }
 
 fn set_glow(map: &mut Vec<u32>, color: u32, glow: u32) {
@@ -350,11 +361,9 @@ fn load(entries: &[Entry], assets: &Assets, ids: &[u32]) -> Vec<Loaded> {
         .map(|&e| {
             let en = &entries[e as usize];
             match en.source {
-                Source::File => Loaded {
-                    entry: e,
-                    tex: assets::load_texture(assets, &en.name),
-                    stamp: assets::texture_stamp(assets, &en.name),
-                },
+                Source::File => {
+                    Loaded { entry: e, tex: assets::load_texture(assets, &en.name), stamp: assets::texture_stamp(assets, &en.name) }
+                }
                 Source::Composite(ids) => {
                     let parts = ids.map(|p| assets::load_texture(assets, &entries[p as usize].name));
                     Loaded {
@@ -376,13 +385,7 @@ fn upload(gpu: &mut dyn Backend, i: &mut Inner, l: Loaded) {
     let mut glows = Vec::new();
     for (mips, glow) in l.tex.frames.iter().zip(&l.tex.glow) {
         let t = gpu.create_texture(
-            &TextureDesc {
-                width: size,
-                height: size,
-                mips: mips.len() as u32,
-                format: Format::Rgba8Srgb,
-                render_target: false,
-            },
+            &TextureDesc { width: size, height: size, mips: mips.len() as u32, format: Format::Rgba8Srgb, render_target: false },
             label,
         );
         for (m, data) in mips.iter().enumerate() {
@@ -391,10 +394,8 @@ fn upload(gpu: &mut dyn Backend, i: &mut Inner, l: Loaded) {
         let index = gpu.texture_index(t);
         images.push(t);
         let g = glow.as_ref().map_or(u32::MAX, |mask| {
-            let g = gpu.create_texture(
-                &TextureDesc { width: size, height: size, mips: 1, format: Format::R8Unorm, render_target: false },
-                label,
-            );
+            let g = gpu
+                .create_texture(&TextureDesc { width: size, height: size, mips: 1, format: Format::R8Unorm, render_target: false }, label);
             gpu.write_texture(g, 0, mask);
             images.push(g);
             gpu.texture_index(g)

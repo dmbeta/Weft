@@ -279,13 +279,18 @@ pub fn cpu_name() -> String {
 /// brand string.
 fn tidy_cpu_name(raw: &str) -> String {
     let raw = raw.trim_matches(|c: char| c == '\0' || c.is_whitespace());
-    let mut s = raw.replace("(R)", "").replace("(TM)", "").replace("(tm)", "");
+    let mut s = raw
+        .replace("(R)", "")
+        .replace("(TM)", "")
+        .replace("(tm)", "");
     // Intel: "... CPU @ 3.60GHz"; AMD: "... 12-Core Processor".
     if let Some(i) = s.find(" @ ") {
         s.truncate(i);
     }
-    let words: Vec<&str> =
-        s.split_whitespace().filter(|w| !w.ends_with("-Core") && *w != "Processor" && *w != "CPU").collect();
+    let words: Vec<&str> = s
+        .split_whitespace()
+        .filter(|w| !w.ends_with("-Core") && *w != "Processor" && *w != "CPU")
+        .collect();
     words.join(" ")
 }
 
@@ -302,7 +307,9 @@ impl ModWindow {
     /// (mod id, nanoseconds, calls) since the previous call, and the seconds that covers.
     pub fn take(&mut self) -> (Vec<(String, u64, u64)>, f64) {
         let Some(c) = crate::content::try_content() else { return (Vec::new(), 0.0) };
-        let now: Vec<(u64, u64)> = (0..c.mods.len()).map(|i| crate::host::mod_totals(ModId(i as u32))).collect();
+        let now: Vec<(u64, u64)> = (0..c.mods.len())
+            .map(|i| crate::host::mod_totals(ModId(i as u32)))
+            .collect();
         let secs = self.at.map_or(0.0, |t| t.elapsed().as_secs_f64());
         if self.at.is_none() {
             // The first look only sets the baseline.
@@ -385,11 +392,17 @@ impl Reporter {
     fn per_second(&mut self, s: &FrameSample, secs: f64) {
         let n = self.frames.max(1) as f64;
         if on(Channel::Frame, Level::Debug) {
-            let cpu: Vec<String> =
-                crate::bench::CPU_PARTS.iter().zip(self.cpu).map(|(k, v)| format!("{k} {:.2}", v / n)).collect();
+            let cpu: Vec<String> = crate::bench::CPU_PARTS
+                .iter()
+                .zip(self.cpu)
+                .map(|(k, v)| format!("{k} {:.2}", v / n))
+                .collect();
             let g = self.gpu_frames.max(1) as f64;
-            let gpu: Vec<String> =
-                crate::bench::GPU_PARTS.iter().zip(self.gpu).map(|(k, v)| format!("{k} {:.2}", v / g)).collect();
+            let gpu: Vec<String> = crate::bench::GPU_PARTS
+                .iter()
+                .zip(self.gpu)
+                .map(|(k, v)| format!("{k} {:.2}", v / g))
+                .collect();
             let server = s.server.map_or(String::new(), |sh| {
                 let phases: Vec<String> = crate::server::PHASES
                     .iter()
@@ -411,11 +424,7 @@ impl Reporter {
                             .get(k)
                             .copied()
                             .unwrap_or("?");
-                        parts.push(if bytes > 0 {
-                            format!("{kind} {count} ({})", size(bytes))
-                        } else {
-                            format!("{kind} {count}")
-                        });
+                        parts.push(if bytes > 0 { format!("{kind} {count} ({})", size(bytes)) } else { format!("{kind} {count}") });
                     }
                 }
                 if !parts.is_empty() {
@@ -430,13 +439,8 @@ impl Reporter {
             }
         }
         if on(Channel::Load, Level::Debug) {
-            let (gpu, fin, fin_ns, joined, busy) = (
-                TERRAIN_GPU.take(),
-                TERRAIN_FINISHED.take(),
-                TERRAIN_FINISH_NS.take(),
-                TERRAIN_JOINED.take(),
-                TERRAIN_BUSY_NS.take(),
-            );
+            let (gpu, fin, fin_ns, joined, busy) =
+                (TERRAIN_GPU.take(), TERRAIN_FINISHED.take(), TERRAIN_FINISH_NS.take(), TERRAIN_JOINED.take(), TERRAIN_BUSY_NS.take());
             if gpu + fin + joined > 0 {
                 log::debug!(
                     target: "load",
@@ -472,9 +476,7 @@ impl Reporter {
         let mods: Vec<String> = mods
             .iter()
             .take(5)
-            .map(|(id, ns, calls)| {
-                format!("{id} {:.3} ms/{:.0} calls", *ns as f64 / 1e6 / ticks, *calls as f64 / ticks)
-            })
+            .map(|(id, ns, calls)| format!("{id} {:.3} ms/{:.0} calls", *ns as f64 / 1e6 / ticks, *calls as f64 / ticks))
             .collect();
         let server = s.server.map_or(String::new(), |sh| {
             format!(
@@ -554,7 +556,10 @@ pub fn install_crash_handler(run_dir: &std::path::Path) {
             .map(|s| s.to_string())
             .or_else(|| info.payload().downcast_ref::<String>().cloned())
             .unwrap_or_else(|| "panic".into());
-        let at = info.location().map(|l| format!(" at {}:{}", l.file(), l.line())).unwrap_or_default();
+        let at = info
+            .location()
+            .map(|l| format!(" at {}:{}", l.file(), l.line()))
+            .unwrap_or_default();
         write_report(&format!("panic{at}: {msg}"));
         previous(info);
     }));
@@ -564,7 +569,10 @@ pub fn install_crash_handler(run_dir: &std::path::Path) {
 
 fn write_report(what: &str) {
     let Some(dir) = CRASH_DIR.get() else { return };
-    let thread = std::thread::current().name().unwrap_or("unnamed").to_string();
+    let thread = std::thread::current()
+        .name()
+        .unwrap_or("unnamed")
+        .to_string();
     let mut r = String::new();
     r.push_str(&format!("Weft {} crash report, {}\n\n", env!("CARGO_PKG_VERSION"), crate::log::now_stamp()));
     r.push_str(&format!("What:   {what}\nThread: {thread}\n"));
@@ -573,7 +581,11 @@ fn write_report(what: &str) {
         None => r.push_str("Mod:    none (engine code)\n"),
     }
     if let Some(c) = crate::content::try_content() {
-        let mods: Vec<String> = c.mods.iter().map(|m| format!("{} {}", m.id, m.version)).collect();
+        let mods: Vec<String> = c
+            .mods
+            .iter()
+            .map(|m| format!("{} {}", m.id, m.version))
+            .collect();
         r.push_str(&format!("Mods:   {}\n", mods.join(", ")));
     }
     r.push_str(&format!(
@@ -607,9 +619,7 @@ mod native {
     }
 
     unsafe extern "system" {
-        fn SetUnhandledExceptionFilter(
-            f: Option<unsafe extern "system" fn(*const ExceptionPointers) -> i32>,
-        ) -> *const core::ffi::c_void;
+        fn SetUnhandledExceptionFilter(f: Option<unsafe extern "system" fn(*const ExceptionPointers) -> i32>) -> *const core::ffi::c_void;
     }
 
     pub fn install() {
@@ -619,7 +629,12 @@ mod native {
     unsafe extern "system" fn filter(info: *const ExceptionPointers) -> i32 {
         static ONCE: AtomicBool = AtomicBool::new(false);
         if !ONCE.swap(true, Ordering::Relaxed) {
-            let code = unsafe { info.as_ref().and_then(|i| i.record.as_ref()).copied().unwrap_or(0) };
+            let code = unsafe {
+                info.as_ref()
+                    .and_then(|i| i.record.as_ref())
+                    .copied()
+                    .unwrap_or(0)
+            };
             let name = match code {
                 0xC000_0005 => "access violation",
                 0xC000_001D => "illegal instruction",

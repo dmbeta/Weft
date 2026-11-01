@@ -128,9 +128,7 @@ pub fn perlin3(seed: u32, x: i32, y: i32, z: i32, sx: i32, sy: i32, sz: i32) -> 
     let (yi, yf) = lattice(y, sy);
     let (zi, zf) = lattice(z, sz);
     let (u, v, w) = (fade(xf), fade(yf), fade(zf));
-    let g = |dx: i32, dy: i32, dz: i32| {
-        grad3(hash(seed, xi + dx, yi + dy, zi + dz), xf - dx * ONE, yf - dy * ONE, zf - dz * ONE)
-    };
+    let g = |dx: i32, dy: i32, dz: i32| grad3(hash(seed, xi + dx, yi + dy, zi + dz), xf - dx * ONE, yf - dy * ONE, zf - dz * ONE);
     let x00 = lerp(g(0, 0, 0), g(1, 0, 0), u);
     let x10 = lerp(g(0, 1, 0), g(1, 1, 0), u);
     let x01 = lerp(g(0, 0, 1), g(1, 0, 1), u);
@@ -161,7 +159,9 @@ pub fn ramp(v: i32, from: i32, to: i32) -> i32 {
 /// To Q12 (and Q4 below), rounded, for parameters given as decimals; out of range (an open
 /// range's infinity) saturates at +-2^18, far past any field.
 pub fn q12(v: f64) -> i32 {
-    (v * 4096.0).round().clamp(-(1 << 18) as f64, (1 << 18) as f64) as i32
+    (v * 4096.0)
+        .round()
+        .clamp(-(1 << 18) as f64, (1 << 18) as f64) as i32
 }
 
 pub fn q4(v: f64) -> i32 {

@@ -177,7 +177,10 @@ impl ClientEntity {
     /// Half width, height and eye height of its box, like the server's `Entity::dims`.
     pub fn dims(&self) -> (f64, f64, f64) {
         let k = &content().game.entities[self.kind as usize];
-        let [w, h, eye] = self.size.unwrap_or([k.width, k.height, k.eye]).map(|v| v as f64);
+        let [w, h, eye] = self
+            .size
+            .unwrap_or([k.width, k.height, k.eye])
+            .map(|v| v as f64);
         let (h, eye) = physics::posed(self.pose, h, eye);
         (w / 2.0, h, eye)
     }
@@ -205,7 +208,13 @@ impl ClientEntity {
         let mut before = self.track[0];
         for &(t, p) in &self.track {
             if tick < t {
-                return if t > before.0 { before.1.lerp(p, ((tick - before.0) / (t - before.0)).max(0.0)) } else { p };
+                return if t > before.0 {
+                    before
+                        .1
+                        .lerp(p, ((tick - before.0) / (t - before.0)).max(0.0))
+                } else {
+                    p
+                };
             }
             before = (t, p);
         }
@@ -620,7 +629,12 @@ impl Client {
             hand_stack: ItemStack::default(),
             hand_height: 1.0,
             swing_since: 1000.0,
-            attributes: content().game.attributes.iter().map(|a| a.default as f32).collect(),
+            attributes: content()
+                .game
+                .attributes
+                .iter()
+                .map(|a| a.default as f32)
+                .collect(),
             refused_break: None,
             hand_view: (0.0, 0.0),
             self_body: 0.0,
@@ -689,7 +703,10 @@ impl Client {
     }
 
     pub fn held(&self) -> ItemStack {
-        self.inventory.get(self.selected).copied().unwrap_or_default()
+        self.inventory
+            .get(self.selected)
+            .copied()
+            .unwrap_or_default()
     }
 
     /// Starts the terrain over for dimension `dim` (joined, or moved to another dimension).
@@ -728,7 +745,8 @@ impl Client {
         self.ease_camera(input, dt);
         let moved = self.animate_player(input, dt);
         if input.pressed("core:drop") && self.mode != GameMode::Spectator {
-            self.conn.send(ToServer::Drop { all: input.held("core:sprint") });
+            self.conn
+                .send(ToServer::Drop { all: input.held("core:sprint") });
         }
         if input.pressed("core:inventory") && input.captured {
             self.conn.send(ToServer::OpenInventory);
@@ -755,8 +773,7 @@ impl Client {
         // Smoothed: from one frame alone, a quick frame gave the next a long budget, which made
         // it slow, and so on.
         self.rest += (dt - self.spent - self.rest) * 0.1;
-        self.budget =
-            std::time::Duration::from_secs_f64(((FRAME_TARGET - self.rest) / 2.0).clamp(MIN_BUDGET, MAX_BUDGET));
+        self.budget = std::time::Duration::from_secs_f64(((FRAME_TARGET - self.rest) / 2.0).clamp(MIN_BUDGET, MAX_BUDGET));
         let t = Instant::now();
         self.receive();
         self.spent = t.elapsed().as_secs_f64();
@@ -776,7 +793,9 @@ impl Client {
 
     fn read_controls(&mut self, input: &Input) {
         let creative = self.mode == GameMode::Creative;
-        let i = self.controls.read(&controls::Keys::of(input), self.player.flying, creative, Instant::now());
+        let i = self
+            .controls
+            .read(&controls::Keys::of(input), self.player.flying, creative, Instant::now());
         (self.player.sneak, self.player.sprint, self.player.flying) = (i.sneak, i.sprint, i.flying);
     }
 
@@ -786,8 +805,10 @@ impl Client {
         // In a screen the number keys belong to it (swapping slots with the hotbar), and with F3
         // down to the debug groups.
         if !spectator && input.captured && !input.held("core:debug") {
-            for (i, action) in
-                crate::input::HOTBAR.into_iter().enumerate().take(content().game.player_layout.hotbar as usize)
+            for (i, action) in crate::input::HOTBAR
+                .into_iter()
+                .enumerate()
+                .take(content().game.player_layout.hotbar as usize)
             {
                 if input.pressed(action) {
                     self.selected = i;
@@ -796,18 +817,20 @@ impl Client {
         }
         if input.scroll != 0.0 {
             if spectator {
-                self.player.fly_speed =
-                    (self.player.fly_speed * if input.scroll > 0.0 { 1.25 } else { 0.8 }).clamp(0.1, 10.0);
+                self.player.fly_speed = (self.player.fly_speed * if input.scroll > 0.0 { 1.25 } else { 0.8 }).clamp(0.1, 10.0);
             } else {
                 self.selected = (self.selected as i32 - input.scroll.signum() as i32)
-                    .rem_euclid(content().game.player_layout.hotbar.max(1) as i32)
-                    as usize;
+                    .rem_euclid(content().game.player_layout.hotbar.max(1) as i32) as usize;
             }
         }
         if old != self.selected {
             self.conn.send(ToServer::Select(self.selected as u32));
         }
-        let held = self.inventory.get(self.selected).copied().unwrap_or_default();
+        let held = self
+            .inventory
+            .get(self.selected)
+            .copied()
+            .unwrap_or_default();
         if (held.item, held.data) != (self.held_name.0.item, self.held_name.0.data) || old != self.selected {
             self.held_name = (held, Instant::now());
         }
@@ -820,8 +843,7 @@ impl Client {
         let eye_target = self.player.dims().2;
         self.player.eye += (eye_target - self.player.eye) * k;
         let moving = input.held("core:forward");
-        let fov_target = if self.player.flying { 1.1 } else { 1.0 }
-            + if self.player.sprint && moving && !sneaking { 0.15 } else { 0.0 };
+        let fov_target = if self.player.flying { 1.1 } else { 1.0 } + if self.player.sprint && moving && !sneaking { 0.15 } else { 0.0 };
         self.player.fov_mul += (fov_target - self.player.fov_mul) * k as f32;
         if input.pressed("core:perspective") && input.captured {
             self.view = (self.view + 1) % 3;
@@ -856,17 +878,13 @@ impl Client {
             }
         }
         // A use swings only when the server says it did something (`ToClient::Swing`).
-        if input.captured
-            && !spectator
-            && (input.pressed("core:attack") || (input.held("core:attack") && self.breaking.is_some()))
-        {
+        if input.captured && !spectator && (input.pressed("core:attack") || (input.held("core:attack") && self.breaking.is_some())) {
             self.swing_arm();
         }
         // Vanilla's 0.4 per tick: the old item goes down, the new one comes up. More of the same
         // item (a count or damage change) is not a change.
         let held = self.held();
-        let same =
-            held.is_empty() == self.hand_stack.is_empty() && (held.is_empty() || held.item == self.hand_stack.item);
+        let same = held.is_empty() == self.hand_stack.is_empty() && (held.is_empty() || held.item == self.hand_stack.item);
         self.swing_since += dt as f32;
         self.player.using = self.using.is_some();
         self.body_particles(dt as f32);
@@ -918,7 +936,9 @@ impl Client {
                 // A rider is where it is on its body: if moves arrived late and the body's past
                 // changed, the rider moves with it, not over the deck.
                 if let Some(e) = self.player.riding.and_then(|(b, _, now)| {
-                    self.entities.get(&b).map(|e| e.pose(self.body_tick(self.body_clock)) + now)
+                    self.entities
+                        .get(&b)
+                        .map(|e| e.pose(self.body_tick(self.body_clock)) + now)
                 }) {
                     self.player.pos = e;
                 }
@@ -947,14 +967,7 @@ impl Client {
                             None => aabb,
                         };
                         let blocks = built.map(|s| (s as &dyn physics::Blocks, crate::server::structure_origin(now)));
-                        bodies.push(physics::Body {
-                            id,
-                            aabb,
-                            delta,
-                            carry: k.carry_height as f64,
-                            crushes: false,
-                            blocks,
-                        });
+                        bodies.push(physics::Body { id, aabb, delta, carry: k.carry_height as f64, crushes: false, blocks });
                     } else if k.is(weft_abi::entity_flags::PUSHABLE) && e.item.is_empty() && e.dying.is_none() {
                         let d = self.player.pos - e.pos;
                         let ((ehw, eh, _), (hw, h, _)) = (e.dims(), self.player.dims());
@@ -977,9 +990,11 @@ impl Client {
                 }
                 let entities = &self.entities;
                 let p = &self.player;
-                self.player.riding = p
-                    .support
-                    .and_then(|b| entities.get(&b).map(|e| (b, p.prev - e.pose(at - 1.0), p.pos - e.pose(at))));
+                self.player.riding = p.support.and_then(|b| {
+                    entities
+                        .get(&b)
+                        .map(|e| (b, p.prev - e.pose(at - 1.0), p.pos - e.pose(at)))
+                });
                 if crate::log::on(crate::log::Channel::Physics, log::Level::Trace) {
                     let p = &self.player;
                     let feet = p.pos.floor().as_ivec3() - glam::IVec3::Y;
@@ -1010,11 +1025,8 @@ impl Client {
         self.target = if spectator { None } else { self.raycast(eye, look, reach) };
         // Vanilla's: whichever comes first along the look is all that is aimed at.
         let block_dist = self.target.map_or(f64::INFINITY, |h| h.dist);
-        self.target_entity = if spectator {
-            None
-        } else {
-            self.pick_entity(eye, look, block_dist.min(self.attribute(ENTITY_REACH) as f64))
-        };
+        self.target_entity =
+            if spectator { None } else { self.pick_entity(eye, look, block_dist.min(self.attribute(ENTITY_REACH) as f64)) };
         if self.target_entity.is_some() {
             self.target = None;
         }
@@ -1022,11 +1034,14 @@ impl Client {
             if let Some(item) = self.target.and_then(|h| c.pick_item(h.state)) {
                 let hotbar = &self.inventory[..content().game.player_layout.hotbar as usize];
                 // Already in the hotbar: select it. Otherwise creative fills an empty slot first.
-                let slot = hotbar.iter().position(|s| s.item == item && !s.is_empty()).or_else(|| {
-                    (self.mode == GameMode::Creative && !hotbar[self.selected].is_empty())
-                        .then(|| hotbar.iter().position(|s| s.is_empty()))
-                        .flatten()
-                });
+                let slot = hotbar
+                    .iter()
+                    .position(|s| s.item == item && !s.is_empty())
+                    .or_else(|| {
+                        (self.mode == GameMode::Creative && !hotbar[self.selected].is_empty())
+                            .then(|| hotbar.iter().position(|s| s.is_empty()))
+                            .flatten()
+                    });
                 if let Some(i) = slot.filter(|&i| i != self.selected) {
                     self.selected = i;
                     self.conn.send(ToServer::Select(i as u32));
@@ -1104,7 +1119,8 @@ impl Client {
                 let progress = if time <= 0.0 { 1.0 } else { done + dt as f32 / time };
                 if progress >= 1.0 && (input.pressed("core:attack") || self.break_delay <= 0.0) {
                     send_look.send(&mut self.conn);
-                    self.conn.send(ToServer::Break { pos: hit.block, frame: hit.frame });
+                    self.conn
+                        .send(ToServer::Break { pos: hit.block, frame: hit.frame });
                     match hit.frame {
                         0 => self.world.set_block(hit.block, crate::content::AIR),
                         f => {
@@ -1155,13 +1171,8 @@ impl Client {
                 self.conn.send(ToServer::Interact(id));
             } else if let Some(hit) = self.target {
                 let sneak = self.player.sneak;
-                self.conn.send(ToServer::Use {
-                    pos: hit.block,
-                    face: hit.face,
-                    look: look.as_vec3().to_array(),
-                    sneak,
-                    frame: hit.frame,
-                });
+                self.conn
+                    .send(ToServer::Use { pos: hit.block, face: hit.face, look: look.as_vec3().to_array(), sneak, frame: hit.frame });
             } else {
                 self.conn.send(ToServer::UseItem { target: None });
             }
@@ -1190,8 +1201,7 @@ impl Client {
         pulls.clear();
         pulls.extend(self.entities.iter().filter_map(|(&id, e)| {
             let (_, by, _) = e.pulled?;
-            let to =
-                if by == self.player_id { self.smooth_pos() } else { self.entities.get(&by).map_or(e.pos, |t| t.pos) };
+            let to = if by == self.player_id { self.smooth_pos() } else { self.entities.get(&by).map_or(e.pos, |t| t.pos) };
             Some((id, to))
         }));
         for &(id, to) in &pulls {
@@ -1217,7 +1227,9 @@ impl Client {
         );
         for e in self.entities.values_mut().filter(|e| e.pulled.is_none()) {
             let before = e.pos;
-            let body = e.rel_target.and_then(|t| frames.iter().find(|f| f.0 == e.frame).map(|f| (f.1, t)));
+            let body = e
+                .rel_target
+                .and_then(|t| frames.iter().find(|f| f.0 == e.frame).map(|f| (f.1, t)));
             let mut walked = None;
             e.pos = if c.game.entities[e.kind as usize].is(weft_abi::entity_flags::SOLID) {
                 e.pose(at)
@@ -1233,7 +1245,10 @@ impl Client {
             dyaw = (dyaw + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU) - std::f32::consts::PI;
             e.yaw += dyaw * k as f32;
             e.body_yaw = turn_body(e.body_yaw, e.yaw, walked.unwrap_or(e.pos - before), dt as f32);
-            e.arm_swing = e.arm_swing.map(|p| p + dt as f32 / 0.3).filter(|&p| p < 1.0);
+            e.arm_swing = e
+                .arm_swing
+                .map(|p| p + dt as f32 / 0.3)
+                .filter(|&p| p < 1.0);
             e.flash = (e.flash - dt as f32).max(0.0);
             let speed = (walked.unwrap_or(e.pos - before).with_y(0.0).length() / dt.max(1e-4)) as f32;
             e.walked += speed * dt as f32;
@@ -1286,16 +1301,23 @@ impl Client {
         if self.render.set_tint_tiles(gpu, (reach * 2 + 1) as u32) {
             self.world.retint_all();
         }
-        for (col, tints) in self.world.take_tints(glam::IVec2::new(center.x, center.z), reach) {
+        for (col, tints) in self
+            .world
+            .take_tints(glam::IVec2::new(center.x, center.z), reach)
+        {
             self.render.upload_tints(gpu, col, &tints);
         }
         if self.joined && self.terrain_view != (center, self.view_radius) {
             self.terrain_view = (center, self.view_radius);
-            let _ = self.terrain.tx.send(terrain::In::View { center, radius: self.view_radius });
+            let _ = self
+                .terrain
+                .tx
+                .send(terrain::In::View { center, radius: self.view_radius });
         }
         // Enough jobs that meshing keeps up at 50 frames per second too (results are taken once
         // a frame), not only at hundreds.
-        self.world.schedule_meshing(center, crate::meshing().current_num_threads() * 512);
+        self.world
+            .schedule_meshing(center, crate::meshing().current_num_threads() * 512);
         self.render.update_solid(gpu, &self.world, center);
         self.world.set_eye(center.y);
         // Uploads too, oldest first; the rest wait for the next frame (dropped if their cube
@@ -1341,7 +1363,8 @@ impl Client {
         }
         if self.joined {
             let cam = self.render_camera().pos;
-            self.lod.update(gpu, &mut self.render, &mut self.world, textures, self.seed, cam, self.view_radius);
+            self.lod
+                .update(gpu, &mut self.render, &mut self.world, textures, self.seed, cam, self.view_radius);
         }
         self.render.set_textures(gpu, textures);
     }
@@ -1356,7 +1379,10 @@ impl Client {
         let c = content();
         let pos = self.player.pos;
         let name = |n: &str| c.game.particle_names.get(n).copied();
-        let under = self.world.block_or_air((pos - DVec3::Y * 0.2).floor().as_ivec3()).unwrap_or(0);
+        let under = self
+            .world
+            .block_or_air((pos - DVec3::Y * 0.2).floor().as_ivec3())
+            .unwrap_or(0);
         let (w, on_ground) = (self.player.size[0] as f32 / 2.0, self.player.on_ground);
         let fell = self.was_falling;
         let drop = (self.fall_top - pos.y) as f32;
@@ -1383,11 +1409,8 @@ impl Client {
             if let Some(kind) = name(weft_abi::particle::BLOCK) {
                 // Vanilla's `spawnSprintParticle`: back and up, in a particle's own speeds.
                 let mut noise = || self.rng.float() * 0.8 - 0.4;
-                let aim = glam::Vec3::new(
-                    -4.0 * self.player.vel.x as f32 + noise(),
-                    1.5 + noise(),
-                    -4.0 * self.player.vel.z as f32 + noise(),
-                );
+                let aim =
+                    glam::Vec3::new(-4.0 * self.player.vel.x as f32 + noise(), 1.5 + noise(), -4.0 * self.player.vel.z as f32 + noise());
                 let speed = (self.chance() + self.chance() + 1.0) / 3.0 * 3.6;
                 let velocity = (aim.normalize_or_zero() * speed + glam::Vec3::Y * 2.0).to_array();
                 let at = pos + DVec3::Y * 0.1;
@@ -1442,8 +1465,7 @@ impl Client {
         self.was_on_ground = on_ground;
         self.was_wet = self.player.in_liquid;
         self.was_falling = (-self.player.vel.y as f32).max(0.0);
-        self.fall_top =
-            if on_ground || self.player.in_liquid || self.player.flying { pos.y } else { self.fall_top.max(pos.y) };
+        self.fall_top = if on_ground || self.player.in_liquid || self.player.flying { pos.y } else { self.fall_top.max(pos.y) };
     }
 
     /// What goes over the screen: the inside of a liquid, of a block, a fire.
@@ -1454,20 +1476,32 @@ impl Client {
             return out;
         }
         let light = self.daylight().max(0.25);
-        if let Some(l) = self.eye_liquid().map(|l| &c.liquids[l as usize]).filter(|l| l.overlay_opacity > 0.0) {
+        if let Some(l) = self
+            .eye_liquid()
+            .map(|l| &c.liquids[l as usize])
+            .filter(|l| l.overlay_opacity > 0.0)
+        {
             let st = &c.states[l.first_state as usize];
-            let own = c.textures.get(st.textures[0] as usize).map_or("", String::as_str);
+            let own = c
+                .textures
+                .get(st.textures[0] as usize)
+                .map_or("", String::as_str);
             let tint = if st.tint != 0 { sky::rgb(crate::content::item_tint(st.tint)) } else { Vec3::ONE };
             out.push(sky::Overlay {
                 picture: if l.overlay.is_empty() { own.to_string() } else { l.overlay.clone() },
-                color: (tint * light).powf(2.2).extend(l.overlay_opacity).to_array(),
+                color: (tint * light)
+                    .powf(2.2)
+                    .extend(l.overlay_opacity)
+                    .to_array(),
                 tiles: 4.0,
                 slide: [-cam.yaw.to_degrees() / 64.0, cam.pitch.to_degrees() / 64.0],
                 lower: false,
                 frame: 0,
             });
         }
-        let head = (self.smooth_pos() + DVec3::Y * self.player.eye).floor().as_ivec3();
+        let head = (self.smooth_pos() + DVec3::Y * self.player.eye)
+            .floor()
+            .as_ivec3();
         if !self.player.noclip {
             if let Some(st) = self
                 .world
@@ -1513,9 +1547,13 @@ impl Client {
             let comp = c.components.id(weft_abi::comp::AMBIENT_PARTICLE);
             (0..c.states.len() as u32)
                 .map(|s| {
-                    comp.and_then(|id| c.components.text(crate::components::BLOCK, s, id)).map_or(Vec::new(), |names| {
-                        names.split(',').filter_map(|n| c.game.particle_names.get(n).copied()).collect()
-                    })
+                    comp.and_then(|id| c.components.text(crate::components::BLOCK, s, id))
+                        .map_or(Vec::new(), |names| {
+                            names
+                                .split(',')
+                                .filter_map(|n| c.game.particle_names.get(n).copied())
+                                .collect()
+                        })
                 })
                 .collect()
         });
@@ -1524,8 +1562,7 @@ impl Client {
         let mut bursts: Vec<weft_abi::ParticleBurst> = Vec::new();
         for _ in 0..TRIES {
             let r = self.rng.next();
-            let p =
-                center + IVec3::new((r % 33) as i32 - 16, ((r >> 8) % 33) as i32 - 16, ((r >> 16) % 33) as i32 - 16);
+            let p = center + IVec3::new((r % 33) as i32 - 16, ((r >> 8) % 33) as i32 - 16, ((r >> 16) % 33) as i32 - 16);
             let state = self.world.block(p);
             for &kind in kinds.get(state as usize).map_or(&[][..], |k| &k[..]) {
                 let pos = [p.x as f64 + 0.5, p.y as f64 + 0.9, p.z as f64 + 0.5];
@@ -1539,9 +1576,11 @@ impl Client {
                 });
             }
             // Water through a ceiling: a solid block under water, air under that.
-            if let Some(kind) =
-                drip.filter(|_| c.states.get(state as usize).is_some_and(|s| s.liquid.is_some() && (r >> 24) % 8 == 0))
-            {
+            if let Some(kind) = drip.filter(|_| {
+                c.states
+                    .get(state as usize)
+                    .is_some_and(|s| s.liquid.is_some() && (r >> 24) % 8 == 0)
+            }) {
                 let (below, air) = (self.world.block(p - IVec3::Y), self.world.block(p - IVec3::Y * 2));
                 if c.states[below as usize].flags & weft_abi::block_flags::SOLID != 0 && air == 0 {
                     let pos = [p.x as f64 + 0.5, p.y as f64 - 1.05, p.z as f64 + 0.5];
@@ -1601,16 +1640,13 @@ impl Client {
                     .map_or(u32::MAX, |s| c.states[s as usize].sounds[2])
             };
             if sound != u32::MAX {
-                self.sounds.push(Play { sound, pos: Some(pos), volume: 0.2, pitch: 0.0 });
+                self.sounds
+                    .push(Play { sound, pos: Some(pos), volume: 0.2, pitch: 0.0 });
             }
         }
         if k.sounds[2] != u32::MAX && self.chance() < a.dt / 12.0 {
-            self.sounds.push(Play {
-                sound: k.sounds[2],
-                pos: Some(pos + DVec3::Y * k.eye as f64),
-                volume: 1.0,
-                pitch: 0.0,
-            });
+            self.sounds
+                .push(Play { sound: k.sounds[2], pos: Some(pos + DVec3::Y * k.eye as f64), volume: 1.0, pitch: 0.0 });
         }
     }
 
@@ -1620,7 +1656,8 @@ impl Client {
         use crate::audio::Play;
         let c = content();
         let below = |w: &world::ClientWorld, p: DVec3| {
-            w.block_or_air((p - DVec3::Y * 0.2).floor().as_ivec3()).map_or(u32::MAX, |s| c.states[s as usize].sounds[2])
+            w.block_or_air((p - DVec3::Y * 0.2).floor().as_ivec3())
+                .map_or(u32::MAX, |s| c.states[s as usize].sounds[2])
         };
         if self.player.on_ground && !self.player.flying && self.mode != GameMode::Spectator {
             self.next_step -= moved;
@@ -1628,11 +1665,15 @@ impl Client {
                 // Vanilla: a step every 1/0.6 blocks walked.
                 self.next_step = 1.6;
                 let sound = below(&self.world, self.player.pos);
-                self.sounds.push(Play { sound, pos: Some(self.player.pos), volume: 0.25, pitch: 0.0 });
+                self.sounds
+                    .push(Play { sound, pos: Some(self.player.pos), volume: 0.25, pitch: 0.0 });
             }
         }
         self.hit_sound -= dt;
-        if let Some(hit) = self.target.filter(|h| self.breaking.is_some_and(|(f, p, _)| (f, p) == (h.frame, h.block))) {
+        if let Some(hit) = self.target.filter(|h| {
+            self.breaking
+                .is_some_and(|(f, p, _)| (f, p) == (h.frame, h.block))
+        }) {
             if self.hit_sound <= 0.0 {
                 // Vanilla knocks every four ticks while mining.
                 self.hit_sound = 0.2;
@@ -1695,7 +1736,10 @@ impl Client {
         let f: Vec<f32> = words(bytes).map(f32::from_le_bytes).collect();
         let shaped = || {
             let size = (f.len() == 4 && f[0] > 0.0).then(|| [f[0], f[1], f[2]]);
-            let look = words(bytes).nth(3).map(u32::from_le_bytes).filter(|&l| l != u32::MAX);
+            let look = words(bytes)
+                .nth(3)
+                .map(u32::from_le_bytes)
+                .filter(|&l| l != u32::MAX);
             (size, look)
         };
         if id == self.player_id {
@@ -1740,15 +1784,25 @@ impl Client {
     pub fn worn(&self) -> Vec<u32> {
         let c = content();
         let w = &c.game.player_layout.worn;
-        let slots = self.inventory.get(w.start as usize..w.end as usize).unwrap_or_default();
-        slots.iter().filter(|s| !s.is_empty() && c.worn(s.item).is_some()).map(|s| s.item).collect()
+        let slots = self
+            .inventory
+            .get(w.start as usize..w.end as usize)
+            .unwrap_or_default();
+        slots
+            .iter()
+            .filter(|s| !s.is_empty() && c.worn(s.item).is_some())
+            .map(|s| s.item)
+            .collect()
     }
 
     /// Where the block (0, 0, 0) of `frame`'s space is drawn: a structure's pose, the world at 0.
     pub fn frame_origin(&self, frame: u64) -> DVec3 {
         match frame {
             0 => DVec3::ZERO,
-            f => self.entities.get(&f).map_or(DVec3::ZERO, |e| crate::server::structure_origin(e.pos)),
+            f => self
+                .entities
+                .get(&f)
+                .map_or(DVec3::ZERO, |e| crate::server::structure_origin(e.pos)),
         }
     }
 
@@ -1789,8 +1843,10 @@ impl Client {
         // From inside a liquid everything looks closer, vanilla's 60 degrees for 70.
         let inside = if self.eye_liquid().is_some() { 6.0 / 7.0 } else { 1.0 };
         // From the bed, the head is on the pillow, behind the middle of the body.
-        let pillow =
-            self.player.lying.map_or(DVec3::ZERO, |yaw| DVec3::new(yaw.sin() as f64, 0.0, yaw.cos() as f64) * 0.75);
+        let pillow = self
+            .player
+            .lying
+            .map_or(DVec3::ZERO, |yaw| DVec3::new(yaw.sin() as f64, 0.0, yaw.cos() as f64) * 0.75);
         Camera {
             pos: self.smooth_pos() + DVec3::Y * self.player.eye + pillow,
             yaw: self.player.yaw,
@@ -1813,7 +1869,9 @@ impl Client {
         // Vanilla's bobHurt: a jolt to the side when hit, and falling over when dead.
         let hit = (self.hurt_flash / 0.5).clamp(0.0, 1.0);
         let jolt = (hit.powi(4) * PI).sin() * 14.0;
-        let fallen = self.dead_for.map_or(0.0, |t| 40.0 - 8000.0 / ((t * crate::world::TPS as f32).min(20.0) + 200.0));
+        let fallen = self
+            .dead_for
+            .map_or(0.0, |t| 40.0 - 8000.0 / ((t * crate::world::TPS as f32).min(20.0) + 200.0));
         cam.bob = (
             Vec3::new(f.sin() * g * 0.5, -(f.cos() * g).abs(), 0.0),
             (f.sin() * g * 3.0 - jolt + fallen).to_radians(),
@@ -1943,11 +2001,7 @@ impl Client {
         }
         let d = &content().dims[self.world.dim as usize];
         let l = self.daylight();
-        let c = sky::rained(
-            sky::rgb(d.fog_color) * Vec3::new(l * 0.94 + 0.06, l * 0.94 + 0.06, l * 0.91 + 0.09),
-            self.rain,
-            0.5,
-        );
+        let c = sky::rained(sky::rgb(d.fog_color) * Vec3::new(l * 0.94 + 0.06, l * 0.94 + 0.06, l * 0.91 + 0.09), self.rain, 0.5);
         let forward = self.camera().forward();
         sky::warmed_by_glows(self.world.dim as usize, d, self.smooth_time(), c, forward).powf(2.2)
     }
@@ -1957,7 +2011,10 @@ impl Client {
         // Fog ends where the terrain does: the view, or the distant terrain beyond it.
         let view_distance = (self.view_radius * 16).max(lod::Lod::distance()) as f32;
         // Vanilla's water fog starts behind the eye, lava's right at it.
-        let (fog_start, fog_end) = match self.eye_liquid().map(|l| content().liquids[l as usize].fog_distance) {
+        let (fog_start, fog_end) = match self
+            .eye_liquid()
+            .map(|l| content().liquids[l as usize].fog_distance)
+        {
             Some(end) => (if end >= 16.0 { -8.0 } else { end * 0.25 }, end),
             None => (view_distance * 0.6, view_distance),
         };
@@ -1990,13 +2047,7 @@ impl Client {
         [v.x, v.y, v.z, v.y.max(0.0)]
     }
 
-    pub fn render(
-        &mut self,
-        gpu: &mut dyn Backend,
-        list: &mut CommandList,
-        frame: &FrameInfo,
-        textures: &GameTextures,
-    ) {
+    pub fn render(&mut self, gpu: &mut dyn Backend, list: &mut CommandList, frame: &FrameInfo, textures: &GameTextures) {
         self.entity_render.local = self.player_id;
         for (entity, png) in std::mem::take(&mut self.entity_render.skin_pending) {
             self.entity_render.set_skin(gpu, entity, &png);
@@ -2041,11 +2092,7 @@ impl Client {
         );
         self.render.draw_translucent(&mut late);
         let me = (self.view != 0 && !self.dead && self.mode != GameMode::Spectator).then(|| self.self_entity());
-        let hand = (self.view == 0
-            && !self.dead
-            && self.player.lying.is_none()
-            && self.mode != GameMode::Spectator
-            && !self.hide_gui)
+        let hand = (self.view == 0 && !self.dead && self.player.lying.is_none() && self.mode != GameMode::Spectator && !self.hide_gui)
             .then(|| entity_render::Hand {
                 stack: self.hand_stack,
                 swing: self.hand_swing,
@@ -2059,8 +2106,11 @@ impl Client {
         let light = |p: IVec3| world.light(p);
         let mut hand_late = std::mem::take(&mut self.hand_late);
         hand_late.clear();
-        let mut cracks: Vec<(IVec3, f32, DVec3)> =
-            self.others_mining.iter().map(|&(_, p, v)| (p, v, DVec3::ZERO)).collect();
+        let mut cracks: Vec<(IVec3, f32, DVec3)> = self
+            .others_mining
+            .iter()
+            .map(|&(_, p, v)| (p, v, DVec3::ZERO))
+            .collect();
         cracks.extend(self.breaking.map(|(f, p, v)| (p, v, self.frame_origin(f))));
         self.entity_render.draw(
             gpu,
@@ -2074,7 +2124,9 @@ impl Client {
             &light,
             &scene,
             scene_buf,
-            self.target.filter(|_| !self.hide_gui).map(|h| (h, self.frame_origin(h.frame))),
+            self.target
+                .filter(|_| !self.hide_gui)
+                .map(|h| (h, self.frame_origin(h.frame))),
             &cracks,
             &self.gizmo_lines,
             &self.gizmo_fills,
@@ -2082,7 +2134,8 @@ impl Client {
         );
         self.particles.draw(list, &mut late, scene_buf);
         let ticks = self.smooth_time();
-        self.weather_render.draw(gpu, &mut late, frame, &cam, scene_buf, &self.world, self.rain, ticks, self.frame_dt);
+        self.weather_render
+            .draw(gpu, &mut late, frame, &cam, scene_buf, &self.world, self.rain, ticks, self.frame_dt);
         self.sky.draw_overlay(&mut hand_late, scene_buf);
         list.append(&mut late);
         list.append(&mut hand_late);
@@ -2125,13 +2178,7 @@ fn angle_diff(a: f32, b: f32) -> f32 {
 /// One 20 Hz tick of player movement with vanilla's numbers (blocks per tick): acceleration
 /// scaled by ground slipperiness, 0.91 air drag, 0.98 vertical drag, 0.08 gravity, 0.42 jump,
 /// so jumps, sprint-jumps and parkur distances match.
-fn step_player(
-    p: &mut LocalPlayer,
-    input: &Input,
-    block: &impl Fn(IVec3) -> Option<u32>,
-    gravity: f64,
-    bodies: &[physics::Body],
-) {
+fn step_player(p: &mut LocalPlayer, input: &Input, block: &impl Fn(IVec3) -> Option<u32>, gravity: f64, bodies: &[physics::Body]) {
     let c = content();
     if let Some(yaw) = p.lying {
         (p.yaw, p.pitch, p.vel, p.pose) = (yaw, 0.0, DVec3::ZERO, Pose::Sleep);
@@ -2180,9 +2227,7 @@ fn step_player(
     let sprint = p.sprint && fwd_in > 0.0 && !sneak && !p.using && (p.can_sprint || p.flying);
     // Sprinting swims once the eyes are in a liquid that can be swum in, and keeps at it while the
     // body is. In a liquid it is no use otherwise.
-    let can_swim = |at: DVec3| {
-        physics::liquid_at(c, block, at).is_some_and(|l| p.swim_anywhere || c.liquids[l as usize].swimmable)
-    };
+    let can_swim = |at: DVec3| physics::liquid_at(c, block, at).is_some_and(|l| p.swim_anywhere || c.liquids[l as usize].swimmable);
     let feet_wet = physics::in_liquid(c, block, p.pos, 0.0);
     let start_at = p.pos + DVec3::Y * if matches!(p.pose, Pose::Swim | Pose::Crawl) { 0.1 } else { p.dims().2 };
     let swimming = sprint && !p.flying && !p.noclip && can_swim(start_at);
@@ -2197,12 +2242,7 @@ fn step_player(
         Pose::Stand
     };
     let fits = |pose: Pose| {
-        p.noclip
-            || !physics::collides(
-                c,
-                block,
-                physics::Aabb::around(p.pos, hw - 1e-3, physics::posed(pose, p.size[1], p.size[2]).0),
-            )
+        p.noclip || !physics::collides(c, block, physics::Aabb::around(p.pos, hw - 1e-3, physics::posed(pose, p.size[1], p.size[2]).0))
     };
     p.pose = if fits(want) {
         want

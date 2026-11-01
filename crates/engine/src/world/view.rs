@@ -60,8 +60,7 @@ impl View {
     pub fn loaded_y(&self, def: &DimensionDef) -> (i32, i32) {
         let lo = (self.center.y - self.down).max(def.min_cube_y);
         let top = self.center.y + self.up;
-        let hi =
-            if def.sky_light && def.sky_cube_y != i32::MAX { top.max((def.sky_cube_y - 1).min(top + 12)) } else { top };
+        let hi = if def.sky_light && def.sky_cube_y != i32::MAX { top.max((def.sky_cube_y - 1).min(top + 12)) } else { top };
         (lo, hi.min(def.max_cube_y))
     }
 

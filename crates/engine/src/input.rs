@@ -149,7 +149,8 @@ impl Input {
         if self.lookup.contains_key(action) {
             return;
         }
-        self.binds.push(Bind { action: action.to_string(), default, key: default });
+        self.binds
+            .push(Bind { action: action.to_string(), default, key: default });
         self.lookup.insert(action.to_string(), default);
     }
 
@@ -178,11 +179,15 @@ impl Input {
     }
 
     pub fn held(&self, action: &str) -> bool {
-        self.lookup.get(action).is_some_and(|&c| self.active(c, &self.held))
+        self.lookup
+            .get(action)
+            .is_some_and(|&c| self.active(c, &self.held))
     }
 
     pub fn pressed(&self, action: &str) -> bool {
-        self.lookup.get(action).is_some_and(|&c| self.active(c, &self.pressed))
+        self.lookup
+            .get(action)
+            .is_some_and(|&c| self.active(c, &self.pressed))
     }
 
     /// Modifiers held now (`Chord` bits).
@@ -198,12 +203,10 @@ impl Input {
         }
         let held = self.mods();
         held & c.mods == c.mods
-            && !self.binds.iter().any(|b| {
-                b.key.key == c.key
-                    && b.key.mods != c.mods
-                    && b.key.mods & c.mods == c.mods
-                    && held & b.key.mods == b.key.mods
-            })
+            && !self
+                .binds
+                .iter()
+                .any(|b| b.key.key == c.key && b.key.mods != c.mods && b.key.mods & c.mods == c.mods && held & b.key.mods == b.key.mods)
     }
 
     pub fn held_key(&self, k: Key) -> bool {
@@ -275,7 +278,10 @@ pub fn key_name(k: Key) -> String {
         Key::Mouse(n) => format!("Mouse{}", n + 1),
         Key::Code(c) => {
             let s = format!("{c:?}");
-            s.strip_prefix("Key").or_else(|| s.strip_prefix("Digit")).unwrap_or(&s).to_string()
+            s.strip_prefix("Key")
+                .or_else(|| s.strip_prefix("Digit"))
+                .unwrap_or(&s)
+                .to_string()
         }
     }
 }

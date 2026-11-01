@@ -87,13 +87,7 @@ pub struct Handle<K: kind::Kind> {
 
 impl<K: kind::Kind> Handle<K> {
     pub const fn named(name: &'static str) -> Self {
-        Handle {
-            id: AtomicU32::new(UNRESOLVED),
-            count: AtomicU32::new(1),
-            name,
-            full: std::sync::OnceLock::new(),
-            _k: PhantomData,
-        }
+        Handle { id: AtomicU32::new(UNRESOLVED), count: AtomicU32::new(1), name, full: std::sync::OnceLock::new(), _k: PhantomData }
     }
 
     /// A handle for a name made at runtime, for families of content built in a loop
@@ -138,7 +132,9 @@ impl<K: kind::HasId> Handle<K> {
             // Frozen and still unknown: a typo or a missing mod. Say so once.
             crate::error!(
                 "no {} named {}",
-                abi::entry_kind::NAMES.get(K::KIND as usize).unwrap_or(&"entry"),
+                abi::entry_kind::NAMES
+                    .get(K::KIND as usize)
+                    .unwrap_or(&"entry"),
                 self.name()
             );
             self.id.store(u32::MAX, Ordering::Relaxed);
@@ -156,9 +152,12 @@ impl<K: kind::HasId> Handle<K> {
     /// The block's state with properties `props` set, the others at their defaults:
     /// `FURNACE.with(&[("lit", "true")])`. `u32::MAX` if the block or a value is unknown.
     pub fn with(&self, props: &[(&str, &str)]) -> u32 {
-        props.iter().fold(self.id(), |s, (k, v)| {
-            if s == u32::MAX { s } else { unsafe { (host().state_with)(s, Str::new(k), Str::new(v)) } }
-        })
+        props.iter().fold(
+            self.id(),
+            |s, (k, v)| {
+                if s == u32::MAX { s } else { unsafe { (host().state_with)(s, Str::new(k), Str::new(v)) } }
+            },
+        )
     }
 
     /// True if `state` belongs to this block.
@@ -260,7 +259,8 @@ pub trait WithComponents: Sized {
     /// A value written as text: plain text, or block names the engine resolves (`BlockRef`,
     /// `BlockList`).
     fn set_text<T: c::TextValue>(mut self, comp: &Component<T>, text: &str) -> Self {
-        self.pending().push(Pending::text_as(comp.name(), &T::schema(), text));
+        self.pending()
+            .push(Pending::text_as(comp.name(), &T::schema(), text));
         self
     }
 }
@@ -511,13 +511,8 @@ impl Registry {
         };
         let mut scratch = Vec::new();
         let values = raw_values(std::slice::from_ref(value), &mut scratch);
-        let desc = abi::SetDesc {
-            target_kind: kind,
-            target: Str::new(&name),
-            value: values[0],
-            remove: remove as u32,
-            ..abi::SetDesc::DEFAULT
-        };
+        let desc =
+            abi::SetDesc { target_kind: kind, target: Str::new(&name), value: values[0], remove: remove as u32, ..abi::SetDesc::DEFAULT };
         unsafe { (host().reg_set)(self.raw, &desc) }
     }
 }
@@ -747,18 +742,25 @@ macro_rules! state_setters {
                 s.flags &= !bf::OPAQUE;
                 s.opacity = 0;
                 s.layer = Layer::Cutout;
-                s.boxes.push((min, max, std::array::from_fn(|i| block_tex(ns, faces[i].0)), faces.map(|f| f.1)));
+                s.boxes
+                    .push((min, max, std::array::from_fn(|i| block_tex(ns, faces[i].0)), faces.map(|f| f.1)));
             });
             self
         }
         /// What the crosshair picks, outlines and cracks (pixels 0..16; call again for more boxes),
         /// when it should differ from the collision and model boxes.
         pub fn selection(mut self, min: [f32; 3], max: [f32; 3]) -> Self {
-            self.each(|s, _| s.selection.push([min[0], min[1], min[2], max[0], max[1], max[2]]));
+            self.each(|s, _| {
+                s.selection
+                    .push([min[0], min[1], min[2], max[0], max[1], max[2]])
+            });
             self
         }
         pub fn collision(mut self, min: [f32; 3], max: [f32; 3]) -> Self {
-            self.each(|s, _| s.collision.push([min[0], min[1], min[2], max[0], max[1], max[2]]));
+            self.each(|s, _| {
+                s.collision
+                    .push([min[0], min[1], min[2], max[0], max[1], max[2]])
+            });
             self
         }
         /// Air-like: invisible, no collision, not targetable.
@@ -850,7 +852,10 @@ pub struct Props {
 impl Props {
     /// The value of `name` (empty if the block has no such property).
     pub fn get(&self, name: &str) -> &str {
-        self.values.iter().find(|v| v.0 == name).map_or("", |v| v.1.as_str())
+        self.values
+            .iter()
+            .find(|v| v.0 == name)
+            .map_or("", |v| v.1.as_str())
     }
     pub fn is(&self, name: &str, value: &str) -> bool {
         self.get(name) == value
@@ -890,9 +895,9 @@ fn combinations(props: &[(String, Vec<String>)]) -> Vec<Props> {
 
 /// The state index of `p` among `combinations(props)`; values it does not know count as the first.
 fn index_of(props: &[(String, Vec<String>)], p: &Props) -> u32 {
-    props.iter().fold(0, |i, (name, values)| {
-        i * values.len() as u32 + values.iter().position(|v| v == p.get(name)).unwrap_or(0) as u32
-    })
+    props
+        .iter()
+        .fold(0, |i, (name, values)| i * values.len() as u32 + values.iter().position(|v| v == p.get(name)).unwrap_or(0) as u32)
 }
 
 impl<'a> BlockBuilder<'a> {
@@ -924,7 +929,8 @@ impl<'a> BlockBuilder<'a> {
 
     /// Tools of this class (`tools/<class>` items) mine it at their speed: tags `mineable/<class>`.
     pub fn mineable(mut self, class: &str) -> Self {
-        self.components.push(Pending::tag(&format!("mineable/{class}")));
+        self.components
+            .push(Pending::tag(&format!("mineable/{class}")));
         self
     }
 
@@ -941,7 +947,8 @@ impl<'a> BlockBuilder<'a> {
     /// with the textures, so blocks sharing one share it.
     pub fn shader(mut self, name: &str) -> Self {
         let name = crate::asset("", name);
-        self.components.push(Pending::text(abi::comp::SHADER, &name));
+        self.components
+            .push(Pending::text(abi::comp::SHADER, &name));
         self
     }
 
@@ -956,7 +963,8 @@ impl<'a> BlockBuilder<'a> {
     /// a name with a namespace is used as it is (`base:block.stone` from another mod).
     pub fn sound_group(mut self, group: &str) -> Self {
         let prefix = if group.contains(':') { group.to_string() } else { format!("{}:block.{group}", self.reg.ns) };
-        self.components.push(Pending::text(abi::comp::SOUND, &prefix));
+        self.components
+            .push(Pending::text(abi::comp::SOUND, &prefix));
         self
     }
 
@@ -996,8 +1004,10 @@ impl<'a> BlockBuilder<'a> {
     /// On a replacement keeping the replaced block's states: block texture `from` (another
     /// mod's, `base:torch`) becomes `to` there, and the item texture of that name too.
     pub fn retexture(mut self, from: &str, to: &str) -> Self {
-        self.retexture.push((crate::asset("block", from), crate::asset("block", to)));
-        self.retexture.push((crate::asset("item", from), crate::asset("item", to)));
+        self.retexture
+            .push((crate::asset("block", from), crate::asset("block", to)));
+        self.retexture
+            .push((crate::asset("item", from), crate::asset("item", to)));
         self
     }
 
@@ -1047,7 +1057,11 @@ impl<'a> BlockBuilder<'a> {
 
     /// Like `ambient_particle` with several kinds at once (a torch's flame and smoke).
     pub fn ambient_particles(mut self, kinds: &[&str]) -> Self {
-        let kinds = kinds.iter().map(|k| crate::full_name(k)).collect::<Vec<_>>().join(",");
+        let kinds = kinds
+            .iter()
+            .map(|k| crate::full_name(k))
+            .collect::<Vec<_>>()
+            .join(",");
         self.each(|s, _| s.put_text(abi::comp::AMBIENT_PARTICLE, "str", &kinds));
         self
     }
@@ -1097,12 +1111,13 @@ impl<'a> BlockBuilder<'a> {
     /// Falls like sand when nothing holds it up: a block next to it changing checks two ticks
     /// later whether below is free, and if so it drops as a moving block (`World::fall`).
     pub fn falling(self) -> Self {
-        self.on_neighbor(|e| e.world().schedule(e.pos(), 2)).on_scheduled(|e| {
-            let (w, p) = (e.world(), e.pos());
-            if w.flags([p[0], p[1] - 1, p[2]]) & abi::block_flags::REPLACEABLE != 0 {
-                w.fall(p);
-            }
-        })
+        self.on_neighbor(|e| e.world().schedule(e.pos(), 2))
+            .on_scheduled(|e| {
+                let (w, p) = (e.world(), e.pos());
+                if w.flags([p[0], p[1] - 1, p[2]]) & abi::block_flags::REPLACEABLE != 0 {
+                    w.fall(p);
+                }
+            })
     }
 
     /// Using it opens `menu`, on the block's block entity if it has one (machines), else a menu
@@ -1117,7 +1132,14 @@ impl<'a> BlockBuilder<'a> {
     /// `toward` when placed: three allowed directions are three values.
     pub fn facing(mut self, allowed: crate::Facings, toward: crate::Toward) -> Self {
         self.facing = Some((allowed, toward));
-        self.prop("facing", allowed.dirs().map(|d| d.name()).collect::<Vec<_>>().as_slice())
+        self.prop(
+            "facing",
+            allowed
+                .dirs()
+                .map(|d| d.name())
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
     }
 
     /// Chooses property values when a player places it (after `facing`):
@@ -1152,7 +1174,12 @@ impl Drop for BlockBuilder<'_> {
         if self.facing.is_some() || self.placement.is_some() {
             let (props, facing, user) = (self.props.clone(), self.facing, self.placement.take());
             self.callbacks.placement = Some(callback(move |a: &mut abi::PlaceArgs| {
-                let mut p = Props { values: props.iter().map(|(n, v)| (n.clone(), v[0].clone())).collect() };
+                let mut p = Props {
+                    values: props
+                        .iter()
+                        .map(|(n, v)| (n.clone(), v[0].clone()))
+                        .collect(),
+                };
                 if let Some((allowed, toward)) = facing {
                     p.set("facing", toward.choose(allowed, a.face, a.look).name());
                 }
@@ -1163,8 +1190,11 @@ impl Drop for BlockBuilder<'_> {
                 a.state = first + index_of(&props, &p);
             }));
         }
-        let prop_values: Vec<Vec<Str>> =
-            self.props.iter().map(|(_, v)| v.iter().map(|x| Str::new(x)).collect()).collect();
+        let prop_values: Vec<Vec<Str>> = self
+            .props
+            .iter()
+            .map(|(_, v)| v.iter().map(|x| Str::new(x)).collect())
+            .collect();
         let props: Vec<abi::PropDesc> = self
             .props
             .iter()
@@ -1187,8 +1217,12 @@ impl Drop for BlockBuilder<'_> {
             })
             .collect();
         let mut scratch: Vec<Vec<Vec<u8>>> = vec![Vec::new(); self.states.len()];
-        let state_values: Vec<Vec<abi::CompValue>> =
-            self.states.iter().zip(scratch.iter_mut()).map(|(s, sc)| raw_values(&s.components, sc)).collect();
+        let state_values: Vec<Vec<abi::CompValue>> = self
+            .states
+            .iter()
+            .zip(scratch.iter_mut())
+            .map(|(s, sc)| raw_values(&s.components, sc))
+            .collect();
         let states: Vec<abi::StateDesc> = self
             .states
             .iter()
@@ -1210,7 +1244,11 @@ impl Drop for BlockBuilder<'_> {
             .collect();
         let mut scratch = Vec::new();
         let values = raw_values(&self.components, &mut scratch);
-        let retexture: Vec<Str> = self.retexture.iter().flat_map(|(a, b)| [Str::new(a), Str::new(b)]).collect();
+        let retexture: Vec<Str> = self
+            .retexture
+            .iter()
+            .flat_map(|(a, b)| [Str::new(a), Str::new(b)])
+            .collect();
         let cb = &self.callbacks;
         let desc = abi::BlockDesc {
             name: Str::new(&self.name),
@@ -1255,11 +1293,14 @@ impl Drop for BlockBuilder<'_> {
             let pools = if item.is_empty() {
                 vec![]
             } else {
-                vec![crate::extend::Pool::new().when(crate::extend::Cond::Harvested).items(&item, count, count)]
+                vec![
+                    crate::extend::Pool::new()
+                        .when(crate::extend::Cond::Harvested)
+                        .items(&item, count, count),
+                ]
             };
             let raw = crate::extend::raw_pools(self.reg.ns, &pools);
-            let desc =
-                abi::LootDesc { name: Str::new(&self.name), pools: Slice::new(&raw.pools), ..abi::LootDesc::DEFAULT };
+            let desc = abi::LootDesc { name: Str::new(&self.name), pools: Slice::new(&raw.pools), ..abi::LootDesc::DEFAULT };
             unsafe { (host().reg_loot)(self.reg.raw, &desc) }
         }
     }
@@ -1350,11 +1391,11 @@ impl ItemBuilder<'_> {
     /// Used on a block, puts `entity` on that side of it. One is used up, outside creative. Entities
     /// have an egg of their own without this; it is for something else that hatches one.
     pub fn spawns(mut self, entity: &'static crate::Entity) -> Self {
-        self.components.push(Pending::text(abi::comp::SPAWN_EGG, entity.name()));
+        self.components
+            .push(Pending::text(abi::comp::SPAWN_EGG, entity.name()));
         self.on_use(move |u| {
             let Some((p, face)) = u.target() else { return false };
-            let (w, side) =
-                (u.world(), [[-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]][face as usize % 6]);
+            let (w, side) = (u.world(), [[-1, 0, 0], [1, 0, 0], [0, -1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]][face as usize % 6]);
             w.spawn(entity, [(p[0] + side[0]) as f64 + 0.5, (p[1] + side[1]) as f64, (p[2] + side[2]) as f64 + 0.5]);
             if !w.creative(u.player()) {
                 u.set_stack(crate::StackData::shrink(u.stack(), 1));
@@ -1571,12 +1612,7 @@ impl Drop for DimensionBuilder<'_> {
         }
         let mut scratch = Vec::new();
         let values = raw_values(&self.components, &mut scratch);
-        let desc = abi::DimensionDesc {
-            name: Str::new(&self.name),
-            cell: cell(self.handle),
-            components: Slice::new(&values),
-            ..self.desc
-        };
+        let desc = abi::DimensionDesc { name: Str::new(&self.name), cell: cell(self.handle), components: Slice::new(&values), ..self.desc };
         unsafe { (host().reg_dimension)(self.raw, &desc) }
     }
 }
@@ -1650,7 +1686,8 @@ pub struct TemplateBuilder<'a> {
 
 impl TemplateBuilder<'_> {
     pub fn layer(mut self, rows: &[&str]) -> Self {
-        self.layers.push(rows.iter().map(|r| r.to_string()).collect());
+        self.layers
+            .push(rows.iter().map(|r| r.to_string()).collect());
         self
     }
     /// `block` may name a state (`furnace[lit=true]`) or `air` to clear.
@@ -1693,8 +1730,10 @@ impl Drop for TemplateBuilder<'_> {
                 }
             }
         }
-        let blocks: Vec<abi::StructureBlock> =
-            names.iter().map(|(p, b)| abi::StructureBlock { pos: *p, block: Str::new(b) }).collect();
+        let blocks: Vec<abi::StructureBlock> = names
+            .iter()
+            .map(|(p, b)| abi::StructureBlock { pos: *p, block: Str::new(b) })
+            .collect();
         let desc = abi::TemplateDesc { name: Str::new(&self.name), blocks: Slice::new(&blocks) };
         unsafe { (host().reg_template)(self.raw, &desc) }
     }
@@ -2155,12 +2194,7 @@ impl Drop for LiquidChangeBuilder<'_> {
 impl Registry {
     /// Changes another mod's liquid: `r.change_liquid(&WATER).fog(0x204020, 12.0)`.
     pub fn change_liquid<'a>(&'a mut self, liquid: &Block) -> LiquidChangeBuilder<'a> {
-        LiquidChangeBuilder {
-            name: liquid.name().to_string(),
-            reg: self,
-            overlay: String::new(),
-            desc: abi::LiquidChange::DEFAULT,
-        }
+        LiquidChangeBuilder { name: liquid.name().to_string(), reg: self, overlay: String::new(), desc: abi::LiquidChange::DEFAULT }
     }
 
     /// A liquid the engine flows; see `LiquidBuilder`. Defaults are vanilla water's numbers, an

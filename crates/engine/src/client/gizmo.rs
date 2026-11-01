@@ -50,7 +50,8 @@ impl Gizmos {
         let mut groups: Vec<&str> = shapes.iter().map(|s| s.group.as_str()).collect();
         groups.sort_unstable();
         groups.dedup();
-        self.shapes.retain(|(s, _)| groups.binary_search(&s.group.as_str()).is_err());
+        self.shapes
+            .retain(|(s, _)| groups.binary_search(&s.group.as_str()).is_err());
         for s in shapes {
             if self.on(&s.group) {
                 let until = now + std::time::Duration::from_secs_f64(s.ticks as f64 * crate::world::TICK);
@@ -88,7 +89,11 @@ impl Gizmos {
             }
         }
         if self.on("hitboxes") {
-            for e in client.entities.values().filter(|e| (e.pos - me).length_squared() < 64.0 * 64.0) {
+            for e in client
+                .entities
+                .values()
+                .filter(|e| (e.pos - me).length_squared() < 64.0 * 64.0)
+            {
                 let (hw, h, eye) = e.dims();
                 cuboid(&mut lines, e.pos - DVec3::new(hw, 0.0, hw), e.pos + DVec3::new(hw, h, hw), 0xFFFFFFFF);
                 let eye = e.pos + DVec3::Y * eye;
@@ -107,12 +112,7 @@ impl Gizmos {
                         crate::physics::boxes(c, state, &mut boxes);
                         let o = p.as_dvec3();
                         for b in &boxes {
-                            cuboid(
-                                &mut lines,
-                                o + DVec3::new(b[0], b[1], b[2]),
-                                o + DVec3::new(b[3], b[4], b[5]),
-                                0x40FF60FF,
-                            );
+                            cuboid(&mut lines, o + DVec3::new(b[0], b[1], b[2]), o + DVec3::new(b[3], b[4], b[5]), 0x40FF60FF);
                         }
                     }
                 }
@@ -126,16 +126,20 @@ impl Gizmos {
             let hostile = |s: &&crate::registry::SpawnRule| {
                 c.game.categories[s.category as usize].name == "core:hostile" && s.dimension.is_none_or(|d| d == dim)
             };
-            let rules: Vec<[u32; 2]> = c.game.spawns.iter().filter(hostile).map(|s| s.light).collect();
+            let rules: Vec<[u32; 2]> = c
+                .game
+                .spawns
+                .iter()
+                .filter(hostile)
+                .map(|s| s.light)
+                .collect();
             let day = client.daylight();
             let spawns = |light: u32| rules.iter().any(|r| (r[0]..=r[1]).contains(&light));
             for dy in -4..=4 {
                 for dz in -6..=6 {
                     for dx in -6..=6 {
                         let p = feet + IVec3::new(dx, dy, dz);
-                        let (Some(below), Some(here)) =
-                            (client.world.block_or_air(p - IVec3::Y), client.world.block_or_air(p))
-                        else {
+                        let (Some(below), Some(here)) = (client.world.block_or_air(p - IVec3::Y), client.world.block_or_air(p)) else {
                             continue;
                         };
                         let solid = |s: u32| c.states[s as usize].flags & weft_abi::block_flags::SOLID != 0;
@@ -178,9 +182,7 @@ pub fn shape(s: &GizmoShape, lines: &mut Vec<Line>, fills: &mut Vec<Fill>, label
 
 /// The twelve edges of an axis-aligned box.
 pub fn cuboid(out: &mut Vec<Line>, a: DVec3, b: DVec3, color: u32) {
-    let p = |x: bool, y: bool, z: bool| {
-        DVec3::new(if x { b.x } else { a.x }, if y { b.y } else { a.y }, if z { b.z } else { a.z })
-    };
+    let p = |x: bool, y: bool, z: bool| DVec3::new(if x { b.x } else { a.x }, if y { b.y } else { a.y }, if z { b.z } else { a.z });
     for i in 0..4 {
         let (u, v) = (i & 1 != 0, i & 2 != 0);
         out.push((p(false, u, v), p(true, u, v), color));

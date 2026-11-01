@@ -14,10 +14,7 @@ pub struct ColumnCache<T> {
 
 impl<T> ColumnCache<T> {
     pub fn new(capacity: usize) -> ColumnCache<T> {
-        ColumnCache {
-            shards: std::array::from_fn(|_| Mutex::new(HashMap::new())),
-            per_shard: capacity.div_ceil(SHARDS).max(1),
-        }
+        ColumnCache { shards: std::array::from_fn(|_| Mutex::new(HashMap::new())), per_shard: capacity.div_ceil(SHARDS).max(1) }
     }
 
     /// The value for column (`x`, `z`) in cube coordinates under `seed`, computing it with `make`

@@ -31,11 +31,7 @@ pub fn run(opts: Options) -> Result<(), String> {
         .find(|m| m.name == name)
         .unwrap_or_else(|| saves::create(&saves_dir, name, opts.seed.unwrap_or_else(saves::now_secs)));
     if meta.format > saves::SAVE_FORMAT {
-        return Err(format!(
-            "world '{name}' was saved in format {}, this build reads {}",
-            meta.format,
-            saves::SAVE_FORMAT
-        ));
+        return Err(format!("world '{name}' was saved in format {}, this build reads {}", meta.format, saves::SAVE_FORMAT));
     }
     for m in meta.missing_mods(content()) {
         log::warn!("the world was played with mod {m}, which is not loaded");
@@ -43,12 +39,7 @@ pub fn run(opts: Options) -> Result<(), String> {
     let storage = saves::Storage::open(meta.clone(), content());
     let whitelist = crate::paths::config(&opts.run_dir).join("whitelist.txt");
     let mut server = server::spawn(
-        ServerConfig {
-            seed: meta.seed,
-            view_radius: settings.view_distance(),
-            dedicated: true,
-            whitelist: Some(whitelist),
-        },
+        ServerConfig { seed: meta.seed, view_radius: settings.view_distance(), dedicated: true, whitelist: Some(whitelist) },
         Some(storage),
     );
     net::host(&server, &settings);

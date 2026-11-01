@@ -64,7 +64,11 @@ struct Filter {
 impl Filter {
     fn level(&self, target: &str, ours: bool) -> LevelFilter {
         for (t, l) in &self.rules {
-            if target == t || target.strip_prefix(t.as_str()).is_some_and(|rest| rest.starts_with("::")) {
+            if target == t
+                || target
+                    .strip_prefix(t.as_str())
+                    .is_some_and(|rest| rest.starts_with("::"))
+            {
                 return *l;
             }
         }
@@ -72,7 +76,10 @@ impl Filter {
     }
 
     fn max(&self) -> LevelFilter {
-        self.rules.iter().map(|r| r.1).fold(self.default.max(LevelFilter::Warn), |a, b| a.max(b))
+        self.rules
+            .iter()
+            .map(|r| r.1)
+            .fold(self.default.max(LevelFilter::Warn), |a, b| a.max(b))
     }
 
     /// Applies `spec` on top of the current rules.
@@ -82,8 +89,9 @@ impl Filter {
                 Some((t, l)) => (t.trim(), l.trim()),
                 None => ("all", item),
             };
-            let level: LevelFilter =
-                level.parse().map_err(|_| format!("unknown level '{level}' (off, error, warn, info, debug, trace)"))?;
+            let level: LevelFilter = level
+                .parse()
+                .map_err(|_| format!("unknown level '{level}' (off, error, warn, info, debug, trace)"))?;
             if target == "all" || target == "*" {
                 self.default = level;
             } else {
@@ -91,7 +99,8 @@ impl Filter {
                 self.rules.push((target.to_string(), level));
             }
         }
-        self.rules.sort_by(|a, b| b.0.len().cmp(&a.0.len()).then(a.0.cmp(&b.0)));
+        self.rules
+            .sort_by(|a, b| b.0.len().cmp(&a.0.len()).then(a.0.cmp(&b.0)));
         Ok(())
     }
 
@@ -117,14 +126,14 @@ static LOGGER: OnceLock<Logger> = OnceLock::new();
 /// Short target shown in brackets and matched by filters: `weft_engine::server::dim` becomes
 /// `server::dim`, `weft_vulkan` becomes `vulkan`.
 fn short(target: &str) -> &str {
-    target.strip_prefix("weft_engine::").or_else(|| target.strip_prefix("weft_")).unwrap_or(target)
+    target
+        .strip_prefix("weft_engine::")
+        .or_else(|| target.strip_prefix("weft_"))
+        .unwrap_or(target)
 }
 
 fn is_ours(target: &str) -> bool {
-    target.starts_with("weft")
-        || target.starts_with("mod:")
-        || target == "vulkan"
-        || CHANNELS.iter().any(|c| c.0 == target)
+    target.starts_with("weft") || target.starts_with("mod:") || target == "vulkan" || CHANNELS.iter().any(|c| c.0 == target)
 }
 
 /// `verbose` is `--verbose` (debug for everything of ours), `spec` the `--log` filters.
@@ -136,8 +145,7 @@ pub fn init(file: Option<&Path>, verbose: bool, spec: &str) {
         }
         std::fs::File::create(p).ok()
     });
-    let mut filter =
-        Filter { default: if verbose { LevelFilter::Debug } else { LevelFilter::Info }, rules: Vec::new() };
+    let mut filter = Filter { default: if verbose { LevelFilter::Debug } else { LevelFilter::Info }, rules: Vec::new() };
     let bad = filter.apply(spec).err();
     let logger = LOGGER.get_or_init(|| Logger {
         start: Instant::now(),
@@ -174,7 +182,9 @@ pub fn set(spec: &str) -> Result<String, String> {
 }
 
 pub fn describe() -> String {
-    LOGGER.get().map_or_else(String::new, |l| l.filter.read().describe())
+    LOGGER
+        .get()
+        .map_or_else(String::new, |l| l.filter.read().describe())
 }
 
 fn refresh(l: &Logger) {
@@ -189,12 +199,16 @@ fn refresh(l: &Logger) {
 /// Whether a record for `target` at `level` would be written (mods ask before building costly
 /// messages).
 pub fn enabled(target: &str, level: Level) -> bool {
-    LOGGER.get().is_some_and(|l| level <= l.filter.read().level(short(target), is_ours(target)))
+    LOGGER
+        .get()
+        .is_some_and(|l| level <= l.filter.read().level(short(target), is_ours(target)))
 }
 
 /// The last lines written, oldest first, for crash reports.
 pub fn recent() -> Vec<String> {
-    LOGGER.get().map_or_else(Vec::new, |l| l.recent.lock().iter().cloned().collect())
+    LOGGER
+        .get()
+        .map_or_else(Vec::new, |l| l.recent.lock().iter().cloned().collect())
 }
 
 pub fn flush() {
@@ -203,7 +217,11 @@ pub fn flush() {
 
 impl log::Log for Logger {
     fn enabled(&self, m: &Metadata) -> bool {
-        m.level() <= self.filter.read().level(short(m.target()), is_ours(m.target()))
+        m.level()
+            <= self
+                .filter
+                .read()
+                .level(short(m.target()), is_ours(m.target()))
     }
 
     fn log(&self, record: &Record) {
@@ -243,8 +261,11 @@ impl log::Log for Logger {
 /// Keeps the previous `latest.log` under the time it was last written, and only the newest few.
 fn rotate(dir: &Path, latest: &Path) {
     if let Ok(meta) = std::fs::metadata(latest) {
-        let when =
-            meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
+        let when = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_secs());
         let stamp = stamp(when);
         let mut to = dir.join(format!("{stamp}.log"));
         let mut n = 1;
@@ -256,7 +277,10 @@ fn rotate(dir: &Path, latest: &Path) {
     }
     let mut old: Vec<std::path::PathBuf> = std::fs::read_dir(dir)
         .map(|r| {
-            r.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "log") && p != latest).collect()
+            r.flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "log") && p != latest)
+                .collect()
         })
         .unwrap_or_default();
     old.sort();
@@ -284,7 +308,11 @@ pub fn stamp(unix: u64) -> String {
 }
 
 pub fn now_stamp() -> String {
-    stamp(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()))
+    stamp(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs()),
+    )
 }
 
 #[cfg(windows)]
@@ -311,8 +339,9 @@ fn local_offset() -> i64 {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn local_offset() -> i64 {
-    let secs =
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs()) as libc::time_t;
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs()) as libc::time_t;
     let mut tm: libc::tm = unsafe { std::mem::zeroed() };
     if unsafe { libc::localtime_r(&secs, &mut tm) }.is_null() { 0 } else { tm.tm_gmtoff as i64 }
 }
@@ -350,7 +379,8 @@ mod tests {
     #[test]
     fn filter_rules() {
         let mut f = Filter { default: LevelFilter::Info, rules: Vec::new() };
-        f.apply("server=debug,server::dim=trace,mod:base=warn").unwrap();
+        f.apply("server=debug,server::dim=trace,mod:base=warn")
+            .unwrap();
         assert_eq!(f.level("server", true), LevelFilter::Debug);
         assert_eq!(f.level("server::regions", true), LevelFilter::Debug);
         assert_eq!(f.level("server::dim", true), LevelFilter::Trace);

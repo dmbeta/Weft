@@ -25,8 +25,7 @@ impl Screen for Multiplayer {
                             "dim",
                             Box::new(|_: &Ctx| {
                                 let t = super::current_ticket().unwrap_or_else(|| "...".into());
-                                let short =
-                                    if t.len() > 52 { format!("{}...{}", &t[..28], &t[t.len() - 20..]) } else { t };
+                                let short = if t.len() > 52 { format!("{}...{}", &t[..28], &t[t.len() - 20..]) } else { t };
                                 (String::new(), vec![Arg::Text(short)])
                             }),
                         );

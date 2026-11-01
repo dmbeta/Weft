@@ -78,12 +78,7 @@ pub fn build(c: &Content, n: &Neighborhood, ctm: &super::ctm::Ctm) -> Mesh {
     for y in 0..16i32 {
         for z in 0..16i32 {
             let o = solid[row(y, z)];
-            let enclosed = (o << 1)
-                & (o >> 1)
-                & solid[row(y - 1, z)]
-                & solid[row(y + 1, z)]
-                & solid[row(y, z - 1)]
-                & solid[row(y, z + 1)];
+            let enclosed = (o << 1) & (o >> 1) & solid[row(y - 1, z)] & solid[row(y + 1, z)] & solid[row(y, z - 1)] & solid[row(y, z + 1)];
             let mut todo = filled[row(y, z)] & !enclosed & 0x1FFFE;
             while todo != 0 {
                 let x = todo.trailing_zeros() as i32 - 1;
@@ -112,19 +107,12 @@ pub fn build(c: &Content, n: &Neighborhood, ctm: &super::ctm::Ctm) -> Mesh {
                             if ninfo.flags & bf::OPAQUE != 0 {
                                 continue;
                             }
-                            if ninfo.block == info.block
-                                && info.layer != Layer::Opaque
-                                && info.flags & bf::CULL_SAME != 0
-                            {
+                            if ninfo.block == info.block && info.layer != Layer::Opaque && info.flags & bf::CULL_SAME != 0 {
                                 continue;
                             }
                             let (ao, light) = corner_data(n, &opaque, x, y, z, dir);
                             let tex = ctm.resolve(c, n, x, y, z, dir, textures[dir] & face::TEX_MASK);
-                            let tint = if info.tint_faces & (1 << dir) != 0 || ctm.has_overlay(tex) {
-                                info.tint as u32
-                            } else {
-                                0
-                            };
+                            let tint = if info.tint_faces & (1 << dir) != 0 || ctm.has_overlay(tex) { info.tint as u32 } else { 0 };
                             mesh.faces[info.layer as usize].push(crate::gpu_layout::face_record(
                                 [x, y, z],
                                 dir as u32,
@@ -144,22 +132,10 @@ pub fn build(c: &Content, n: &Neighborhood, ctm: &super::ctm::Ctm) -> Mesh {
                         let (a0, a1) = ([b[0] + e, b[1], b[2] + e], [b[0] + 1.0 - e, b[1] + 1.0, b[2] + 1.0 - e]);
                         let (c0, c1) = ([b[0] + e, b[1], b[2] + 1.0 - e], [b[0] + 1.0 - e, b[1] + 1.0, b[2] + e]);
                         for (p0, p1) in [(a0, a1), (c0, c1)] {
-                            let corners = [
-                                [p0[0], p0[1], p0[2]],
-                                [p1[0], p0[1], p1[2]],
-                                [p1[0], p1[1], p1[2]],
-                                [p0[0], p1[1], p0[2]],
-                            ];
+                            let corners = [[p0[0], p0[1], p0[2]], [p1[0], p0[1], p1[2]], [p1[0], p1[1], p1[2]], [p0[0], p1[1], p0[2]]];
                             let back = [corners[1], corners[0], corners[3], corners[2]];
                             for q in [corners, back] {
-                                mesh.quads[Layer::Cutout as usize].push(quad(
-                                    q,
-                                    [0, 0, 16, 16],
-                                    t,
-                                    biome,
-                                    info.tint | FLAT,
-                                    [l; 4],
-                                ));
+                                mesh.quads[Layer::Cutout as usize].push(quad(q, [0, 0, 16, 16], t, biome, info.tint | FLAT, [l; 4]));
                             }
                         }
                     }
@@ -170,8 +146,7 @@ pub fn build(c: &Content, n: &Neighborhood, ctm: &super::ctm::Ctm) -> Mesh {
                                 let [dx, dy, dz] = NORMALS[dir];
                                 let axis = dir / 2;
                                 let at_edge = if dir % 2 == 0 { bx.min[axis] <= 0.0 } else { bx.max[axis] >= 1.0 };
-                                let (ns, nl) =
-                                    (states[pidx(x + dx, y + dy, z + dz)], n.light[pidx(x + dx, y + dy, z + dz)]);
+                                let (ns, nl) = (states[pidx(x + dx, y + dy, z + dz)], n.light[pidx(x + dx, y + dy, z + dz)]);
                                 if at_edge && c.states[ns as usize].flags & bf::OPAQUE != 0 {
                                     continue;
                                 }
@@ -223,14 +198,7 @@ fn box_uv(dir: usize, min: [f32; 3], max: [f32; 3]) -> [u32; 4] {
     }
 }
 
-fn corner_data(
-    n: &Neighborhood,
-    opaque: &impl Fn(usize) -> bool,
-    x: i32,
-    y: i32,
-    z: i32,
-    dir: usize,
-) -> (u32, [u32; 4]) {
+fn corner_data(n: &Neighborhood, opaque: &impl Fn(usize) -> bool, x: i32, y: i32, z: i32, dir: usize) -> (u32, [u32; 4]) {
     let nrm = NORMALS[dir];
     let axis = dir / 2;
     let (ta, tb) = match axis {

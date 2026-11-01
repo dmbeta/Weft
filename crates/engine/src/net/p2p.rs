@@ -57,10 +57,12 @@ pub fn identity(run_dir: &Path) -> Result<SecretKey, String> {
 
 /// The player's identity for servers, or empty (keyed by name) when there is none.
 pub fn player_key(run_dir: &Path) -> String {
-    identity(run_dir).map(|k| k.public().to_string()).unwrap_or_else(|e| {
-        log::error!("{e}; this world keys the player by name");
-        String::new()
-    })
+    identity(run_dir)
+        .map(|k| k.public().to_string())
+        .unwrap_or_else(|e| {
+            log::error!("{e}; this world keys the player by name");
+            String::new()
+        })
 }
 
 /// Hash over mods and every registered name: equal hash means equal runtime ids.
@@ -93,7 +95,12 @@ pub fn content_hash() -> u64 {
         eat(&k.name);
     }
     // Everything else that crosses the wire by id.
-    for n in c.biomes.iter().map(|b| &b.name).chain(c.dims.iter().map(|d| &d.name)) {
+    for n in c
+        .biomes
+        .iter()
+        .map(|b| &b.name)
+        .chain(c.dims.iter().map(|d| &d.name))
+    {
         eat(n);
     }
     for n in c
@@ -113,17 +120,27 @@ pub fn content_hash() -> u64 {
 }
 
 fn mod_list() -> String {
-    crate::content::content().mods.iter().map(|m| format!("{} {}", m.id, m.version)).collect::<Vec<_>>().join(", ")
+    crate::content::content()
+        .mods
+        .iter()
+        .map(|m| format!("{} {}", m.id, m.version))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn relay_mode(settings: &Settings) -> RelayMode {
-    let custom: Vec<RelayUrl> = settings.relays().iter().filter_map(|r| r.parse().ok()).collect();
+    let custom: Vec<RelayUrl> = settings
+        .relays()
+        .iter()
+        .filter_map(|r| r.parse().ok())
+        .collect();
     if custom.is_empty() { RelayMode::Default } else { RelayMode::custom(custom) }
 }
 
 async fn endpoint(settings: &Settings, accept: bool, port: Option<u16>) -> Result<Endpoint, String> {
-    let mut b =
-        Endpoint::builder(presets::N0).secret_key(identity(&settings.run_dir)?).relay_mode(relay_mode(settings));
+    let mut b = Endpoint::builder(presets::N0)
+        .secret_key(identity(&settings.run_dir)?)
+        .relay_mode(relay_mode(settings));
     if accept {
         b = b.alpns(vec![ALPN.to_vec()]);
     }
@@ -139,7 +156,9 @@ async fn write_frame(send: &mut iroh::endpoint::SendStream, data: &[u8]) -> Resu
     let packed = if data.len() > 256 { lz4_flex::compress_prepend_size(data) } else { data.to_vec() };
     let flag = (data.len() > 256) as u32;
     let header = (packed.len() as u32) << 1 | flag;
-    send.write_all(&header.to_le_bytes()).await.map_err(|e| e.to_string())?;
+    send.write_all(&header.to_le_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
     send.write_all(&packed).await.map_err(|e| e.to_string())
 }
 
@@ -159,7 +178,11 @@ async fn read_frame(recv: &mut iroh::endpoint::RecvStream) -> Result<Vec<u8>, St
 /// Ticket: `id;relay;ip:port,ip:port`. The id alone is enough with n0 address lookup; the
 /// relay and direct addresses make it work on a LAN or without DNS.
 pub fn ticket(addr: &EndpointAddr) -> String {
-    let relay = addr.relay_urls().next().map(|r| r.to_string()).unwrap_or_default();
+    let relay = addr
+        .relay_urls()
+        .next()
+        .map(|r| r.to_string())
+        .unwrap_or_default();
     let ips: Vec<String> = addr.ip_addrs().map(|a| a.to_string()).collect();
     format!("{};{};{}", addr.id, relay, ips.join(","))
 }
@@ -205,12 +228,25 @@ async fn ask_ticket(address: &str, port: u16) -> Result<EndpointAddr, String> {
 
 fn parse_ticket(t: &str) -> Result<EndpointAddr, String> {
     let mut parts = t.trim().split(';');
-    let id: EndpointId = parts.next().unwrap_or("").parse().map_err(|_| "invalid ticket".to_string())?;
+    let id: EndpointId = parts
+        .next()
+        .unwrap_or("")
+        .parse()
+        .map_err(|_| "invalid ticket".to_string())?;
     let mut addrs = Vec::new();
-    if let Some(r) = parts.next().filter(|s| !s.is_empty()).and_then(|r| r.parse::<RelayUrl>().ok()) {
+    if let Some(r) = parts
+        .next()
+        .filter(|s| !s.is_empty())
+        .and_then(|r| r.parse::<RelayUrl>().ok())
+    {
         addrs.push(TransportAddr::Relay(r));
     }
-    for ip in parts.next().unwrap_or("").split(',').filter_map(|s| s.parse().ok()) {
+    for ip in parts
+        .next()
+        .unwrap_or("")
+        .split(',')
+        .filter_map(|s| s.parse().ok())
+    {
         addrs.push(TransportAddr::Ip(ip));
     }
     Ok(EndpointAddr::from_parts(id, addrs))
@@ -301,10 +337,7 @@ pub fn stop_hosting() {
     }
 }
 
-async fn accept(
-    incoming: iroh::endpoint::Incoming,
-    connect: crossbeam_channel::Sender<ServerConn>,
-) -> Result<(), String> {
+async fn accept(incoming: iroh::endpoint::Incoming, connect: crossbeam_channel::Sender<ServerConn>) -> Result<(), String> {
     let conn = incoming.await.map_err(|e| e.to_string())?;
     let peer = conn.remote_id();
     let (mut send, mut recv) = conn.accept_bi().await.map_err(|e| e.to_string())?;
@@ -324,7 +357,9 @@ async fn accept(
     log::info!("player {peer} connected");
     let (to_server_tx, to_server_rx) = unbounded::<ToServer>();
     let (to_client_tx, to_client_rx) = unbounded::<ToClient>();
-    connect.send(Conn::new(to_client_tx, to_server_rx)).map_err(|_| "server stopped")?;
+    connect
+        .send(Conn::new(to_client_tx, to_server_rx))
+        .map_err(|_| "server stopped")?;
     let peer_key = peer.to_string();
     // Incoming: the authenticated key replaces whatever key the client claims.
     let reader = tokio::spawn(async move {
@@ -379,8 +414,13 @@ async fn pump_out<T: Send + crate::net::Message + 'static>(
 /// on a machine with Radmin VPN and Hyper-V). The relay always gets through; iroh moves the
 /// connection to a direct path afterwards when one works.
 async fn connect(settings: &Settings, addr: EndpointAddr) -> Result<(Endpoint, iroh::endpoint::Connection), String> {
-    let relayed =
-        EndpointAddr::from_parts(addr.id, addr.relay_urls().cloned().map(TransportAddr::Relay).collect::<Vec<_>>());
+    let relayed = EndpointAddr::from_parts(
+        addr.id,
+        addr.relay_urls()
+            .cloned()
+            .map(TransportAddr::Relay)
+            .collect::<Vec<_>>(),
+    );
     let attempts = [(addr, Duration::from_secs(3)), (relayed, Duration::from_secs(20))];
     let mut last = String::new();
     for (i, (addr, wait)) in attempts.into_iter().enumerate() {
@@ -405,11 +445,7 @@ pub fn join(ticket: &str, settings: &Settings) -> Result<ClientConn, String> {
     let (ready_tx, ready_rx) = crossbeam_channel::bounded::<Result<ClientConn, String>>(1);
     runtime().spawn(async move {
         let result = async {
-            let addr = if is_address(&ticket) {
-                ask_ticket(&ticket, settings.server_port()).await?
-            } else {
-                parse_ticket(&ticket)?
-            };
+            let addr = if is_address(&ticket) { ask_ticket(&ticket, settings.server_port()).await? } else { parse_ticket(&ticket)? };
             let (ep, conn) = connect(&settings, addr).await?;
             let (mut send, mut recv) = conn.open_bi().await.map_err(|e| e.to_string())?;
             let mut hello = codec::W::default();
@@ -446,7 +482,9 @@ pub fn join(ticket: &str, settings: &Settings) -> Result<ClientConn, String> {
             }
         }
     });
-    ready_rx.recv_timeout(Duration::from_secs(30)).map_err(|_| "timed out".to_string())?
+    ready_rx
+        .recv_timeout(Duration::from_secs(30))
+        .map_err(|_| "timed out".to_string())?
 }
 
 #[cfg(test)]

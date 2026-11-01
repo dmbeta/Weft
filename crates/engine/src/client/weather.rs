@@ -47,33 +47,29 @@ pub struct Weather {
 
 impl Weather {
     pub fn new(gpu: &mut dyn Backend, assets: &Assets) -> Weather {
-        let mut w = Weather {
-            pipe: None,
-            pictures: [None, None],
-            columns: Vec::new(),
-            built: None,
-            instances: Vec::new(),
-            gpu: Vec::new(),
-        };
+        let mut w =
+            Weather { pipe: None, pictures: [None, None], columns: Vec::new(), built: None, instances: Vec::new(), gpu: Vec::new() };
         w.reload(gpu, assets);
         w
     }
 
     pub fn reload(&mut self, gpu: &mut dyn Backend, assets: &Assets) {
-        let made = crate::packs::compose(assets, "weather.wgsl", &[]).map_err(|e| e.0).and_then(|(shader, _)| {
-            gpu.create_pipeline(&PipelineDesc {
-                label: "weather",
-                shader: &shader,
-                vertex: "vs",
-                fragment: Some("fs"),
-                color: Some(Format::Surface),
-                depth: Some(DepthState { write: false, compare: Compare::GreaterEqual }),
-                blend: Blend::Alpha,
-                cull_back: false,
-                topology: Topology::Triangles,
-            })
+        let made = crate::packs::compose(assets, "weather.wgsl", &[])
             .map_err(|e| e.0)
-        });
+            .and_then(|(shader, _)| {
+                gpu.create_pipeline(&PipelineDesc {
+                    label: "weather",
+                    shader: &shader,
+                    vertex: "vs",
+                    fragment: Some("fs"),
+                    color: Some(Format::Surface),
+                    depth: Some(DepthState { write: false, compare: Compare::GreaterEqual }),
+                    blend: Blend::Alpha,
+                    cull_back: false,
+                    topology: Topology::Triangles,
+                })
+                .map_err(|e| e.0)
+            });
         match made {
             Ok(pipe) => {
                 if let Some(old) = self.pipe.replace(pipe) {
@@ -84,19 +80,15 @@ impl Weather {
         }
         self.drop_pictures(gpu);
         self.pictures = ["core:environment/rain", "core:environment/snow"].map(|name| {
-            let img = assets.read(name, "textures", "png").and_then(|b| decode_png(&b));
+            let img = assets
+                .read(name, "textures", "png")
+                .and_then(|b| decode_png(&b));
             if img.is_none() {
                 log::error!("weather: no picture {name}");
             }
             img.map(|img| {
                 let texture = gpu.create_texture(
-                    &TextureDesc {
-                        width: img.width,
-                        height: img.height,
-                        mips: 1,
-                        format: Format::Rgba8Srgb,
-                        render_target: false,
-                    },
+                    &TextureDesc { width: img.width, height: img.height, mips: 1, format: Format::Rgba8Srgb, render_target: false },
                     name,
                 );
                 gpu.write_texture(texture, 0, &img.rgba);
@@ -138,7 +130,9 @@ impl Weather {
                     continue;
                 }
                 let floor = (eye.y - REACH..top).rev().find(|&y| {
-                    let s = world.block_or_air(IVec3::new(x, y, z)).unwrap_or(crate::content::AIR);
+                    let s = world
+                        .block_or_air(IVec3::new(x, y, z))
+                        .unwrap_or(crate::content::AIR);
                     c.states[s as usize].flags & (weft_abi::block_flags::SOLID | weft_abi::block_flags::LIQUID) != 0
                 });
                 let bottom = floor.map_or(eye.y - REACH, |y| y + 1);
@@ -146,18 +140,16 @@ impl Weather {
                     continue;
                 }
                 let cell = IVec3::new(x, bottom, z);
-                let biome = world.cube(cell >> 4i32).map_or(0, |cube| cube.biome((x & 15) as usize, (z & 15) as usize));
-                let cold = c.ids.snowy.is_some_and(|t| c.components.has(crate::components::BIOME, biome as u32, t));
+                let biome = world
+                    .cube(cell >> 4i32)
+                    .map_or(0, |cube| cube.biome((x & 15) as usize, (z & 15) as usize));
+                let cold = c
+                    .ids
+                    .snowy
+                    .is_some_and(|t| c.components.has(crate::components::BIOME, biome as u32, t));
                 let seed = (x.wrapping_mul(3121) ^ z.wrapping_mul(45238971)) as u32;
-                self.columns.push(Column {
-                    x,
-                    z,
-                    bottom,
-                    top,
-                    cold,
-                    light: world.light(cell),
-                    seed: seed.wrapping_mul(0x9E37_79B1) >> 8,
-                });
+                self.columns
+                    .push(Column { x, z, bottom, top, cold, light: world.light(cell), seed: seed.wrapping_mul(0x9E37_79B1) >> 8 });
             }
         }
     }
@@ -210,12 +202,7 @@ impl Weather {
             self.gpu.push(GpuWeather {
                 place: [rel.x as f32, bottom, rel.z as f32, top],
                 // A quarter of the picture across, four blocks of it up.
-                uv: [
-                    ((c.seed >> 8) & 3) as f32 * 0.25 + slide,
-                    c.bottom as f32 * 0.25 - drop,
-                    (c.top - c.bottom) as f32 * 0.25,
-                    alpha,
-                ],
+                uv: [((c.seed >> 8) & 3) as f32 * 0.25 + slide, c.bottom as f32 * 0.25 - drop, (c.top - c.bottom) as f32 * 0.25, alpha],
                 data: [picture, c.light, c.seed, (DENSITY[c.cold as usize] * 255.0) as u32],
             });
         }
@@ -224,8 +211,7 @@ impl Weather {
         }
         let n = self.gpu.len() as u32;
         let stride = size_of::<GpuWeather>() as u64;
-        let buf =
-            crate::gpu_layout::frame_buffer(gpu, &mut self.instances, frame.slot, n, stride, usage::STORAGE, "weather");
+        let buf = crate::gpu_layout::frame_buffer(gpu, &mut self.instances, frame.slot, n, stride, usage::STORAGE, "weather");
         gpu.mapped(buf)[..self.gpu.len() * stride as usize].copy_from_slice(bytemuck::cast_slice(&self.gpu));
         list.pipeline(pipe);
         list.bind(crate::gpu_layout::bind::weather::COLUMNS, buf);

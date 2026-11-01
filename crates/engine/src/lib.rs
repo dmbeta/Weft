@@ -56,7 +56,10 @@ pub fn init_workers() {
 }
 
 fn workers() -> usize {
-    std::thread::available_parallelism().map_or(4, |n| n.get()).saturating_sub(2).max(1)
+    std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .saturating_sub(2)
+        .max(1)
 }
 
 /// The pool for bulk work queued by the thousand (generating and saving cubes). Work that

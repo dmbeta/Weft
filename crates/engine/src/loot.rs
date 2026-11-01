@@ -155,12 +155,7 @@ impl Resolve<'_> {
                         u32::MAX
                     })
                 };
-                Cond {
-                    kind: c.kind,
-                    value: c.value,
-                    tag,
-                    prop: if c.kind == lc::BLOCK_STATE { c.text.clone() } else { String::new() },
-                }
+                Cond { kind: c.kind, value: c.value, tag, prop: if c.kind == lc::BLOCK_STATE { c.text.clone() } else { String::new() } }
             })
             .collect()
     }
@@ -201,7 +196,11 @@ pub fn freeze(
     }
     mods_list.sort_by_key(|m| order(m.owner));
     for m in mods_list {
-        let names: Vec<String> = tables.keys().filter(|n| comps::matches(&m.table, n)).cloned().collect();
+        let names: Vec<String> = tables
+            .keys()
+            .filter(|n| comps::matches(&m.table, n))
+            .cloned()
+            .collect();
         if names.is_empty() && !m.table.contains('*') {
             errors.push(format!("loot modifier for unknown table {}", m.table));
         }
@@ -218,9 +217,10 @@ pub fn freeze(
                     .flat_map(|p| p.entries.iter_mut())
                     .filter(|e| Some(e.item) == from)
                     .for_each(|e| e.item = to),
-                abi::loot_op::REMOVE_ITEM => {
-                    t.pools.iter_mut().for_each(|p| p.entries.retain(|e| Some(e.item) != from))
-                }
+                abi::loot_op::REMOVE_ITEM => t
+                    .pools
+                    .iter_mut()
+                    .for_each(|p| p.entries.retain(|e| Some(e.item) != from)),
                 abi::loot_op::CLEAR => t.pools.clear(),
                 op => errors.push(format!("loot modifier for {n}: unknown operation {op}")),
             }
@@ -249,7 +249,10 @@ fn passes(c: &crate::content::Content, conds: &[Cond], ctx: &Ctx, rng: &mut dyn 
         lc::TOOL_TAG => !ctx.tool.is_empty() && c.components.has(comps::ITEM, ctx.tool.item, cd.tag),
         lc::NOT_TOOL_TAG => ctx.tool.is_empty() || !c.components.has(comps::ITEM, ctx.tool.item, cd.tag),
         lc::TOOL_LEVEL => {
-            !ctx.tool.is_empty() && c.item_value::<u32>(ctx.tool.item, c.ids.tool_level).unwrap_or(0) as f32 >= cd.value
+            !ctx.tool.is_empty()
+                && c.item_value::<u32>(ctx.tool.item, c.ids.tool_level)
+                    .unwrap_or(0) as f32
+                    >= cd.value
         }
         lc::KILLED_BY_PLAYER => ctx.by_player,
         lc::ON_FIRE => ctx.on_fire,
@@ -257,7 +260,8 @@ fn passes(c: &crate::content::Content, conds: &[Cond], ctx: &Ctx, rng: &mut dyn 
         // Not per tick or per entity: only when a table is rolled for a block.
         lc::BLOCK_STATE => {
             let name = c.state_name(ctx.state);
-            name.split_once('[').is_some_and(|(_, props)| props.trim_end_matches(']').split(',').any(|p| p == cd.prop))
+            name.split_once('[')
+                .is_some_and(|(_, props)| props.trim_end_matches(']').split(',').any(|p| p == cd.prop))
         }
         _ => false,
     })
@@ -273,7 +277,11 @@ pub fn roll(c: &crate::content::Content, t: &Table, ctx: &Ctx, rng: &mut dyn FnM
         }
         let rolls = p.rolls.0 + ((rng() * (p.rolls.1 - p.rolls.0 + 1) as f32) as u32).min(p.rolls.1 - p.rolls.0);
         for _ in 0..rolls {
-            let ok: Vec<&Entry> = p.entries.iter().filter(|e| passes(c, &e.conds, ctx, rng)).collect();
+            let ok: Vec<&Entry> = p
+                .entries
+                .iter()
+                .filter(|e| passes(c, &e.conds, ctx, rng))
+                .collect();
             let total: u32 = ok.iter().map(|e| e.weight).sum();
             if total == 0 {
                 continue;
@@ -302,7 +310,10 @@ pub fn roll(c: &crate::content::Content, t: &Table, ctx: &Ctx, rng: &mut dyn FnM
                     }
                 }
             }
-            match out.iter_mut().find(|s| s.item == item && s.count + n <= c.max_stack(item)) {
+            match out
+                .iter_mut()
+                .find(|s| s.item == item && s.count + n <= c.max_stack(item))
+            {
                 Some(s) => s.count += n,
                 None => out.push(ItemStack::new(item, n)),
             }

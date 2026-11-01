@@ -30,16 +30,40 @@ const MATERIALS: [Material; 5] = [
 ];
 
 pub fn register(r: &mut Registry) {
-    r.item(&STICK).tag("stick").handheld().set(&FUEL, 100).tab(&crate::tabs::INGREDIENTS);
-    r.item(&COAL).tag("gems/coal").set(&FUEL, 1600).tab(&crate::tabs::INGREDIENTS);
-    r.item(&IRON_INGOT).tag("ingots/iron").tag("materials/iron").tab(&crate::tabs::INGREDIENTS);
-    r.item(&GOLD_INGOT).tag("ingots/gold").tag("materials/gold").tab(&crate::tabs::INGREDIENTS);
+    r.item(&STICK)
+        .tag("stick")
+        .handheld()
+        .set(&FUEL, 100)
+        .tab(&crate::tabs::INGREDIENTS);
+    r.item(&COAL)
+        .tag("gems/coal")
+        .set(&FUEL, 1600)
+        .tab(&crate::tabs::INGREDIENTS);
+    r.item(&IRON_INGOT)
+        .tag("ingots/iron")
+        .tag("materials/iron")
+        .tab(&crate::tabs::INGREDIENTS);
+    r.item(&GOLD_INGOT)
+        .tag("ingots/gold")
+        .tag("materials/gold")
+        .tab(&crate::tabs::INGREDIENTS);
     // Metal ores drop raw pieces (like modern versions) that smelt into ingots.
-    r.item(Item::generated("raw_iron".into())).tag("raw_ores/iron").tab(&crate::tabs::INGREDIENTS);
-    r.item(Item::generated("raw_gold".into())).tag("raw_ores/gold").tab(&crate::tabs::INGREDIENTS);
-    r.item(&DIAMOND).tag("gems/diamond").tag("materials/diamond").tab(&crate::tabs::INGREDIENTS);
-    r.item(&WHEAT_SEEDS).placed_block(&crate::blocks::WHEAT).tab(&crate::tabs::NATURAL);
-    r.item(&WHEAT).tag("crops/wheat").tab(&crate::tabs::INGREDIENTS);
+    r.item(Item::generated("raw_iron".into()))
+        .tag("raw_ores/iron")
+        .tab(&crate::tabs::INGREDIENTS);
+    r.item(Item::generated("raw_gold".into()))
+        .tag("raw_ores/gold")
+        .tab(&crate::tabs::INGREDIENTS);
+    r.item(&DIAMOND)
+        .tag("gems/diamond")
+        .tag("materials/diamond")
+        .tab(&crate::tabs::INGREDIENTS);
+    r.item(&WHEAT_SEEDS)
+        .placed_block(&crate::blocks::WHEAT)
+        .tab(&crate::tabs::NATURAL);
+    r.item(&WHEAT)
+        .tag("crops/wheat")
+        .tab(&crate::tabs::INGREDIENTS);
     // Filled buckets come with their liquids (blocks.rs); the engine fills and pours them.
     r.item(&BUCKET).max_stack(16).tab(&crate::tabs::TOOLS);
     r.set("lava_bucket", &FUEL, 20000);
@@ -71,9 +95,13 @@ pub fn register(r: &mut Registry) {
             i.tag(tag);
         }
     }
-    r.item(Item::generated("leather".into())).tag("materials/leather").tab(&crate::tabs::INGREDIENTS);
+    r.item(Item::generated("leather".into()))
+        .tag("materials/leather")
+        .tab(&crate::tabs::INGREDIENTS);
     for name in ["bone", "string", "sugar", "gunpowder", "feather", "arrow", "egg"] {
-        r.item(Item::generated(name.into())).tag(name).tab(&crate::tabs::INGREDIENTS);
+        r.item(Item::generated(name.into()))
+            .tag(name)
+            .tab(&crate::tabs::INGREDIENTS);
     }
 
     for m in &MATERIALS {

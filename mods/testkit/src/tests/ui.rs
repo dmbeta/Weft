@@ -23,10 +23,7 @@ pub async fn screens(t: T) -> R {
     t.c().close_screen();
     t.screen("core:title").await?;
     for (screen, texts) in [
-        (
-            &screens::SETTINGS,
-            &["text:View distance", "text:Language", "text:Controls", "text:Shader Packs", "text:Done"][..],
-        ),
+        (&screens::SETTINGS, &["text:View distance", "text:Language", "text:Controls", "text:Shader Packs", "text:Done"][..]),
         (&screens::LANGUAGE, &["text:English", "text:Done"][..]),
         (&screens::CONTROLS, &["text:Reset All", "text:Done"][..]),
         (&screens::WORLDS, &["text:Create New World", "id:saves_folder"][..]),
@@ -44,7 +41,8 @@ pub async fn screens(t: T) -> R {
     t.flat().await?;
     t.c().chat("/about");
     t.screen("testmod:about").await?;
-    t.until("its text", Duration::from_secs(2), |t| t.c().ui_rect("text:opened by name").is_some()).await?;
+    t.until("its text", Duration::from_secs(2), |t| t.c().ui_rect("text:opened by name").is_some())
+        .await?;
     t.shot("about").await?;
     t.laid_out(&["text:Test Mod", "text:opened by name"]);
     // A part of a mod's screen with a tooltip of its own.
@@ -59,14 +57,13 @@ pub async fn screens(t: T) -> R {
     t.check(t.click_ui("id:about_name", 0), "the mod screen's text field");
     t.frames(2).await?;
     t.c().type_text("Steve");
-    t.until("the typed name", Duration::from_secs(3), |t| t.c().ui_rect("text:Hello, Steve").is_some()).await?;
+    t.until("the typed name", Duration::from_secs(3), |t| t.c().ui_rect("text:Hello, Steve").is_some())
+        .await?;
     let [x, y, w, h] = t.c().ui_rect("slider").ok_or("no slider")?;
     t.c().cursor(x + w * 0.75, y + h / 2.0);
     t.c().click(0, 0.1);
-    t.until("the slider moved", Duration::from_secs(3), |t| {
-        (70..=80).any(|v| t.c().ui_rect(&format!("text:Volume: {v}")).is_some())
-    })
-    .await?;
+    t.until("the slider moved", Duration::from_secs(3), |t| (70..=80).any(|v| t.c().ui_rect(&format!("text:Volume: {v}")).is_some()))
+        .await?;
     t.check(t.c().ui_rect("text:Field of view here: 70").is_some(), "a mod's screen reads the settings");
     let coal = Item::lookup("base:coal").ok_or("no coal")?;
     t.check(t.c().ui_rect(&format!("icon:{coal}")).is_some(), "the item on the mod's screen");
@@ -163,7 +160,8 @@ pub async fn debug_lines(t: T) -> R {
     t.laid_out(&["id:debug_options", "text:Done"]);
     // One press: always. Two: never.
     t.check(t.click_ui("id:line:fps", 0), "the frame counter's row");
-    t.until("set to always", Duration::from_secs(2), |t| t.c().ui_rect("text:Always").is_some()).await?;
+    t.until("set to always", Duration::from_secs(2), |t| t.c().ui_rect("text:Always").is_some())
+        .await?;
     t.c().close_screen();
     t.no_screen().await?;
     t.secs(0.5).await?;
@@ -176,7 +174,8 @@ pub async fn debug_lines(t: T) -> R {
     t.screen("core:debug_options").await?;
     t.frames(3).await?;
     t.check(t.click_ui("id:line:fps", 0), "the row again");
-    t.until("set to never", Duration::from_secs(2), |t| t.c().ui_rect("text:Never").is_some()).await?;
+    t.until("set to never", Duration::from_secs(2), |t| t.c().ui_rect("text:Never").is_some())
+        .await?;
     t.c().close_screen();
     t.no_screen().await?;
     t.debug(true).await?;
@@ -188,7 +187,8 @@ pub async fn debug_lines(t: T) -> R {
     t.screen("core:debug_options").await?;
     t.frames(3).await?;
     t.click_ui("text:Reset", 0);
-    t.until("reset", Duration::from_secs(2), |t| t.c().ui_rect("text:Never").is_none()).await?;
+    t.until("reset", Duration::from_secs(2), |t| t.c().ui_rect("text:Never").is_none())
+        .await?;
     t.c().close_screen();
     t.no_screen().await?;
     Ok(())
@@ -217,11 +217,15 @@ async fn drag_packs(t: &T) -> R {
     RESOURCE_PACKS.set("testkit_a,testkit_b,testkit_c");
     t.check(t.c().open_screen(&screens::RESOURCE_PACKS), "cannot open the resource packs");
     t.screen("core:resource_packs").await?;
-    t.until("the rows", Duration::from_secs(2), |t| t.c().ui_rect("id:pack_handle:testkit_c").is_some()).await?;
+    t.until("the rows", Duration::from_secs(2), |t| t.c().ui_rect("id:pack_handle:testkit_c").is_some())
+        .await?;
     t.shot("three_packs").await?;
     t.laid_out(&["id:pack_handle:testkit_a", "id:pack_handle:testkit_b", "id:pack_handle:testkit_c"]);
     let drag = async |id: &str, x: f32, y: f32, name: &str| -> R {
-        let [hx, hy, hw, hh] = t.c().ui_rect(&format!("id:pack_handle:{id}")).ok_or(format!("no handle of {id}"))?;
+        let [hx, hy, hw, hh] = t
+            .c()
+            .ui_rect(&format!("id:pack_handle:{id}"))
+            .ok_or(format!("no handle of {id}"))?;
         t.c().cursor(hx + hw / 2.0, hy + hh / 2.0);
         t.frames(3).await?;
         t.c().click(0, 0.4);
@@ -230,7 +234,8 @@ async fn drag_packs(t: &T) -> R {
         t.frames(4).await?;
         t.check(t.c().ui_rect("id:pack_ghost").is_some(), format!("the copy of {id} follows the cursor"));
         t.shot(name).await?;
-        t.until("the drop", Duration::from_secs(3), |t| t.c().ui_rect("id:pack_ghost").is_none()).await
+        t.until("the drop", Duration::from_secs(3), |t| t.c().ui_rect("id:pack_ghost").is_none())
+            .await
     };
     let [ax, ay, _, _] = t.c().ui_rect("id:pack:testkit_a").ok_or("no row")?;
     drag("testkit_c", ax + 0.02, ay + 0.002, "to_top").await?;
@@ -263,10 +268,12 @@ pub async fn f3(t: T) -> R {
     };
     t.laid_out(&["text:XYZ", "text:base:overworld", "text:calls", "text:1600x900"]);
     sides(&t);
-    t.until("testmod panel shown", Duration::from_secs(2), |t| t.c().ui_rect("text:fall").is_some()).await?;
+    t.until("testmod panel shown", Duration::from_secs(2), |t| t.c().ui_rect("text:fall").is_some())
+        .await?;
     t.laid_out(&["text:fall"]);
     weft_sdk::settings::DEBUG_GROUPS.set(u32::MAX & !(1 << 5));
-    t.until("testmod panel hidden", Duration::from_secs(2), |t| t.c().ui_rect("text:fall").is_none()).await?;
+    t.until("testmod panel hidden", Duration::from_secs(2), |t| t.c().ui_rect("text:fall").is_none())
+        .await?;
     t.check(t.c().ui_rect("text:XYZ").is_some(), "engine panels stay");
     weft_sdk::settings::DEBUG_GROUPS.set(u32::MAX);
     weft_sdk::settings::LANGUAGE.set("ru_ru");
@@ -293,17 +300,22 @@ pub async fn inventory_crafting(t: T) -> R {
     // Menu slots: 0-3 grid, 4 result, 5-8 armor, 9-35 main, 36-44 hotbar.
     let (log, planks) = (id("base:oak_log"), id("base:oak_planks"));
     t.click_ui("slot:36", 0);
-    t.until("logs on the cursor", Duration::from_secs(5), |t| t.c().cursor_stack().item == log).await?;
+    t.until("logs on the cursor", Duration::from_secs(5), |t| t.c().cursor_stack().item == log)
+        .await?;
     t.click_ui("slot:0", 1);
-    t.until("planks in the result", Duration::from_secs(5), |t| t.c().menu_slot(4).item == planks).await?;
+    t.until("planks in the result", Duration::from_secs(5), |t| t.c().menu_slot(4).item == planks)
+        .await?;
     t.check_eq(t.c().menu_slot(4).count, 4, "planks from one log");
     t.click_ui("slot:36", 0);
-    t.until("cursor empty", Duration::from_secs(5), |t| t.c().cursor_stack().is_empty()).await?;
+    t.until("cursor empty", Duration::from_secs(5), |t| t.c().cursor_stack().is_empty())
+        .await?;
     t.shot("grid").await?;
     t.click_ui("slot:4", 0);
-    t.until("planks on the cursor", Duration::from_secs(5), |t| t.c().cursor_stack().item == planks).await?;
+    t.until("planks on the cursor", Duration::from_secs(5), |t| t.c().cursor_stack().item == planks)
+        .await?;
     t.click_ui("slot:37", 0);
-    t.until("planks in the hotbar", Duration::from_secs(5), |t| t.c().inventory_slot(1).item == planks).await?;
+    t.until("planks in the hotbar", Duration::from_secs(5), |t| t.c().inventory_slot(1).item == planks)
+        .await?;
     t.c().close_screen();
     t.no_screen().await?;
     t.check_eq(t.slot("me", 0).await?, ("base:oak_log".into(), 15, 0), "logs left");
@@ -314,15 +326,18 @@ pub async fn inventory_crafting(t: T) -> R {
 pub async fn creative_inventory(t: T) -> R {
     t.flat().await?;
     t.op("mode creative").await?;
-    t.until("creative", Duration::from_secs(5), |t| t.state().mode == 1).await?;
+    t.until("creative", Duration::from_secs(5), |t| t.state().mode == 1)
+        .await?;
     t.press("core:inventory");
     t.screen("core:menu").await?;
     t.shot("tab").await?;
     let stone = id("base:bricks");
     if t.click_ui(&format!("item:{stone}"), 0) {
-        t.until("bricks on the cursor", Duration::from_secs(5), |t| t.c().cursor_stack().item == stone).await?;
+        t.until("bricks on the cursor", Duration::from_secs(5), |t| t.c().cursor_stack().item == stone)
+            .await?;
         t.click_ui("slot:36", 0);
-        t.until("bricks in the hotbar", Duration::from_secs(5), |t| t.c().inventory_slot(0).item == stone).await?;
+        t.until("bricks in the hotbar", Duration::from_secs(5), |t| t.c().inventory_slot(0).item == stone)
+            .await?;
     }
     t.c().close_screen();
     t.no_screen().await?;
@@ -336,7 +351,8 @@ pub async fn chat(t: T) -> R {
     t.world(3).await?;
     t.press("core:command");
     t.screen("core:chat").await?;
-    t.until("the command list", Duration::from_secs(2), |t| t.c().ui_rect("text:gamemode").is_some()).await?;
+    t.until("the command list", Duration::from_secs(2), |t| t.c().ui_rect("text:gamemode").is_some())
+        .await?;
     t.check_eq(t.c().input_text(), "/".to_string(), "the line");
     // A mod's key does not fire while the chat has the input.
     let probes = crate::runner::PROBES.with(|p| p.get());
@@ -394,7 +410,8 @@ pub async fn chat(t: T) -> R {
     t.check_eq(reply, "regions from testkit".into(), "a mod's command takes the engine's place");
     // What a player types shows as typed, braces included; it can't format.
     t.c().chat("braces {#ff0000}stay");
-    t.until("the chat line", Duration::from_secs(5), |t| t.c().chat_line(0).contains("stay")).await?;
+    t.until("the chat line", Duration::from_secs(5), |t| t.c().chat_line(0).contains("stay"))
+        .await?;
     t.press("core:chat");
     t.screen("core:chat").await?;
     t.frames(2).await?;
@@ -437,7 +454,8 @@ pub async fn mod_settings(t: T) -> R {
     t.shot("testmod").await?;
     let before = HUM.get();
     t.check(t.click_ui("text:Generator hum", 0), "hum toggle shown");
-    t.until("toggled", std::time::Duration::from_secs(2), |_| HUM.get() != before).await?;
+    t.until("toggled", std::time::Duration::from_secs(2), |_| HUM.get() != before)
+        .await?;
     // A test run writes beside the player's settings, never over them.
     let file = std::fs::read_to_string(format!("{}/test-config/testmod.txt", t.c().run_dir())).unwrap_or_default();
     t.check(file.contains(&format!("generator_hum = {}", !before)), format!("saved: {file:?}"));
@@ -538,7 +556,9 @@ pub async fn recipe_viewer(t: T) -> R {
     );
     // The crafting table opens the crafting menu, so it is the station of its recipes.
     t.check(
-        t.c().ui_rect(&format!("icon:{}", id("base:crafting_table"))).is_some(),
+        t.c()
+            .ui_rect(&format!("icon:{}", id("base:crafting_table")))
+            .is_some(),
         "the crafting table shown as the station",
     );
     t.shot("arrow").await?;
@@ -588,10 +608,7 @@ pub async fn inventory_hotkeys(t: T) -> R {
     t.frames(3).await?;
     hover(21)?;
     t.secs(0.8).await?;
-    t.check(
-        t.slot("me", 20).await?.1 == 0 && t.slot("me", 21).await?.1 == 0,
-        "shift-sweeping moved both cobblestone stacks to the hotbar",
-    );
+    t.check(t.slot("me", 20).await?.1 == 0 && t.slot("me", 21).await?.1 == 0, "shift-sweeping moved both cobblestone stacks to the hotbar");
     Ok(())
 }
 
@@ -657,7 +674,10 @@ pub async fn scrollbar(t: T) -> R {
     t.c().open_screen(&screens::CONTROLS);
     t.screen("core:controls").await?;
     t.frames(2).await?;
-    let [x, y, w, h] = t.c().ui_rect("scrollbar").ok_or("no scroll bar on the controls screen")?;
+    let [x, y, w, h] = t
+        .c()
+        .ui_rect("scrollbar")
+        .ok_or("no scroll bar on the controls screen")?;
     let first = t.c().ui_rect("text:Walk forward").ok_or("no first entry")?;
     t.c().cursor(x + w / 2.0, y + h * 0.95);
     t.frames(1).await?;
@@ -678,15 +698,17 @@ pub async fn mods_switch(t: T) -> R {
     t.check(t.c().ui_rect("id:mods_restart").is_none(), "nothing to restart for yet");
     let file = format!("{}/test-config/disabled_mods.txt", t.c().run_dir());
     t.check(t.click_ui("id:mod_led:testmod", 0), "a LED for the mod");
-    t.until("the restart button comes", Duration::from_secs(2), |t| t.c().ui_rect("id:mods_restart").is_some()).await?;
-    t.check(std::fs::read_to_string(&file).unwrap_or_default().contains("testmod"), "it is written down");
-    // The LED is in the mod's row, and clicking it isn't clicking the row.
-    let (led, row) =
-        (t.c().ui_rect("id:mod_led:testmod").ok_or("no LED")?, t.c().ui_rect("id:mod:testmod").ok_or("no row")?);
+    t.until("the restart button comes", Duration::from_secs(2), |t| t.c().ui_rect("id:mods_restart").is_some())
+        .await?;
     t.check(
-        led[0] > row[0] && led[0] + led[2] <= row[0] + row[2] + 0.001,
-        format!("the LED {led:?} inside its row {row:?}"),
+        std::fs::read_to_string(&file)
+            .unwrap_or_default()
+            .contains("testmod"),
+        "it is written down",
     );
+    // The LED is in the mod's row, and clicking it isn't clicking the row.
+    let (led, row) = (t.c().ui_rect("id:mod_led:testmod").ok_or("no LED")?, t.c().ui_rect("id:mod:testmod").ok_or("no row")?);
+    t.check(led[0] > row[0] && led[0] + led[2] <= row[0] + row[2] + 0.001, format!("the LED {led:?} inside its row {row:?}"));
     t.check(t.c().ui_rect("text:Needs").is_none(), "the row isn't selected by it (only testmod needs something)");
     t.shot("switched").await?;
     t.check(t.click_ui("id:mod_led:testmod", 0), "and back");
@@ -694,6 +716,11 @@ pub async fn mods_switch(t: T) -> R {
         .await?;
     t.c().close_screen();
     t.frames(3).await?;
-    t.check(!std::fs::read_to_string(&file).unwrap_or_default().contains("testmod"), "back on");
+    t.check(
+        !std::fs::read_to_string(&file)
+            .unwrap_or_default()
+            .contains("testmod"),
+        "back on",
+    );
     Ok(())
 }

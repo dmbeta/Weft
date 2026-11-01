@@ -123,13 +123,8 @@ pub fn describe(c: &Content, dim: u32, seed: u64) -> Option<(Vec<i32>, Vec<usize
     }
     w[d::CAVE_OFF as usize] = w.len() as i32;
     for (k, b) in t.cave_biomes.iter().enumerate() {
-        let cave: [i32; words::CAVE as usize] = [
-            b.biome as i32,
-            b.depth,
-            b.size,
-            b.threshold,
-            seed32(seed, weft_noise::fixed::salt::CAVE_BIOME ^ k as u64) as i32,
-        ];
+        let cave: [i32; words::CAVE as usize] =
+            [b.biome as i32, b.depth, b.size, b.threshold, seed32(seed, weft_noise::fixed::salt::CAVE_BIOME ^ k as u64) as i32];
         w.extend_from_slice(&cave);
     }
     Some((w, custom))
@@ -150,11 +145,12 @@ pub fn describe_lod(c: &Content, dim: u32, seed: u64) -> Option<(Vec<i32>, Vec<u
         let key = seed ^ sc.salt;
         w.extend_from_slice(&[sc.cell, sc.reach, key as u32 as i32, (key >> 32) as u32 as i32, biomes as i32]);
         for b in 0..biomes as u32 {
-            let density =
-                sc.density.and_then(|d| c.components.get::<f32>(crate::components::BIOME, b, d)).unwrap_or(0.0);
+            let density = sc
+                .density
+                .and_then(|d| c.components.get::<f32>(crate::components::BIOME, b, d))
+                .unwrap_or(0.0);
             let threshold = (density as f64 * (1u64 << 53) as f64).ceil() as u64;
-            let (mut tops, mut radii, mut states) =
-                (Vec::new(), Vec::new(), rustc_hash::FxHashMap::<u32, u32>::default());
+            let (mut tops, mut radii, mut states) = (Vec::new(), Vec::new(), rustc_hash::FxHashMap::<u32, u32>::default());
             for k in 0..8u64 {
                 let mut args = weft_abi::ScatterArgs {
                     seed,
@@ -191,13 +187,8 @@ pub fn describe_lod(c: &Content, dim: u32, seed: u64) -> Option<(Vec<i32>, Vec<u
             tops.sort_unstable();
             radii.sort_unstable();
             let state = states.into_iter().max_by_key(|e| e.1).map_or(0, |e| e.0);
-            let entry: [i32; words::SCATTER_BIOME as usize] = [
-                threshold as u32 as i32,
-                (threshold >> 32) as u32 as i32,
-                radii[radii.len() / 2],
-                tops[tops.len() / 2],
-                state as i32,
-            ];
+            let entry: [i32; words::SCATTER_BIOME as usize] =
+                [threshold as u32 as i32, (threshold >> 32) as u32 as i32, radii[radii.len() / 2], tops[tops.len() / 2], state as i32];
             w.extend_from_slice(&entry);
         }
     }
@@ -250,11 +241,7 @@ pub fn custom_heights(c: &Content, dim: u32, seed: u64, x: i32, z: i32, custom: 
         let mut out = Vec::with_capacity(custom.len() * CUSTOM_WORDS);
         for &i in custom {
             for ci in 0..CUSTOM_WORDS as i32 {
-                let (x, z) = if ci < 256 {
-                    (ox + ci % 16, oz + ci / 16)
-                } else {
-                    (ox + (ci - 256) % 5 * 4, oz + (ci - 256) / 5 * 4)
-                };
+                let (x, z) = if ci < 256 { (ox + ci % 16, oz + ci / 16) } else { (ox + (ci - 256) % 5 * 4, oz + (ci - 256) / 5 * 4) };
                 out.push(t.features[i].height_at(&f, x * 16, z * 16));
             }
         }
@@ -316,15 +303,11 @@ pub struct GpuTerrain {
 }
 
 impl GpuTerrain {
-    pub fn new(
-        gpu: &mut dyn Backend,
-        assets: &crate::assets::Assets,
-        rx: Receiver<Job>,
-        on: Arc<AtomicBool>,
-    ) -> GpuTerrain {
+    pub fn new(gpu: &mut dyn Backend, assets: &crate::assets::Assets, rx: Receiver<Job>, on: Arc<AtomicBool>) -> GpuTerrain {
         // Not a shader packs may replace: it has to make the CPU's blocks exactly.
-        let pipelines =
-            crate::packs::engine_shader(assets, "terrain.wgsl", &layout::prelude()).map_err(|e| e.0).and_then(|s| {
+        let pipelines = crate::packs::engine_shader(assets, "terrain.wgsl", &layout::prelude())
+            .map_err(|e| e.0)
+            .and_then(|s| {
                 let terrain = gpu
                     .create_compute(&ComputeDesc { label: "terrain", shader: &s, entry: "generate" })
                     .map_err(|e| e.0)?;
@@ -363,12 +346,17 @@ impl GpuTerrain {
             while s.reading.iter().flatten().any(|r| Arc::strong_count(r) > 1) {
                 std::thread::yield_now();
             }
-            for (b, _) in [s.desc, s.jobs, s.out[0], s.out[1], s.lod_desc, s.lod_jobs, s.lod_out].into_iter().flatten()
+            for (b, _) in [s.desc, s.jobs, s.out[0], s.out[1], s.lod_desc, s.lod_jobs, s.lod_out]
+                .into_iter()
+                .flatten()
             {
                 gpu.destroy_buffer(b);
             }
         }
-        for p in [self.pipeline.take(), self.lod_pipeline.take()].into_iter().flatten() {
+        for p in [self.pipeline.take(), self.lod_pipeline.take()]
+            .into_iter()
+            .flatten()
+        {
             gpu.destroy_pipeline(p);
         }
     }
@@ -408,7 +396,12 @@ impl GpuTerrain {
         }
         let (_, words, custom) = self.lod_desc.as_ref().unwrap();
         let mut batch = Vec::new();
-        while batch.len() < LOD_BATCH && self.lod_queue.front().is_some_and(|j| (j.dim, j.seed) == key) {
+        while batch.len() < LOD_BATCH
+            && self
+                .lod_queue
+                .front()
+                .is_some_and(|j| (j.dim, j.seed) == key)
+        {
             batch.push(self.lod_queue.pop_front().unwrap());
         }
         let stride = 4 + custom * SAMPLES;
@@ -426,16 +419,9 @@ impl GpuTerrain {
             gpu.mapped(desc)[..words.len() * 4].copy_from_slice(bytemuck::cast_slice(words));
             s.lod_desc_key = Some(key);
         }
-        let jobs_buf =
-            sized(gpu, &mut s.lod_jobs, LOD_BATCH * stride * 4, usage::STORAGE | usage::HOST, "terrain lod jobs");
+        let jobs_buf = sized(gpu, &mut s.lod_jobs, LOD_BATCH * stride * 4, usage::STORAGE | usage::HOST, "terrain lod jobs");
         gpu.mapped(jobs_buf)[..jobs.len() * 4].copy_from_slice(bytemuck::cast_slice(&jobs));
-        let out = sized(
-            gpu,
-            &mut s.lod_out,
-            LOD_BATCH * LOD_WORDS_PER_TILE * 4,
-            usage::STORAGE | usage::READBACK,
-            "terrain lod out",
-        );
+        let out = sized(gpu, &mut s.lod_out, LOD_BATCH * LOD_WORDS_PER_TILE * 4, usage::STORAGE | usage::READBACK, "terrain lod out");
         list.push(Cmd::SetPipeline(pipeline));
         list.bind(binding::DESC, desc);
         list.bind(binding::JOBS, jobs_buf);
@@ -456,15 +442,20 @@ impl GpuTerrain {
             // A column's cubes come together: what they share is worked out first, once.
             let mut columns: rustc_hash::FxHashMap<(i32, i32), Vec<(usize, Job)>> = Default::default();
             for (i, job) in s.flight.drain(..).enumerate() {
-                columns.entry((job.pos.x, job.pos.z)).or_default().push((i, job));
+                columns
+                    .entry((job.pos.x, job.pos.z))
+                    .or_default()
+                    .push((i, job));
             }
             // Unpacked on threads of their own (the other pools are busy while loading): the
             // slot waits for it.
             for ((x, z), jobs) in columns {
                 let back = back.clone();
                 unpacking().spawn(move || {
-                    let made: Vec<(Job, Vec<u32>)> =
-                        jobs.into_iter().map(|(i, job)| (job, back.cube(i).to_vec())).collect();
+                    let made: Vec<(Job, Vec<u32>)> = jobs
+                        .into_iter()
+                        .map(|(i, job)| (job, back.cube(i).to_vec()))
+                        .collect();
                     drop(back);
                     crate::server::dim::warm_scatters(content(), made[0].0.dim, made[0].0.seed, x, z);
                     for (job, words) in made {
@@ -542,22 +533,22 @@ fn unpacking() -> &'static rayon::ThreadPool {
 
 fn enabled() -> bool {
     let c = content();
-    c.game.config_names.get("core:terrain_gpu").is_none_or(|&id| crate::config::get(id) != 0.0)
+    c.game
+        .config_names
+        .get("core:terrain_gpu")
+        .is_none_or(|&id| crate::config::get(id) != 0.0)
 }
 
 fn checking() -> bool {
     let c = content();
-    c.game.config_names.get("core:terrain_check").is_some_and(|&id| crate::config::get(id) != 0.0)
+    c.game
+        .config_names
+        .get("core:terrain_check")
+        .is_some_and(|&id| crate::config::get(id) != 0.0)
 }
 
 /// A buffer of at least `bytes`, made again when too small.
-fn sized(
-    gpu: &mut dyn Backend,
-    slot: &mut Option<(BufferId, usize)>,
-    bytes: usize,
-    usage: u32,
-    label: &str,
-) -> BufferId {
+fn sized(gpu: &mut dyn Backend, slot: &mut Option<(BufferId, usize)>, bytes: usize, usage: u32, label: &str) -> BufferId {
     match *slot {
         Some((b, size)) if size >= bytes => b,
         old => {
@@ -583,7 +574,9 @@ fn cpu(job: Job) {
 type Unpacked = (Vec<u32>, [u16; 256], [TerrainColumn; 256]);
 
 fn unpack(w: &[u32]) -> Unpacked {
-    let blocks: Vec<u32> = (0..4096).map(|i| (w[i / 2] >> ((i & 1) * 16)) & 0xFFFF).collect();
+    let blocks: Vec<u32> = (0..4096)
+        .map(|i| (w[i / 2] >> ((i & 1) * 16)) & 0xFFFF)
+        .collect();
     let half = |at: usize, i: usize| ((w[at + i / 2] >> ((i & 1) * 16)) & 0xFFFF) as u16;
     use crate::gpu_layout::terrain::out;
     let biomes: [u16; 256] = std::array::from_fn(|i| half(out::BIOMES as usize, i));
@@ -597,16 +590,7 @@ fn unpack(w: &[u32]) -> Unpacked {
 fn finish(job: Job, (blocks, biomes, cols): Unpacked) {
     let t = std::time::Instant::now();
     let c = content();
-    let mut cube = crate::server::dim::finish_generated(
-        c,
-        job.dim,
-        job.seed,
-        job.pos,
-        blocks,
-        biomes,
-        Some(Arc::new(cols)),
-        false,
-    );
+    let mut cube = crate::server::dim::finish_generated(c, job.dim, job.seed, job.pos, blocks, biomes, Some(Arc::new(cols)), false);
     GPU_CUBES.fetch_add(1, Ordering::Relaxed);
     if checking() {
         let want = crate::server::dim::generate(c, job.dim, job.seed, job.pos);
@@ -621,23 +605,13 @@ fn finish(job: Job, (blocks, biomes, cols): Unpacked) {
         let light_differs = (0..4096).find(|&i| lit.light(i) != old.light(i));
         if let Some(i) = light_differs {
             if GPU_MISMATCHES.fetch_add(1, Ordering::Relaxed) < 8 {
-                log::warn!(
-                    "prelight differs at cube {} block {i}: {:#x} instead of {:#x}",
-                    job.pos,
-                    lit.light(i),
-                    old.light(i)
-                );
+                log::warn!("prelight differs at cube {} block {i}: {:#x} instead of {:#x}", job.pos, lit.light(i), old.light(i));
             }
         }
         if differs.is_some() || biome_differs.is_some() {
             if GPU_MISMATCHES.fetch_add(1, Ordering::Relaxed) < 8 {
                 match differs {
-                    Some(i) => log::warn!(
-                        "GPU terrain differs at cube {} block {i}: {} instead of {}",
-                        job.pos,
-                        cube.get(i),
-                        want.get(i)
-                    ),
+                    Some(i) => log::warn!("GPU terrain differs at cube {} block {i}: {} instead of {}", job.pos, cube.get(i), want.get(i)),
                     None => log::warn!("GPU terrain differs at cube {} in biomes", job.pos),
                 }
             }
@@ -650,5 +624,7 @@ fn finish(job: Job, (blocks, biomes, cols): Unpacked) {
 
 fn done(c: &Content, job: Job, cube: &mut Cube) {
     crate::server::dim::prepare(c, job.dim, &job.edits, job.pos, cube);
-    let _ = job.done.send((job.epoch, job.pos, std::mem::replace(cube, Cube::uniform(0, 0))));
+    let _ = job
+        .done
+        .send((job.epoch, job.pos, std::mem::replace(cube, Cube::uniform(0, 0))));
 }

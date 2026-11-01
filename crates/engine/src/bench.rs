@@ -89,7 +89,10 @@ impl Bench {
         let n = self.frames.len().max(1) as f64;
         let mut sorted = self.frames.clone();
         sorted.sort_by(f32::total_cmp);
-        let p99 = sorted.get(((sorted.len() as f64 - 1.0) * 0.99).round() as usize).copied().unwrap_or(0.0);
+        let p99 = sorted
+            .get(((sorted.len() as f64 - 1.0) * 0.99).round() as usize)
+            .copied()
+            .unwrap_or(0.0);
         let avg = self.frames.iter().map(|&f| f as f64).sum::<f64>() / n;
         let gpu = self.gpu.iter().sum::<f64>() / self.gpu_frames.max(1) as f64;
         let srv = self.server.iter().map(|&s| s as f64).sum::<f64>() / self.server.len().max(1) as f64;
@@ -100,12 +103,25 @@ impl Bench {
         let n = self.frames.len().max(1) as f64;
         let mut sorted = self.frames.clone();
         sorted.sort_by(f32::total_cmp);
-        let pct = |p: f64| sorted.get(((sorted.len() as f64 - 1.0) * p).round() as usize).copied().unwrap_or(0.0);
+        let pct = |p: f64| {
+            sorted
+                .get(((sorted.len() as f64 - 1.0) * p).round() as usize)
+                .copied()
+                .unwrap_or(0.0)
+        };
         let avg = self.frames.iter().map(|&f| f as f64).sum::<f64>() / n;
-        let cpu: Vec<String> = CPU_PARTS.iter().zip(self.cpu).map(|(k, v)| format!("{k} {:.2}", v / n)).collect();
+        let cpu: Vec<String> = CPU_PARTS
+            .iter()
+            .zip(self.cpu)
+            .map(|(k, v)| format!("{k} {:.2}", v / n))
+            .collect();
         let g = self.gpu_frames.max(1) as f64;
         let gpu_total: f64 = self.gpu.iter().sum::<f64>() / g;
-        let gpu: Vec<String> = GPU_PARTS.iter().zip(self.gpu).map(|(k, v)| format!("{k} {:.2}", v / g)).collect();
+        let gpu: Vec<String> = GPU_PARTS
+            .iter()
+            .zip(self.gpu)
+            .map(|(k, v)| format!("{k} {:.2}", v / g))
+            .collect();
         let srv_avg = self.server.iter().map(|&s| s as f64).sum::<f64>() / self.server.len().max(1) as f64;
         let srv_max = self.server.iter().copied().fold(0.0f32, f32::max);
         let ticks = self.start.elapsed().as_secs_f64() * crate::world::TPS as f64;

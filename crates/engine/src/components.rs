@@ -66,8 +66,11 @@ impl RawValue {
         unsafe {
             let schema = v.schema.as_str().to_string();
             let bytes = v.value.as_slice().to_vec();
-            let text = (written_as_text(&schema) && bytes.len() == size_of::<Str>())
-                .then(|| std::ptr::read_unaligned(bytes.as_ptr() as *const Str).as_str().to_string());
+            let text = (written_as_text(&schema) && bytes.len() == size_of::<Str>()).then(|| {
+                std::ptr::read_unaligned(bytes.as_ptr() as *const Str)
+                    .as_str()
+                    .to_string()
+            });
             RawValue { name: v.name.as_str().to_string(), schema, bytes, text }
         }
     }
@@ -147,8 +150,7 @@ impl Table {
 
     fn value(&self, entry: u32, comp: u32) -> Option<&[u8]> {
         let (stride, data) = &self.cols[comp as usize];
-        (self.has(entry, comp) && *stride > 0)
-            .then(|| &data[(entry * stride) as usize..((entry + 1) * stride) as usize])
+        (self.has(entry, comp) && *stride > 0).then(|| &data[(entry * stride) as usize..((entry + 1) * stride) as usize])
     }
 }
 
@@ -205,15 +207,18 @@ impl Components {
     /// Component ids an entry has, in id order.
     pub fn of(&self, kind: usize, entry: u32) -> impl Iterator<Item = u32> + '_ {
         let t = &self.tables[kind];
-        let row: &[u64] =
-            if entry < t.entries { &t.bits[(entry * t.words) as usize..((entry + 1) * t.words) as usize] } else { &[] };
-        row.iter()
-            .enumerate()
-            .flat_map(|(w, &bits)| (0..64).filter(move |b| bits >> b & 1 != 0).map(move |b| w as u32 * 64 + b))
+        let row: &[u64] = if entry < t.entries { &t.bits[(entry * t.words) as usize..((entry + 1) * t.words) as usize] } else { &[] };
+        row.iter().enumerate().flat_map(|(w, &bits)| {
+            (0..64)
+                .filter(move |b| bits >> b & 1 != 0)
+                .map(move |b| w as u32 * 64 + b)
+        })
     }
 
     pub fn is_tag(&self, comp: u32) -> bool {
-        self.schemas.get(comp as usize).is_some_and(|s| s.is_empty())
+        self.schemas
+            .get(comp as usize)
+            .is_some_and(|s| s.is_empty())
     }
 
     pub fn table(&self) -> *const abi::ComponentTable {
@@ -231,7 +236,11 @@ fn layout_of(schema: &str) -> Option<(usize, usize)> {
         "u64" | "i64" | "f64" => return Some((8, 8)),
         _ => {}
     }
-    if let Some((t, n)) = s.strip_prefix('[').and_then(|r| r.strip_suffix(']')).and_then(|r| r.rsplit_once(';')) {
+    if let Some((t, n)) = s
+        .strip_prefix('[')
+        .and_then(|r| r.strip_suffix(']'))
+        .and_then(|r| r.rsplit_once(';'))
+    {
         let (size, align) = layout_of(t)?;
         return Some((size * n.trim().parse::<usize>().ok()?, align));
     }
@@ -331,7 +340,8 @@ impl Default for Builder {
             refs: None,
         };
         for (name, schema) in BUILTIN {
-            b.decl.insert(name.to_string(), (schema.to_string(), "the engine".into()));
+            b.decl
+                .insert(name.to_string(), (schema.to_string(), "the engine".into()));
         }
         b
     }
@@ -340,40 +350,26 @@ impl Default for Builder {
 impl Builder {
     /// Records a use of `name` with `schema`; uses must agree. `who` names the mod and entry for
     /// the error.
-    pub fn declare(
-        &mut self,
-        name: &str,
-        schema: &str,
-        bytes: Option<usize>,
-        who: &dyn Fn() -> String,
-        errors: &mut Vec<String>,
-    ) {
+    pub fn declare(&mut self, name: &str, schema: &str, bytes: Option<usize>, who: &dyn Fn() -> String, errors: &mut Vec<String>) {
         if name.is_empty() {
             errors.push(format!("{}: component without a name", who()));
             return;
         }
         if let (Some(n), Some(want)) = (bytes, primitive_size(schema)) {
             if n != want {
-                errors.push(format!(
-                    "{}: component {name} is {schema} ({want} bytes) but the value has {n} bytes",
-                    who()
-                ));
+                errors.push(format!("{}: component {name} is {schema} ({want} bytes) but the value has {n} bytes", who()));
                 return;
             }
         }
         match self.decl.get(name) {
             Some((s, first)) if s != schema => {
                 let shown = |s: &str| if s.is_empty() { "a tag".to_string() } else { format!("'{s}'") };
-                errors.push(format!(
-                    "{}: component {name} used as {} but {first} uses it as {}",
-                    who(),
-                    shown(schema),
-                    shown(s)
-                ));
+                errors.push(format!("{}: component {name} used as {} but {first} uses it as {}", who(), shown(schema), shown(s)));
             }
             Some(_) => {}
             None => {
-                self.decl.insert(name.to_string(), (schema.to_string(), who()));
+                self.decl
+                    .insert(name.to_string(), (schema.to_string(), who()));
             }
         }
     }
@@ -393,8 +389,15 @@ impl Builder {
     pub fn start(&mut self, entries: [usize; KINDS]) {
         let mut names: Vec<String> = self.decl.keys().cloned().collect();
         names.sort();
-        self.ids = names.iter().enumerate().map(|(i, n)| (n.clone(), i as u32)).collect();
-        self.tables = entries.iter().map(|&n| Table::new(n, names.len())).collect();
+        self.ids = names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.clone(), i as u32))
+            .collect();
+        self.tables = entries
+            .iter()
+            .map(|&n| Table::new(n, names.len()))
+            .collect();
         self.names = names;
     }
 
@@ -415,7 +418,10 @@ impl Builder {
         }
         (0..t.entries)
             .filter(|&e| {
-                t.bits[(e * t.words) as usize..((e + 1) * t.words) as usize].iter().zip(&mask).any(|(b, m)| b & m != 0)
+                t.bits[(e * t.words) as usize..((e + 1) * t.words) as usize]
+                    .iter()
+                    .zip(&mask)
+                    .any(|(b, m)| b & m != 0)
             })
             .collect()
     }
@@ -424,7 +430,9 @@ impl Builder {
         match &v.text {
             Some(t) if v.schema == "tag" => {
                 let tag = crate::refs::tag_name(t)?;
-                self.id(tag).map(|id| id.to_le_bytes().to_vec().into()).ok_or_else(|| format!("unknown tag {tag}"))
+                self.id(tag)
+                    .map(|id| id.to_le_bytes().to_vec().into())
+                    .ok_or_else(|| format!("unknown tag {tag}"))
             }
             Some(t) if v.schema != "str" => match &self.refs {
                 Some(resolve) => resolve(&v.schema, t).map(Into::into),
@@ -435,7 +443,9 @@ impl Builder {
                 let s = Str { ptr: boxed.as_ptr(), len: boxed.len() };
                 self.texts.push(boxed);
                 Ok(unsafe {
-                    std::slice::from_raw_parts(&s as *const Str as *const u8, size_of::<Str>()).to_vec().into()
+                    std::slice::from_raw_parts(&s as *const Str as *const u8, size_of::<Str>())
+                        .to_vec()
+                        .into()
                 })
             }
             None => Ok(v.bytes.as_slice().into()),
@@ -444,14 +454,7 @@ impl Builder {
 
     /// Sets a value (or tag) on an entry. `setter` is the mod of an `r.set` (None for an entry's own
     /// registration); replacing another mod's different value is logged.
-    pub fn put(
-        &mut self,
-        kind: usize,
-        entry: u32,
-        v: &RawValue,
-        setter: Option<(ModId, &str)>,
-        label: &dyn Fn() -> String,
-    ) {
+    pub fn put(&mut self, kind: usize, entry: u32, v: &RawValue, setter: Option<(ModId, &str)>, label: &dyn Fn() -> String) {
         let Some(comp) = self.id(&v.name) else { return };
         let bytes = match self.encode(v) {
             Ok(b) => b,
@@ -468,10 +471,14 @@ impl Builder {
         if let Some((_, mod_name)) = setter {
             let changed = t.value(entry, comp).is_some_and(|old| old != &*bytes);
             if had && changed {
-                let before = self.setters.get(&(kind, entry, comp)).map_or("its registration", String::as_str);
+                let before = self
+                    .setters
+                    .get(&(kind, entry, comp))
+                    .map_or("its registration", String::as_str);
                 log::info!("{mod_name} overrides {} on {} (was set by {before})", v.name, label());
             }
-            self.setters.insert((kind, entry, comp), mod_name.to_string());
+            self.setters
+                .insert((kind, entry, comp), mod_name.to_string());
         }
         let t = &mut self.tables[kind];
         if !bytes.is_empty() {
@@ -482,13 +489,8 @@ impl Builder {
             }
             if bytes.len() != *stride as usize {
                 // Marking it present with no value would read as zero.
-                self.errors.push(format!(
-                    "{}: {} has a value of {} bytes, others have {}",
-                    label(),
-                    v.name,
-                    bytes.len(),
-                    stride
-                ));
+                self.errors
+                    .push(format!("{}: {} has a value of {} bytes, others have {}", label(), v.name, bytes.len(), stride));
                 return;
             }
             let at = (entry * *stride) as usize;
@@ -516,7 +518,9 @@ impl Builder {
         let set: Vec<u32> = (0..src.words as usize)
             .flat_map(|w| {
                 let bits = src.bits[row + w];
-                (0..64u32).filter(move |b| bits >> b & 1 != 0).map(move |b| w as u32 * 64 + b)
+                (0..64u32)
+                    .filter(move |b| bits >> b & 1 != 0)
+                    .map(move |b| w as u32 * 64 + b)
             })
             .collect();
         for comp in set {
@@ -545,7 +549,12 @@ impl Builder {
         let schemas: Vec<String> = names.iter().map(|n| decl[n].0.clone()).collect();
         let columns: Vec<Vec<abi::Column>> = tables
             .iter()
-            .map(|t| t.cols.iter().map(|(stride, data)| abi::Column { data: data.as_ptr(), stride: *stride }).collect())
+            .map(|t| {
+                t.cols
+                    .iter()
+                    .map(|(stride, data)| abi::Column { data: data.as_ptr(), stride: *stride })
+                    .collect()
+            })
             .collect();
         let kinds: [abi::KindTable; KINDS] = std::array::from_fn(|k| {
             let t = &tables[k];
@@ -614,11 +623,9 @@ mod tests {
         let mut errors = Vec::new();
         b.declare("leaves", "block", None, &|| "a".into(), &mut errors);
         b.start([1, 0, 0, 0, 0]);
-        b.refs = Some(Box::new(|_, t| {
-            if t == "a:oak_leaves" { Ok(7u32.to_le_bytes().to_vec()) } else { Err(format!("unknown block {t}")) }
-        }));
-        let v =
-            |t: &str| RawValue { name: "leaves".into(), schema: "block".into(), bytes: vec![], text: Some(t.into()) };
+        b.refs =
+            Some(Box::new(|_, t| if t == "a:oak_leaves" { Ok(7u32.to_le_bytes().to_vec()) } else { Err(format!("unknown block {t}")) }));
+        let v = |t: &str| RawValue { name: "leaves".into(), schema: "block".into(), bytes: vec![], text: Some(t.into()) };
         b.put(BLOCK, 0, &v("a:oak_leaves"), None, &|| "log".into());
         b.put(BLOCK, 0, &v("a:oak_leafs"), None, &|| "log".into());
         assert_eq!(b.errors, vec!["log: leaves: unknown block a:oak_leafs".to_string()]);
@@ -636,13 +643,9 @@ mod tests {
         b.start([3, 2, 0, 0, 0]);
         b.put(BLOCK, 1, &value("fuel", "u32", 300), None, &|| "x".into());
         b.put(BLOCK, 2, &RawValue::tag("plant_soil"), None, &|| "x".into());
-        b.put(
-            ITEM,
-            0,
-            &RawValue { name: "label".into(), schema: "str".into(), bytes: vec![], text: Some("hi".into()) },
-            None,
-            &|| "x".into(),
-        );
+        b.put(ITEM, 0, &RawValue { name: "label".into(), schema: "str".into(), bytes: vec![], text: Some("hi".into()) }, None, &|| {
+            "x".into()
+        });
         b.inherit((BLOCK, 1), (ITEM, 1));
         b.put(BLOCK, 1, &value("fuel", "u32", 100), Some((ModId(1), "testmod")), &|| "x".into());
         let c = b.finish();

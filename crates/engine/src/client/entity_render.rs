@@ -272,7 +272,13 @@ impl EntityRenderer {
         }
         self.models.reload(gpu, assets);
         // Skins and masks are read again the next time they are used.
-        for t in self.skins.drain().filter_map(|(_, v)| v).map(|v| v.0).chain(self.glows.drain().map(|(_, g)| g.0)) {
+        for t in self
+            .skins
+            .drain()
+            .filter_map(|(_, v)| v)
+            .map(|v| v.0)
+            .chain(self.glows.drain().map(|(_, g)| g.0))
+        {
             gpu.destroy_texture(t);
         }
         if let Ok(h) = Self::hand_pipeline(gpu, assets) {
@@ -303,17 +309,14 @@ impl EntityRenderer {
     pub fn set_skin(&mut self, gpu: &mut dyn Backend, entity: u64, png: &[u8]) {
         let Some(img) = crate::assets::decode_png(png) else { return };
         let t = gpu.create_texture(
-            &TextureDesc {
-                width: img.width,
-                height: img.height,
-                mips: 1,
-                format: Format::Rgba8Srgb,
-                render_target: false,
-            },
+            &TextureDesc { width: img.width, height: img.height, mips: 1, format: Format::Rgba8Srgb, render_target: false },
             "player skin",
         );
         gpu.write_texture(t, 0, &img.rgba);
-        if let Some(old) = self.player_skins.insert(entity, (t, gpu.texture_index(t), [img.width, img.height])) {
+        if let Some(old) = self
+            .player_skins
+            .insert(entity, (t, gpu.texture_index(t), [img.width, img.height]))
+        {
             gpu.destroy_texture(old.0);
         }
     }
@@ -337,7 +340,13 @@ impl EntityRenderer {
         for b in self.hand_views.drain(..).chain(preview) {
             gpu.destroy_buffer(b);
         }
-        for t in self.skins.drain().filter_map(|(_, v)| v).map(|v| v.0).chain(self.glows.drain().map(|(_, g)| g.0)) {
+        for t in self
+            .skins
+            .drain()
+            .filter_map(|(_, v)| v)
+            .map(|v| v.0)
+            .chain(self.glows.drain().map(|(_, g)| g.0))
+        {
             gpu.destroy_texture(t);
         }
         gpu.destroy_pipeline(self.pipeline);
@@ -351,14 +360,7 @@ impl EntityRenderer {
 
     /// Loads skins and worn textures the first time something visible uses them; `worn` is what
     /// the local player wears.
-    pub fn preload(
-        &mut self,
-        gpu: &mut dyn Backend,
-        assets: &Assets,
-        entities: &FxHashMap<u64, ClientEntity>,
-        worn: &[u32],
-        held: u32,
-    ) {
+    pub fn preload(&mut self, gpu: &mut dyn Backend, assets: &Assets, entities: &FxHashMap<u64, ClientEntity>, worn: &[u32], held: u32) {
         let c = content();
         self.load_sprite(assets, held);
         // Each kind and item looked at once per frame, without listing thousands of entities.
@@ -402,14 +404,19 @@ impl EntityRenderer {
         if self.sprites.contains_key(name) {
             return;
         }
-        let img = assets.read(name, "textures", "png").and_then(|b| decode_png(&b));
+        let img = assets
+            .read(name, "textures", "png")
+            .and_then(|b| decode_png(&b));
         let sprite = img.map(|img| {
             let size = img.width;
             // Animated strips: the first frame.
             let solid = |x: i64, y: i64| {
                 (0..size as i64).contains(&x)
                     && (0..size as i64).contains(&y)
-                    && img.rgba.get((y as usize * size as usize + x as usize) * 4 + 3).is_some_and(|&a| a >= 128)
+                    && img
+                        .rgba
+                        .get((y as usize * size as usize + x as usize) * 4 + 3)
+                        .is_some_and(|&a| a >= 128)
             };
             let pixels = (0..size * size)
                 .map(|i| ((i % size) as i64, (i / size) as i64))
@@ -446,9 +453,7 @@ impl EntityRenderer {
         let model = look.and_then(|l| l.model.as_deref()).unwrap_or(&def.model);
         let icon = look.and_then(|l| l.icon).unwrap_or(def.icon);
         match block {
-            _ if !model.is_empty() => {
-                boxes_shape(&mut self.item_boxes, textures, Mat4::IDENTITY, model, &c.states[0], white)
-            }
+            _ if !model.is_empty() => boxes_shape(&mut self.item_boxes, textures, Mat4::IDENTITY, model, &c.states[0], white),
             Some(st) if def.icon == u32::MAX && st.item_sprite().is_none() => {
                 block_shape(&mut self.item_boxes, textures, Mat4::IDENTITY, st, white)
             }
@@ -457,15 +462,17 @@ impl EntityRenderer {
                     Some(st) if icon == u32::MAX => textures.texture(st.item_sprite().unwrap_or(st.textures[0])),
                     _ => textures.texture(icon),
                 };
-                match sprite_name(item).and_then(|n| self.sprites.get(n)).and_then(|s| s.as_ref()) {
+                match sprite_name(item)
+                    .and_then(|n| self.sprites.get(n))
+                    .and_then(|s| s.as_ref())
+                {
                     Some(sp) => {
                         let n = sp.size as f32;
                         // Only the outline: a side face against a neighboring pixel would fight
                         // with it. Mode 4: every face takes the color of this one texel.
                         for &(x, y, hidden) in &sp.pixels {
-                            let m =
-                                Mat4::from_translation(Vec3::new(x as f32 / n, 1.0 - (y as f32 + 1.0) / n, 7.5 / 16.0))
-                                    * Mat4::from_scale(Vec3::new(1.0 / n, 1.0 / n, 1.0 / 16.0));
+                            let m = Mat4::from_translation(Vec3::new(x as f32 / n, 1.0 - (y as f32 + 1.0) / n, 7.5 / 16.0))
+                                * Mat4::from_scale(Vec3::new(1.0 / n, 1.0 / n, 1.0 / 16.0));
                             self.item_boxes.push(GpuBox {
                                 rows: rows(m),
                                 uvo: [(x as f32 + 0.5) / n, (y as f32 + 0.5) / n, 0.0, 0.0],
@@ -476,8 +483,7 @@ impl EntityRenderer {
                         }
                     }
                     None => {
-                        let m = Mat4::from_translation(Vec3::new(0.0, 0.0, 0.5))
-                            * Mat4::from_scale(Vec3::new(1.0, 1.0, 0.0));
+                        let m = Mat4::from_translation(Vec3::new(0.0, 0.0, 0.5)) * Mat4::from_scale(Vec3::new(1.0, 1.0, 0.0));
                         self.item_boxes.push(GpuBox {
                             rows: rows(m),
                             color: white.to_array(),
@@ -518,36 +524,28 @@ impl EntityRenderer {
         if name.is_empty() || self.skins.contains_key(name) {
             return;
         }
-        let loaded = assets.read(name, "textures", "png").and_then(|b| decode_png(&b)).map(|img| {
-            let t = gpu.create_texture(
-                &TextureDesc {
-                    width: img.width,
-                    height: img.height,
-                    mips: 1,
-                    format: Format::Rgba8Srgb,
-                    render_target: false,
-                },
-                name,
-            );
-            gpu.write_texture(t, 0, &img.rgba);
-            (t, gpu.texture_index(t), [img.width, img.height])
-        });
+        let loaded = assets
+            .read(name, "textures", "png")
+            .and_then(|b| decode_png(&b))
+            .map(|img| {
+                let t = gpu.create_texture(
+                    &TextureDesc { width: img.width, height: img.height, mips: 1, format: Format::Rgba8Srgb, render_target: false },
+                    name,
+                );
+                gpu.write_texture(t, 0, &img.rgba);
+                (t, gpu.texture_index(t), [img.width, img.height])
+            });
         if loaded.is_none() {
             log::warn!("missing entity texture {name}");
         }
         if let Some(mask) = crate::assets::emission_mask(assets, name) {
             let t = gpu.create_texture(
-                &TextureDesc {
-                    width: mask.width,
-                    height: mask.height,
-                    mips: 1,
-                    format: Format::R8Unorm,
-                    render_target: false,
-                },
+                &TextureDesc { width: mask.width, height: mask.height, mips: 1, format: Format::R8Unorm, render_target: false },
                 name,
             );
             gpu.write_texture(t, 0, &mask.rgba);
-            self.glows.insert(name.to_string(), (t, gpu.texture_index(t)));
+            self.glows
+                .insert(name.to_string(), (t, gpu.texture_index(t)));
         }
         self.skins.insert(name.to_string(), loaded);
     }
@@ -560,8 +558,16 @@ impl EntityRenderer {
         let mut out = ([Instance::default(); MAX_LAYERS], 0);
         let Some(Some((_, skin, _))) = self.skins.get(&k.texture) else { return out };
         let glow = |name: &str| self.glows.get(name).map_or(u32::MAX, |g| g.1);
-        let size = self.models.kinds.get(kind as usize).and_then(|m| m.texture).unwrap_or(k.texture_size);
-        let own = self.player_skins.get(&entity).filter(|_| kind == c.game.player_kind);
+        let size = self
+            .models
+            .kinds
+            .get(kind as usize)
+            .and_then(|m| m.texture)
+            .unwrap_or(k.texture_size);
+        let own = self
+            .player_skins
+            .get(&entity)
+            .filter(|_| kind == c.game.player_kind);
         let (skin, size) = own.map_or((skin, size), |o| (&o.1, o.2));
         let base = Instance {
             color: [1.0; 3],
@@ -640,31 +646,16 @@ impl EntityRenderer {
         self.models.add(
             c.game.player_kind,
             root,
-            &crate::model::Motion {
-                pitch,
-                head_yaw: 0.0,
-                swing: 0.0,
-                swim: None,
-                holding: false,
-                attack: 0.0,
-                anims: &[],
-                crouch: false,
-            },
+            &crate::model::Motion { pitch, head_yaw: 0.0, swing: 0.0, swim: None, holding: false, attack: 0.0, anims: &[], crouch: false },
             layers.0[..layers.1].iter().copied(),
         );
         let vb = self.preview[frame.slot];
         // Full daylight, no fog.
-        let v = Scene {
-            view_proj: proj.to_cols_array_2d(),
-            params: [1e9, 2e9, 1.0, crate::shaders::time()],
-            ..Default::default()
-        };
+        let v = Scene { view_proj: proj.to_cols_array_2d(), params: [1e9, 2e9, 1.0, crate::shaders::time()], ..Default::default() };
         gpu.mapped(vb)[..size_of::<Scene>()].copy_from_slice(bytemuck::bytes_of(&v));
-        list.push(Cmd::BeginPass {
-            color: Some((Target::Texture(col), Some([0.0; 4]))),
-            depth: Some((dep, Some(0.0))),
-        });
-        self.models.draw(gpu, list, frame, super::models::Batch::Preview, self.preview_pipe, vb);
+        list.push(Cmd::BeginPass { color: Some((Target::Texture(col), Some([0.0; 4]))), depth: Some((dep, Some(0.0))) });
+        self.models
+            .draw(gpu, list, frame, super::models::Batch::Preview, self.preview_pipe, vb);
         list.push(Cmd::EndPass);
         Some(index)
     }
@@ -710,7 +701,11 @@ impl EntityRenderer {
         posed.clear();
         // Who holds something: its place in `posed`, the item and its light.
         let mut holders: Vec<(usize, u32, u32)> = Vec::new();
-        for (id, e) in entities.iter().map(|(i, e)| (*i, e)).chain(me.map(|m| (self.local, m))) {
+        for (id, e) in entities
+            .iter()
+            .map(|(i, e)| (*i, e))
+            .chain(me.map(|m| (self.local, m)))
+        {
             let base = rel(e.pos);
             if base.length_squared() > 160.0 * 160.0 {
                 continue;
@@ -720,8 +715,7 @@ impl EntityRenderer {
             let hurt = if e.flash > 0.0 { -1.0 } else { (e.hurt / 0.5).clamp(0.0, 1.0) };
             if !e.item.is_empty() {
                 if let Some(m) = self.item_model(textures, e.item.item) {
-                    instances
-                        .push((e.item.item, item_instance(ground_transform(base, e.age, e.item.item), m.0, hurt, lit)));
+                    instances.push((e.item.item, item_instance(ground_transform(base, e.age, e.item.item), m.0, hurt, lit)));
                 }
                 continue;
             }
@@ -762,7 +756,9 @@ impl EntityRenderer {
                 }
             }
             // Vanilla: sqrt of the death time over a second, up to a quarter turn.
-            let roll = e.dying.map_or(0.0, |d| (d * 1.6).sqrt().min(1.0) * std::f32::consts::FRAC_PI_2);
+            let roll = e
+                .dying
+                .map_or(0.0, |d| (d * 1.6).sqrt().min(1.0) * std::f32::consts::FRAC_PI_2);
             // Lying down in its low box: head first where it looks when swimming (vanilla's
             // setupRotations), flat when crawling, turned around the middle of the body.
             let lying = match e.pose {
@@ -824,21 +820,33 @@ impl EntityRenderer {
                 .map(|m| m.parts.len())
                 .sum::<usize>();
             next = holder;
-            let parts =
-                self.models.kinds.get(posed[holder].kind as usize).map(|m| m.parts.as_slice()).unwrap_or_default();
-            let Some(i) = parts.iter().position(|p| p.role == crate::model::role::ARM_RIGHT) else { continue };
+            let parts = self
+                .models
+                .kinds
+                .get(posed[holder].kind as usize)
+                .map(|m| m.parts.as_slice())
+                .unwrap_or_default();
+            let Some(i) = parts
+                .iter()
+                .position(|p| p.role == crate::model::role::ARM_RIGHT)
+            else {
+                continue;
+            };
             let arm = self.models.bone(at + i) * Mat4::from_translation(Vec3::from_array(parts[i].pivot));
             if let Some(m) = self.item_model(textures, item) {
                 instances.push((item, item_instance(held_transform(arm, item), m.0, 0.0, lit)));
             }
         }
         self.posed = posed;
-        self.models.draw(gpu, list, frame, super::models::Batch::World, self.model_pipe, vb);
+        self.models
+            .draw(gpu, list, frame, super::models::Batch::World, self.model_pipe, vb);
 
         // Selection outline: twelve thin dark boxes along the edges of each selection box.
-        let outlined =
-            target.map(|(hit, at)| (&c.states[hit.state as usize].selection, rel(hit.block.as_dvec3() + at)));
-        for (sel, o) in outlined.iter().flat_map(|(sel, o)| sel.iter().map(move |s| (s, *o))) {
+        let outlined = target.map(|(hit, at)| (&c.states[hit.state as usize].selection, rel(hit.block.as_dvec3() + at)));
+        for (sel, o) in outlined
+            .iter()
+            .flat_map(|(sel, o)| sel.iter().map(move |s| (s, *o)))
+        {
             let (mn, mx) = (Vec3::new(sel[0], sel[1], sel[2]), Vec3::new(sel[3], sel[4], sel[5]));
             let t = 0.006;
             let (a, b) = (o + mn - Vec3::splat(t), o + mx + Vec3::splat(t));
@@ -906,11 +914,15 @@ impl EntityRenderer {
                 let stage = ((progress * 10.0) as usize).min(9);
                 let l = textures.texture(c.crack_textures[stage]);
                 let lit = shade(p.as_dvec3() + at + DVec3::splat(0.5));
-                let state = target.filter(|h| h.0.block == p).map(|h| &c.states[h.0.state as usize]);
+                let state = target
+                    .filter(|h| h.0.block == p)
+                    .map(|h| &c.states[h.0.state as usize]);
                 let shape: Vec<(Vec3, Vec3)> = match state {
-                    Some(s) => {
-                        s.selection.iter().map(|b| (Vec3::new(b[0], b[1], b[2]), Vec3::new(b[3], b[4], b[5]))).collect()
-                    }
+                    Some(s) => s
+                        .selection
+                        .iter()
+                        .map(|b| (Vec3::new(b[0], b[1], b[2]), Vec3::new(b[3], b[4], b[5])))
+                        .collect(),
                     None => vec![(Vec3::ZERO, Vec3::ONE)],
                 };
                 for (mn, mx) in shape {
@@ -937,11 +949,16 @@ impl EntityRenderer {
                 _ => None,
             };
             // Keyframes may move the hand too: the `hand` bone of what plays (else of idle).
-            let pose = self.models.kinds.get(c.game.player_kind as usize).and_then(|m| {
-                let (i, t) =
-                    m.playing(h.anim.as_ref(), h.age).or_else(|| m.idle.map(|i| (i, m.anims[i].at(h.age, true))))?;
-                m.anims[i].anim.free_bone("hand", t)
-            });
+            let pose = self
+                .models
+                .kinds
+                .get(c.game.player_kind as usize)
+                .and_then(|m| {
+                    let (i, t) = m
+                        .playing(h.anim.as_ref(), h.age)
+                        .or_else(|| m.idle.map(|i| (i, m.anims[i].at(h.age, true))))?;
+                    m.anims[i].anim.free_bone("hand", t)
+                });
             let from = boxes.len();
             match hand_transform(cam, &h, pose.unwrap_or(Mat4::IDENTITY)) {
                 Some(m) => {
@@ -951,8 +968,14 @@ impl EntityRenderer {
                 }
                 None => {
                     // The arm is the player model's own right arm bone.
-                    let parts = self.models.kinds.get(c.game.player_kind as usize).map_or(&k.parts, |m| &m.parts);
-                    let arm = parts.iter().find(|p| p.name.eq_ignore_ascii_case("rightArm"));
+                    let parts = self
+                        .models
+                        .kinds
+                        .get(c.game.player_kind as usize)
+                        .map_or(&k.parts, |m| &m.parts);
+                    let arm = parts
+                        .iter()
+                        .find(|p| p.name.eq_ignore_ascii_case("rightArm"));
                     hand_boxes(&mut boxes, cam, &h, player_skin, arm, pose.unwrap_or(Mat4::IDENTITY));
                     light_boxes(&mut boxes, from, shade(cam.pos));
                 }
@@ -973,15 +996,8 @@ impl EntityRenderer {
             self.upload_items(gpu);
         }
 
-        let buf = crate::gpu_layout::frame_buffer(
-            gpu,
-            &mut self.buffers,
-            frame.slot,
-            boxes.len() as u32,
-            128,
-            usage::STORAGE,
-            "entity boxes",
-        );
+        let buf =
+            crate::gpu_layout::frame_buffer(gpu, &mut self.buffers, frame.slot, boxes.len() as u32, 128, usage::STORAGE, "entity boxes");
         gpu.mapped(buf)[..boxes.len() * 128].copy_from_slice(bytemuck::cast_slice(&boxes));
         let glow = textures.glow_buffer();
 
@@ -1050,12 +1066,7 @@ impl EntityRenderer {
                 list.bind(crate::gpu_layout::bind::entity::SCENE, hb);
                 list.bind(crate::gpu_layout::bind::entity::GLOW_MAP, glow);
                 list.bind(crate::gpu_layout::bind::entity::ITEM_BOXES, ib);
-                list.push(Cmd::Draw {
-                    vertices: n * 36,
-                    instances: 1,
-                    first_vertex: 0,
-                    first_instance: boxes.len() as u32 - 1,
-                });
+                list.push(Cmd::Draw { vertices: n * 36, instances: 1, first_vertex: 0, first_instance: boxes.len() as u32 - 1 });
             }
         }
         self.instances = instances;
@@ -1063,15 +1074,7 @@ impl EntityRenderer {
 }
 
 /// Two layers of flames facing the camera, the inner one smaller, like vanilla's burning mobs.
-fn fire_boxes(
-    out: &mut Vec<GpuBox>,
-    textures: &GameTextures,
-    base: Vec3,
-    width: f32,
-    height: f32,
-    cam_yaw: f32,
-    age: f32,
-) {
+fn fire_boxes(out: &mut Vec<GpuBox>, textures: &GameTextures, base: Vec3, width: f32, height: f32, cam_yaw: f32, age: f32) {
     let c = content();
     let frame = |offset: f32| textures.frame_of(c.fire_texture, (age * crate::world::TPS as f32 + offset) as u32);
     for (i, (scale, back)) in [(1.4, 0.0), (1.0, 0.2)].into_iter().enumerate() {
@@ -1099,17 +1102,15 @@ fn sprite_name(item: u32) -> Option<&'static str> {
         return c.textures.get(def.icon as usize).map(String::as_str);
     }
     let st = &c.states[def.block? as usize];
-    st.item_sprite().and_then(|t| c.textures.get(t as usize)).map(String::as_str)
+    st.item_sprite()
+        .and_then(|t| c.textures.get(t as usize))
+        .map(String::as_str)
 }
 
 /// From view space to the camera-relative world for what the first person view holds: it bobs
 /// with the world and lags behind a turning camera.
 fn hand_space(cam: &Camera, h: &Hand, pose: Mat4) -> Mat4 {
-    cam.view().inverse()
-        * cam.bobbing()
-        * Mat4::from_rotation_x(-h.lag.0 * 0.1)
-        * Mat4::from_rotation_y(-h.lag.1 * 0.1)
-        * pose
+    cam.view().inverse() * cam.bobbing() * Mat4::from_rotation_x(-h.lag.0 * 0.1) * Mat4::from_rotation_y(-h.lag.1 * 0.1) * pose
 }
 
 /// Where the held item's model goes in front of the camera, posed like vanilla's
@@ -1118,7 +1119,9 @@ fn hand_space(cam: &Camera, h: &Hand, pose: Mat4) -> Mat4 {
 fn hand_transform(cam: &Camera, h: &Hand, pose: Mat4) -> Option<Mat4> {
     use std::f32::consts::PI;
     let c = content();
-    c.items.get(h.stack.item as usize).filter(|_| !h.stack.is_empty())?;
+    c.items
+        .get(h.stack.item as usize)
+        .filter(|_| !h.stack.is_empty())?;
     let p = h.swing.unwrap_or(0.0);
     let (s, sr) = ((p * PI).sin(), (p.sqrt() * PI).sin());
     let view = hand_space(cam, h, pose);
@@ -1143,9 +1146,7 @@ fn hand_transform(cam: &Camera, h: &Hand, pose: Mat4) -> Option<Mat4> {
         * Mat4::from_rotation_y(deg(-45.0));
     Some(if shows_block(h.stack.item) {
         // block.json: rotated 45 degrees, scale 0.4.
-        arm * Mat4::from_rotation_y(deg(45.0))
-            * Mat4::from_scale(Vec3::splat(0.4))
-            * Mat4::from_translation(Vec3::splat(-0.5))
+        arm * Mat4::from_rotation_y(deg(45.0)) * Mat4::from_scale(Vec3::splat(0.4)) * Mat4::from_translation(Vec3::splat(-0.5))
     } else {
         // generated.json / handheld.json first person: rotation 0 -90 25, translation 1.13 3.2
         // 1.13 (pixels), scale 0.68.
@@ -1187,8 +1188,7 @@ fn hand_boxes(
         * Mat4::from_rotation_x(PI)
         * Mat4::from_translation(Vec3::from_array(arm.pivot) - Vec3::Y * 24.0);
     for c in &arm.cuboids {
-        let m =
-            shoulder * Mat4::from_translation(Vec3::from_array(c.origin)) * Mat4::from_scale(Vec3::from_array(c.size));
+        let m = shoulder * Mat4::from_translation(Vec3::from_array(c.origin)) * Mat4::from_scale(Vec3::from_array(c.size));
         out.push(GpuBox {
             rows: rows(m),
             dims: [c.size[0], c.size[1], c.size[2], 0.0],
@@ -1221,11 +1221,18 @@ fn boxes_shape(
         let l = b.textures.map(|t| textures.texture(t));
         // Faces the block tints take the tint here, not from a tinted copy drawn on top (the
         // untinted faces would show through cutout holes and at the edges).
-        let overlaid = |d: usize| textures.overlays.get(b.textures[d] as usize).is_some_and(|&o| o != 0);
+        let overlaid = |d: usize| {
+            textures
+                .overlays
+                .get(b.textures[d] as usize)
+                .is_some_and(|&o| o != 0)
+        };
         let tinted = if s.tint == 0 {
             0
         } else {
-            (0..6).filter(|&d| s.tint_faces & (1 << d) != 0 && !overlaid(d)).fold(0, |m, d| m | 1 << d)
+            (0..6)
+                .filter(|&d| s.tint_faces & (1 << d) != 0 && !overlaid(d))
+                .fold(0, |m, d| m | 1 << d)
         };
         out.push(GpuBox {
             rows: rows(mb),
@@ -1245,21 +1252,21 @@ fn rows(m: Mat4) -> [[f32; 4]; 3] {
 
 /// The tinted overlays of a block item's textures (grass sides) drawn on top. `m` maps the unit
 /// cube.
-fn tinted_faces(
-    out: &mut Vec<GpuBox>,
-    textures: &GameTextures,
-    m: Mat4,
-    s: &crate::content::StateInfo,
-    faces: &[u32; 6],
-    color: Vec4,
-) {
+fn tinted_faces(out: &mut Vec<GpuBox>, textures: &GameTextures, m: Mat4, s: &crate::content::StateInfo, faces: &[u32; 6], color: Vec4) {
     if s.tint == 0 {
         return;
     }
     let tint = crate::content::item_tint(s.tint);
     let rgb = Vec3::new(((tint >> 16) & 255) as f32, ((tint >> 8) & 255) as f32, (tint & 255) as f32) / 255.0;
     for d in 0..6 {
-        let Some(tex) = textures.overlays.get(faces[d] as usize).filter(|&&o| o != 0).map(|o| o - 1) else { continue };
+        let Some(tex) = textures
+            .overlays
+            .get(faces[d] as usize)
+            .filter(|&&o| o != 0)
+            .map(|o| o - 1)
+        else {
+            continue;
+        };
         let l = textures.texture(tex);
         // A zero-thick box just outside that face.
         let axis = d / 2;
@@ -1280,23 +1287,21 @@ fn tinted_faces(
 
 /// An item model instance: `m` places the model's unit cube.
 fn item_instance(m: Mat4, first: u32, hurt: f32, light: u32) -> GpuBox {
-    GpuBox {
-        rows: rows(m),
-        color: [1.0, 1.0, 1.0, hurt],
-        ids: [0, 0, first, 0],
-        ids2: [0, light, 0, 0],
-        ..Default::default()
-    }
+    GpuBox { rows: rows(m), color: [1.0, 1.0, 1.0, hurt], ids: [0, 0, first, 0], ids2: [0, light, 0, 0], ..Default::default() }
 }
 
 /// Whether the item shows as its block's shape (else as a sprite).
 fn shows_block(item: u32) -> bool {
     let c = content();
-    let reshaped = super::looks::current().item(item).is_some_and(|l| l.model.is_some());
+    let reshaped = super::looks::current()
+        .item(item)
+        .is_some_and(|l| l.model.is_some());
     c.items.get(item as usize).is_some_and(|d| {
         reshaped
             || !d.model.is_empty()
-            || (d.icon == u32::MAX && d.block.is_some_and(|st| c.states[st as usize].item_sprite().is_none()))
+            || (d.icon == u32::MAX
+                && d.block
+                    .is_some_and(|st| c.states[st as usize].item_sprite().is_none()))
     })
 }
 
@@ -1315,7 +1320,11 @@ fn held_transform(arm: Mat4, item: u32) -> Mat4 {
     // block.json, handheld.json and generated.json: rotation, translation, scale.
     let ([rx, ry, rz], move_by, scale) = if shows_block(item) {
         ([75.0, 45.0, 0.0], [0.0, 2.5, 0.0], 0.375)
-    } else if content().items.get(item as usize).is_some_and(|d| d.handheld) {
+    } else if content()
+        .items
+        .get(item as usize)
+        .is_some_and(|d| d.handheld)
+    {
         ([0.0, -90.0, 55.0], [0.0, 4.0, 0.5], 0.85)
     } else {
         ([0.0, 0.0, 0.0], [0.0, 3.0, 1.0], 0.55)

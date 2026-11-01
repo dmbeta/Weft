@@ -14,8 +14,7 @@ use std::marker::PhantomData;
 
 use crate::abi::{self, Slice, Str, particle_flags as pf};
 use crate::{
-    Client, ClientView, Dimension, Music, Particle, Registry, SkyObject, SoundCategory, TextCondition, World, callback,
-    host, qualify,
+    Client, ClientView, Dimension, Music, Particle, Registry, SkyObject, SoundCategory, TextCondition, World, callback, host, qualify,
 };
 
 pub struct ParticleBuilder<'a> {
@@ -311,11 +310,7 @@ impl Registry {
 
     /// `{if:<ns>:<name>}...{/if}` in any text shows its part while `f` says so; asked on the
     /// client every frame such a text is on screen.
-    pub fn text_condition(
-        &mut self,
-        condition: &TextCondition,
-        f: impl Fn(&ClientView) -> bool + Send + Sync + 'static,
-    ) {
+    pub fn text_condition(&mut self, condition: &TextCondition, f: impl Fn(&ClientView) -> bool + Send + Sync + 'static) {
         let cb = callback(move |a: &mut abi::TextConditionArgs| a.result = f(&ClientView::from_raw(a.client)) as u32);
         unsafe { (host().reg_text_condition)(self.raw, Str::new(condition.name()), cb) }
     }
@@ -400,9 +395,7 @@ impl Client {
     /// Turns screen effect `name` (`shaders/post/<name>.wgsl`) on at `strength` (0 turns it off).
     pub fn post_effect(&self, name: &str, strength: f32) -> bool {
         let name = qualify(crate::mod_id(), name);
-        unsafe {
-            (host().client_command)(self.raw(), abi::client_op::POST_EFFECT, Str::new(&name), strength as f64) != 0
-        }
+        unsafe { (host().client_command)(self.raw(), abi::client_op::POST_EFFECT, Str::new(&name), strength as f64) != 0 }
     }
 }
 
@@ -547,7 +540,9 @@ impl World {
 impl Client {
     /// Only this client hears it; `None` = not positioned (UI sounds).
     pub fn play_sound(&self, sound: &crate::Sound, pos: Option<[f64; 3]>, volume: f32) {
-        let p = pos.as_ref().map_or(std::ptr::null(), |p| p as *const [f64; 3]);
+        let p = pos
+            .as_ref()
+            .map_or(std::ptr::null(), |p| p as *const [f64; 3]);
         unsafe { (host().client_play_sound)(self.raw(), sound.id(), p, volume, 0.0) }
     }
 }

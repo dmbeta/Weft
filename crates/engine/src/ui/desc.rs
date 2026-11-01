@@ -100,14 +100,7 @@ impl D {
 
     /// The usual button: at least `width` wide, the label on one line; `act` runs with the whole
     /// client, like a mod's button.
-    pub(crate) fn button(
-        &mut self,
-        key: &str,
-        args: &[Arg],
-        width: f32,
-        grow: bool,
-        act: impl Fn(&mut Running) + 'static,
-    ) {
+    pub(crate) fn button(&mut self, key: &str, args: &[Arg], width: f32, grow: bool, act: impl Fn(&mut Running) + 'static) {
         let on_click = self.keep(move |a: &mut abi::UiArgs| {
             if let Some(r) = unsafe { crate::app::api::run(a.client) } {
                 act(r);
@@ -121,9 +114,7 @@ impl D {
             on_click,
             ..node(k::BUTTON)
         };
-        self.open(&n, |d| {
-            d.text(abi::UiNode { class: Str::new("button"), flags: fl::NO_WRAP, ..node(k::TEXT) }, key, args)
-        });
+        self.open(&n, |d| d.text(abi::UiNode { class: Str::new("button"), flags: fl::NO_WRAP, ..node(k::TEXT) }, key, args));
     }
 
     /// A labeled slider of the number setting `name`, over the range its declaration gives
@@ -132,29 +123,16 @@ impl D {
         let Some(id) = crate::config::by_name(name) else { return };
         let def = &crate::content::content().game.configs[id as usize];
         let (min, range) = (def.min, (def.max - def.min).max(1e-9));
-        let col = abi::UiNode {
-            align: abi::ui_align::STRETCH,
-            gap: 2.0,
-            self_align: abi::ui_align::STRETCH,
-            ..node(k::CONTAINER)
-        };
+        let col = abi::UiNode { align: abi::ui_align::STRETCH, gap: 2.0, self_align: abi::ui_align::STRETCH, ..node(k::CONTAINER) };
         self.open(&col, |d| {
-            d.text_bound(node(k::TEXT), move |_| {
-                (key.to_string(), vec![Arg::Int((crate::config::get(id) * scale).round() as i64)])
-            });
+            d.text_bound(node(k::TEXT), move |_| (key.to_string(), vec![Arg::Int((crate::config::get(id) * scale).round() as i64)]));
             let bind = d.keep(move |a: &mut abi::UiBindArgs| {
                 a.value = ((crate::config::get(id) - min) / range) as f32;
             });
             let on_change = d.keep(move |a: &mut abi::UiChangeArgs| {
                 crate::config::set(id, min + a.value as f64 * range);
             });
-            d.leaf(&abi::UiNode {
-                height: 20.0,
-                self_align: abi::ui_align::STRETCH,
-                bind,
-                on_change,
-                ..node(k::SLIDER)
-            });
+            d.leaf(&abi::UiNode { height: 20.0, self_align: abi::ui_align::STRETCH, bind, on_change, ..node(k::SLIDER) });
         });
     }
 
@@ -189,9 +167,7 @@ fn raw_args(args: &[Arg]) -> (Vec<abi::UiArg>, Vec<String>) {
             Arg::Key(_) => abi::UiArg { kind: abi::ui_arg::KEY, text: Str::new(t), ..abi::UiArg::DEFAULT },
             Arg::Name(_) => abi::UiArg { kind: abi::ui_arg::NAME, text: Str::new(t), ..abi::UiArg::DEFAULT },
             Arg::Int(v) => abi::UiArg { kind: abi::ui_arg::INT, num: *v as f64, ..abi::UiArg::DEFAULT },
-            Arg::Float(v, d) => {
-                abi::UiArg { kind: abi::ui_arg::FLOAT, num: *v, digits: *d as u32, ..abi::UiArg::DEFAULT }
-            }
+            Arg::Float(v, d) => abi::UiArg { kind: abi::ui_arg::FLOAT, num: *v, digits: *d as u32, ..abi::UiArg::DEFAULT },
             Arg::Item(i) => abi::UiArg { kind: abi::ui_arg::ITEM, num: *i as f64, ..abi::UiArg::DEFAULT },
             // Nested messages are for the server; screens pass their parts as arguments.
             Arg::Msg(_) => abi::UiArg::DEFAULT,

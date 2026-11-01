@@ -359,9 +359,7 @@ mod tests {
             ticks: 21,
             text: Msg::new("gizmo.value", vec![Arg::Text("r0".into())]),
         };
-        let Some(ToClient::Gizmos(back)) = decode_client(&encode_client(&ToClient::Gizmos(vec![g.clone()]))) else {
-            panic!("not decoded")
-        };
+        let Some(ToClient::Gizmos(back)) = decode_client(&encode_client(&ToClient::Gizmos(vec![g.clone()]))) else { panic!("not decoded") };
         assert_eq!(back, vec![g]);
     }
 }

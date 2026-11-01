@@ -82,7 +82,10 @@ impl T {
 
     /// The client of the frame being polled.
     pub fn c(&self) -> Client {
-        self.0.borrow().client.expect("testkit: client used outside a frame")
+        self.0
+            .borrow()
+            .client
+            .expect("testkit: client used outside a frame")
     }
 
     pub fn state(&self) -> ClientState {
@@ -139,11 +142,7 @@ impl T {
         let (sp, cp) = (s.pitch as f64).sin_cos();
         let fwd = [-sy * cp, sp, -cy * cp];
         let right = [cy, 0.0, -sy];
-        let up = [
-            right[1] * fwd[2] - right[2] * fwd[1],
-            right[2] * fwd[0] - right[0] * fwd[2],
-            right[0] * fwd[1] - right[1] * fwd[0],
-        ];
+        let up = [right[1] * fwd[2] - right[2] * fwd[1], right[2] * fwd[0] - right[0] * fwd[2], right[0] * fwd[1] - right[1] * fwd[0]];
         let d = [p[0] - eye[0], p[1] - eye[1], p[2] - eye[2]];
         let dot = |a: [f64; 3]| a[0] * d[0] + a[1] * d[1] + a[2] * d[2];
         let z = dot(fwd);
@@ -200,9 +199,7 @@ impl T {
     /// `name` is the top screen and it is laid out and drawn.
     pub fn screen(&self, name: &str) -> Wait<impl FnMut(&T) -> bool + Unpin> {
         let n = name.to_string();
-        self.until(&format!("screen {name}"), DEFAULT_TIMEOUT, move |t| {
-            t.0.borrow().screen == n && t.flag(cf::SCREEN_READY)
-        })
+        self.until(&format!("screen {name}"), DEFAULT_TIMEOUT, move |t| t.0.borrow().screen == n && t.flag(cf::SCREEN_READY))
     }
 
     /// Standing still on the ground for a few frames (camera at rest for screenshots).
@@ -229,7 +226,8 @@ impl T {
     pub async fn world(&self, seed: u64) -> R {
         let name = format!("test-{}", self.name());
         self.c().new_world(&name, seed);
-        self.until("joined", Duration::from_secs(60), |t| t.flag(cf::JOINED)).await?;
+        self.until("joined", Duration::from_secs(60), |t| t.flag(cf::JOINED))
+            .await?;
         // Mobs only where a test puts them, so pictures repeat.
         self.cmd("/rule core:mob_spawning 0").await?;
         self.loaded().await
@@ -273,15 +271,20 @@ impl T {
 
     /// The block's name as the server has it (`base:furnace[facing=north,lit=true]`).
     pub async fn block(&self, pos: [i32; 3]) -> Result<String, String> {
-        self.op(&format!("get {} {} {}", pos[0], pos[1], pos[2])).await
+        self.op(&format!("get {} {} {}", pos[0], pos[1], pos[2]))
+            .await
     }
 
     pub async fn set(&self, pos: [i32; 3], block: &str) -> R {
-        self.op(&format!("set {} {} {} {block}", pos[0], pos[1], pos[2])).await.map(|_| ())
+        self.op(&format!("set {} {} {} {block}", pos[0], pos[1], pos[2]))
+            .await
+            .map(|_| ())
     }
 
     pub async fn fill(&self, a: [i32; 3], b: [i32; 3], block: &str) -> R {
-        self.op(&format!("fill {} {} {} {} {} {} {block}", a[0], a[1], a[2], b[0], b[1], b[2])).await.map(|_| ())
+        self.op(&format!("fill {} {} {} {} {} {} {block}", a[0], a[1], a[2], b[0], b[1], b[2]))
+            .await
+            .map(|_| ())
     }
 
     /// (item name, count, damage) in an inventory slot of `owner` (`me`, `x y z` or `#id`).
@@ -325,7 +328,8 @@ impl T {
         if self.flag(cf::DEBUG) != on {
             self.press("core:debug");
         }
-        self.until("F3 toggled", Duration::from_secs(2), |t| t.flag(cf::DEBUG) == on).await
+        self.until("F3 toggled", Duration::from_secs(2), |t| t.flag(cf::DEBUG) == on)
+            .await
     }
 
     pub fn hold(&self, action: &str, secs: f32) {
@@ -411,8 +415,13 @@ impl T {
 
     /// Compares what the server and the client have: blocks in the box between `a` and `b`.
     pub async fn sync_blocks(&self, a: [i32; 3], b: [i32; 3]) -> R {
-        let server = self.op(&format!("snapshot {} {} {} {} {} {}", a[0], a[1], a[2], b[0], b[1], b[2])).await?;
-        let server: Vec<u32> = server.split_whitespace().filter_map(|s| s.parse().ok()).collect();
+        let server = self
+            .op(&format!("snapshot {} {} {} {} {} {}", a[0], a[1], a[2], b[0], b[1], b[2]))
+            .await?;
+        let server: Vec<u32> = server
+            .split_whitespace()
+            .filter_map(|s| s.parse().ok())
+            .collect();
         let c = self.c();
         let mut i = 0;
         let mut diffs = Vec::new();
@@ -423,9 +432,7 @@ impl T {
                     i += 1;
                     match c.block([x, y, z]) {
                         Some(cl) if cl == s => {}
-                        Some(cl) => {
-                            diffs.push(format!("{x} {y} {z}: server {} client {}", block_name(s), block_name(cl)))
-                        }
+                        Some(cl) => diffs.push(format!("{x} {y} {z}: server {} client {}", block_name(s), block_name(cl))),
                         None => diffs.push(format!("{x} {y} {z}: server {}, client has not loaded it", block_name(s))),
                     }
                 }
@@ -486,8 +493,7 @@ impl Shot {
 
     fn each(&self, x0: f32, y0: f32, x1: f32, y1: f32, mut f: impl FnMut([u8; 3])) {
         let (ax, ay) = (((x0 * self.w as f32) as u32).min(self.w - 1), ((y0 * self.h as f32) as u32).min(self.h - 1));
-        let (bx, by) =
-            (((x1 * self.w as f32) as u32).clamp(ax + 1, self.w), ((y1 * self.h as f32) as u32).clamp(ay + 1, self.h));
+        let (bx, by) = (((x1 * self.w as f32) as u32).clamp(ax + 1, self.w), ((y1 * self.h as f32) as u32).clamp(ay + 1, self.h));
         for y in ay..by {
             for x in ax..bx {
                 let i = ((y * self.w + x) * 4) as usize;
@@ -623,11 +629,14 @@ pub fn start(queue: Vec<TestDef>) {
     weft_sdk::info!(
         "testkit: running {} test(s): {}",
         queue.len(),
-        queue.iter().map(|t| t.name.as_str()).collect::<Vec<_>>().join(", ")
+        queue
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
     );
     RUNNER.with(|r| {
-        *r.borrow_mut() =
-            Some(Runner { queue, current: None, done: Vec::new(), started: Instant::now(), finished: false, warmup: 3 })
+        *r.borrow_mut() = Some(Runner { queue, current: None, done: Vec::new(), started: Instant::now(), finished: false, warmup: 3 })
     });
 }
 
@@ -703,11 +712,8 @@ pub fn frame(c: &Client) {
 fn finish(c: &Client, run: &mut Runner) {
     run.done.retain(|o| o.name != "warm_up" || !o.ok);
     let failed = run.done.iter().filter(|o| !o.ok).count();
-    let mut report = format!(
-        "testkit report: {} passed, {failed} failed, {:.1} s\n",
-        run.done.len() - failed,
-        run.started.elapsed().as_secs_f32()
-    );
+    let mut report =
+        format!("testkit report: {} passed, {failed} failed, {:.1} s\n", run.done.len() - failed, run.started.elapsed().as_secs_f32());
     for o in &run.done {
         report.push_str(&format!("\n{} {} ({:.1} s)\n", if o.ok { "PASS" } else { "FAIL" }, o.name, o.secs));
         for l in &o.lines {

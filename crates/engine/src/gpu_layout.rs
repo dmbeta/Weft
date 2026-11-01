@@ -257,12 +257,7 @@ pub fn face_record(pos: [i32; 3], dir: u32, ao: u32, tint: u32, tex: u32, biome:
         | dir << face::DIR_SHIFT
         | ao << face::AO_SHIFT
         | tint << face::TINT_SHIFT;
-    [
-        w0,
-        tex | biome << face::BIOME_SHIFT,
-        light[0] | light[1] << face::CORNER_SHIFT,
-        light[2] | light[3] << face::CORNER_SHIFT,
-    ]
+    [w0, tex | biome << face::BIOME_SHIFT, light[0] | light[1] << face::CORNER_SHIFT, light[2] | light[3] << face::CORNER_SHIFT]
 }
 
 /// The direction of a face record.
@@ -274,7 +269,10 @@ pub fn face_dir(f: &[u32; 4]) -> usize {
 /// Corner light of a face or quad from a cell's light (8 bits per channel), 0..15 each.
 #[inline]
 pub fn corner_light(channels: [u32; 4]) -> u32 {
-    channels.iter().enumerate().fold(0, |w, (i, &c)| w | c.min(face::LIGHT_MASK) << (i * 4))
+    channels
+        .iter()
+        .enumerate()
+        .fold(0, |w, (i, &c)| w | c.min(face::LIGHT_MASK) << (i * 4))
 }
 
 /// A quad corner (`quad`), in blocks from the cube's corner.
@@ -287,11 +285,7 @@ pub fn quad_pos(p: [f32; 3]) -> u32 {
 /// A quad's uv word: `uv` (u0, v0, u1, v1) in 1/16, tint kind and flags.
 #[inline]
 pub fn quad_uv(uv: [u32; 4], tint: u32) -> u32 {
-    uv[0]
-        | uv[1] << quad::UV_BITS
-        | uv[2] << (2 * quad::UV_BITS)
-        | uv[3] << (3 * quad::UV_BITS)
-        | tint << quad::TINT_SHIFT
+    uv[0] | uv[1] << quad::UV_BITS | uv[2] << (2 * quad::UV_BITS) | uv[3] << (3 * quad::UV_BITS) | tint << quad::TINT_SHIFT
 }
 
 /// A distant terrain record (`lod_face`): the `dir` face of a box at `pos` in the tile, `size`
@@ -300,10 +294,7 @@ pub fn quad_uv(uv: [u32; 4], tint: u32) -> u32 {
 pub fn lod_record(dir: u32, pos: [i32; 3], size: [i32; 3], tex: u32, tint: u32, biome: u32) -> [u32; 4] {
     let h = lod_face::HALF_SHIFT;
     [
-        pos[0] as u32
-            | (pos[2] as u32) << lod_face::Z_SHIFT
-            | dir << lod_face::DIR_SHIFT
-            | tint << lod_face::TINT_SHIFT,
+        pos[0] as u32 | (pos[2] as u32) << lod_face::Z_SHIFT | dir << lod_face::DIR_SHIFT | tint << lod_face::TINT_SHIFT,
         tex | biome << face::BIOME_SHIFT,
         (pos[1] as u32 & lod_face::HALF_MASK) | (size[1] as u32) << h,
         size[0] as u32 | (size[2] as u32) << h,
@@ -851,10 +842,7 @@ mod tests {
         assert_eq!(f[1] & face::TEX_MASK, 1234);
         assert_eq!(corner_light([200, 3, 15, 16]), 15 | 3 << 4 | 15 << 8 | 15 << 12);
         let q = quad_pos([-2.0, 0.5, 61.9375]);
-        assert_eq!(
-            [q & quad::POS_MASK, (q >> quad::POS_BITS) & quad::POS_MASK, q >> (2 * quad::POS_BITS)],
-            [0, 40, 1023]
-        );
+        assert_eq!([q & quad::POS_MASK, (q >> quad::POS_BITS) & quad::POS_MASK, q >> (2 * quad::POS_BITS)], [0, 40, 1023]);
         let l = lod_record(4, [2047, -300, 5], [16, 7, 32], 9, 3, 2);
         assert_eq!(l[0] & lod_face::POS_MASK, 2047);
         assert_eq!((l[0] >> lod_face::Z_SHIFT) & lod_face::POS_MASK, 5);
@@ -896,31 +884,17 @@ mod tests {
         let common = include_str!("../assets/shaders/common.wgsl");
         let check = |name: &str, src: &str, hooks: &[(&Hook, &[(String, String)])]| {
             let base = format!("{}{src}", prelude(name, common));
-            compose(name, &base, hooks).map(|_| ()).unwrap_or_else(|e| panic!("{e}"));
+            compose(name, &base, hooks)
+                .map(|_| ())
+                .unwrap_or_else(|e| panic!("{e}"));
         };
         check("world.wgsl", include_str!("../assets/shaders/world.wgsl"), &[(&crate::client::world_render::HOOK, &[])]);
-        check(
-            "entity.wgsl",
-            include_str!("../assets/shaders/entity.wgsl"),
-            &[(&crate::client::entity_render::HOOK, &[])],
-        );
-        check(
-            "model.wgsl",
-            include_str!("../assets/shaders/model.wgsl"),
-            &[(&crate::client::entity_render::HOOK, &[])],
-        );
-        check(
-            "particle.wgsl",
-            include_str!("../assets/shaders/particle.wgsl"),
-            &[(&crate::client::particles::HOOK, &[])],
-        );
+        check("entity.wgsl", include_str!("../assets/shaders/entity.wgsl"), &[(&crate::client::entity_render::HOOK, &[])]);
+        check("model.wgsl", include_str!("../assets/shaders/model.wgsl"), &[(&crate::client::entity_render::HOOK, &[])]);
+        check("particle.wgsl", include_str!("../assets/shaders/particle.wgsl"), &[(&crate::client::particles::HOOK, &[])]);
         check("weather.wgsl", include_str!("../assets/shaders/weather.wgsl"), &[]);
         check("sky.wgsl", include_str!("../assets/shaders/sky.wgsl"), &[(&crate::client::sky::HOOK, &[])]);
-        check(
-            "ui.wgsl",
-            include_str!("../assets/shaders/ui.wgsl"),
-            &[(&crate::ui::render::FX, &[]), (&crate::ui::render::GUI, &[])],
-        );
+        check("ui.wgsl", include_str!("../assets/shaders/ui.wgsl"), &[(&crate::ui::render::FX, &[]), (&crate::ui::render::GUI, &[])]);
         check("post.wgsl", include_str!("../assets/shaders/post.wgsl"), &[(&crate::post::HOOK, &[])]);
         let sim = format!("{}{}", particle_sim_prelude(8), include_str!("../assets/shaders/particle_sim.wgsl"));
         weft_render::Shader::from_wgsl("particle_sim.wgsl", &sim).unwrap_or_else(|e| panic!("{e}"));
@@ -949,7 +923,11 @@ mod tests {
             ("Pass", size_of::<Pass>()),
         ];
         for (name, rust) in sizes {
-            let (h, _) = module.types.iter().find(|(_, t)| t.name.as_deref() == Some(name)).expect(name);
+            let (h, _) = module
+                .types
+                .iter()
+                .find(|(_, t)| t.name.as_deref() == Some(name))
+                .expect(name);
             assert_eq!(layouter[h].size as usize, rust, "{name}");
         }
     }

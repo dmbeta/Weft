@@ -8,16 +8,8 @@ use weft_sdk::*;
 
 /// How many of each event arrived since `events reset`, in `EVENT_NAMES` order.
 static COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
-const EVENT_NAMES: [&str; 8] = [
-    "block_broken",
-    "block_placed",
-    "item_picked_up",
-    "entity_died",
-    "entity_hurt",
-    "player_joined",
-    "item_used",
-    "smelted",
-];
+const EVENT_NAMES: [&str; 8] =
+    ["block_broken", "block_placed", "item_picked_up", "entity_died", "entity_hurt", "player_joined", "item_used", "smelted"];
 
 use base_api::SMELTED;
 static GOLD: Block = Block::named("base:gold_block");
@@ -60,7 +52,10 @@ pub fn register(r: &mut Registry) {
     static VARIED_PLANT: Block = Block::named("varied_plant");
     static VARIED_BOX: Block = Block::named("varied_box");
     r.block(&VARIED_PLANT).texture("varied").plant().no_item();
-    r.block(&VARIED_BOX).texture("varied").model_box([2.0, 0.0, 2.0], [14.0, 16.0, 14.0]).no_item();
+    r.block(&VARIED_BOX)
+        .texture("varied")
+        .model_box([2.0, 0.0, 2.0], [14.0, 16.0, 14.0])
+        .no_item();
     r.entity_component(&MARK, 0, component_flags::SYNC_WATCHERS);
     r.attach(&PIG, &MARK);
     r.config(&COUNT_MARKS).bool(false).world();
@@ -81,23 +76,21 @@ pub fn register(r: &mut Registry) {
     r.config(&PEACE).bool(false).world();
     r.intercept(&question::ATTACK, |q| {
         let w = q.world();
-        let mob = w.entity(q.entity()).is_some_and(|e| !w.each_player().any(|p| p == q.entity()) && e.health > 0.0);
+        let mob = w
+            .entity(q.entity())
+            .is_some_and(|e| !w.each_player().any(|p| p == q.entity()) && e.health > 0.0);
         if mob && PEACE.get() { Verdict::Deny } else { Verdict::Abstain }
     });
     r.config(&NO_HURT).bool(false).world();
     r.config(&NO_USE).bool(false).world();
     let player = |w: &World, id: u64| w.each_player().any(|p| p == id);
-    r.intercept(&question::HURT, move |q| {
-        if player(&q.world(), q.entity()) && NO_HURT.get() { Verdict::Deny } else { Verdict::Abstain }
-    });
+    r.intercept(&question::HURT, move |q| if player(&q.world(), q.entity()) && NO_HURT.get() { Verdict::Deny } else { Verdict::Abstain });
     r.intercept(&question::USE_ITEM, |_| if NO_USE.get() { Verdict::Deny } else { Verdict::Abstain });
     r.on(&RANG, |b| {
         RINGS.fetch_add(b.len() as u32, Ordering::Relaxed);
     });
     r.config(&HALF_DAMAGE).bool(false).world();
-    r.intercept(&question::BREAK_BLOCK, |q| {
-        if GOLD.is(q.state()) && PROTECT_GOLD.get() { Verdict::Deny } else { Verdict::Abstain }
-    });
+    r.intercept(&question::BREAK_BLOCK, |q| if GOLD.is(q.state()) && PROTECT_GOLD.get() { Verdict::Deny } else { Verdict::Abstain });
     r.modify(&chain::DAMAGE, stage::FINAL, |m| {
         if HALF_DAMAGE.get() {
             m.value *= 0.5;
@@ -127,9 +120,7 @@ pub fn register(r: &mut Registry) {
         }
         driven.retain(|d| d.2 > 0);
     });
-    r.intercept(&question::BREAK_BLOCK, |q| {
-        if *PROTECTED.lock().unwrap() == Some(q.pos()) { Verdict::Deny } else { Verdict::Abstain }
-    });
+    r.intercept(&question::BREAK_BLOCK, |q| if *PROTECTED.lock().unwrap() == Some(q.pos()) { Verdict::Deny } else { Verdict::Abstain });
     register_ops(r);
 }
 
@@ -172,7 +163,9 @@ fn pos(cmd: &Command, name: &str) -> Result<[i32; 3], String> {
 }
 
 fn int<T: TryFrom<i64>>(cmd: &Command, name: &str) -> Result<T, String> {
-    cmd.int(name).and_then(|v| T::try_from(v).ok()).ok_or_else(|| format!("missing {name}"))
+    cmd.int(name)
+        .and_then(|v| T::try_from(v).ok())
+        .ok_or_else(|| format!("missing {name}"))
 }
 
 fn word<'a>(cmd: &'a Command, name: &str) -> Result<&'a str, String> {
@@ -212,7 +205,10 @@ fn run(w: &World, cmd: &Command) -> Result<String, String> {
     let player = cmd.player();
     let me = w.entity(player).map(|e| e.block_pos()).unwrap_or_default();
     // The operation is the literal that came first; a parameter may share its name (`slot`).
-    let op = OPS.iter().find(|o| cmd.text(o.0) == Some(o.0)).ok_or("no operation")?;
+    let op = OPS
+        .iter()
+        .find(|o| cmd.text(o.0) == Some(o.0))
+        .ok_or("no operation")?;
     (op.2)(w, cmd, player, me)
 }
 
@@ -236,8 +232,7 @@ const OPS: &[(&str, &str, Run)] = &[
     ("fill", "<from:pos> <to:pos> <block:block>", |w, cmd, _, _| {
         let (p, q) = (pos(cmd, "from")?, pos(cmd, "to")?);
         let s = id(cmd, "block")?;
-        let (lo, hi) =
-            ([p[0].min(q[0]), p[1].min(q[1]), p[2].min(q[2])], [p[0].max(q[0]), p[1].max(q[1]), p[2].max(q[2])]);
+        let (lo, hi) = ([p[0].min(q[0]), p[1].min(q[1]), p[2].min(q[2])], [p[0].max(q[0]), p[1].max(q[1]), p[2].max(q[2])]);
         let volume = (0..3).map(|i| (hi[i] - lo[i] + 1) as i64).product::<i64>();
         if volume > 1 << 18 {
             return Err(format!("fill of {volume} blocks is too big"));
@@ -312,12 +307,15 @@ const OPS: &[(&str, &str, Run)] = &[
     ("slot", "@owner <index:int>", |w, cmd, _, _| Ok(stack_text(w.inventory(owner(w, cmd)?).get(int(cmd, "index")?)))),
     ("put", "@owner <index:int> <item:item> [count:int]", |w, cmd, _, _| {
         let o = owner(w, cmd)?;
-        w.inventory(o).set(int(cmd, "index")?, ItemStack::new(id(cmd, "item")?, int(cmd, "count").unwrap_or(1)));
+        w.inventory(o)
+            .set(int(cmd, "index")?, ItemStack::new(id(cmd, "item")?, int(cmd, "count").unwrap_or(1)));
         Ok(String::new())
     }),
     ("give", "<item:item> [count:int]", |w, cmd, player, _| {
         let count: u32 = int(cmd, "count").unwrap_or(1);
-        let left = w.inventory(player).insert(ItemStack::new(id(cmd, "item")?, count));
+        let left = w
+            .inventory(player)
+            .insert(ItemStack::new(id(cmd, "item")?, count));
         Ok((count - left.count).to_string())
     }),
     ("insert", "<pos:pos> <item:item> [count:int]", |w, cmd, _, _| {
@@ -327,7 +325,9 @@ const OPS: &[(&str, &str, Run)] = &[
             id => id,
         };
         let count: u32 = int(cmd, "count").unwrap_or(1);
-        let left = w.inventory(o).insert(ItemStack::new(id(cmd, "item")?, count));
+        let left = w
+            .inventory(o)
+            .insert(ItemStack::new(id(cmd, "item")?, count));
         Ok((count - left.count).to_string())
     }),
     ("inv", "@owner", |w, cmd, _, _| {
@@ -341,7 +341,8 @@ const OPS: &[(&str, &str, Run)] = &[
     }),
     ("spawn", "<kind:entity> <pos:pos>", |w, cmd, _, _| {
         let p = pos(cmd, "pos")?;
-        Ok(w.spawn_kind(id(cmd, "kind")?, [p[0] as f64 + 0.5, p[1] as f64, p[2] as f64 + 0.5]).to_string())
+        Ok(w.spawn_kind(id(cmd, "kind")?, [p[0] as f64 + 0.5, p[1] as f64, p[2] as f64 + 0.5])
+            .to_string())
     }),
     ("entity", "@entity", |w, cmd, _, _| {
         let e = w.entity(owner(w, cmd)?).ok_or("no such entity")?;
@@ -358,7 +359,10 @@ const OPS: &[(&str, &str, Run)] = &[
         let parts: Vec<String> = ids
             .iter()
             .filter(|&&id| id != player)
-            .filter_map(|&id| w.entity(id).map(|e| format!("{id}:{}", name_of(ek::ENTITY, e.kind))))
+            .filter_map(|&id| {
+                w.entity(id)
+                    .map(|e| format!("{id}:{}", name_of(ek::ENTITY, e.kind)))
+            })
             .collect();
         Ok(parts.join(" "))
     }),
@@ -391,18 +395,14 @@ const OPS: &[(&str, &str, Run)] = &[
         // `n` dropped stacks of a few kinds (blocks and sprites) in a grid north of the
         // player, 1.1 apart so they do not merge.
         let n: u32 = int(cmd, "n")?;
-        let kinds: Vec<u32> =
-            ["base:dirt", "base:coal", "base:iron_pickaxe", "base:dandelion", "base:stick", "base:torch"]
-                .iter()
-                .filter_map(|k| Item::lookup(k))
-                .collect();
+        let kinds: Vec<u32> = ["base:dirt", "base:coal", "base:iron_pickaxe", "base:dandelion", "base:stick", "base:torch"]
+            .iter()
+            .filter_map(|k| Item::lookup(k))
+            .collect();
         let side = (n as f64).sqrt().ceil() as u32;
         for i in 0..n {
             let (x, z) = ((i % side) as f64 * 1.1 - side as f64 * 0.55, -3.0 - (i / side) as f64 * 1.1);
-            w.spawn_item(
-                [me[0] as f64 + x, me[1] as f64 + 0.5, me[2] as f64 + z],
-                ItemStack::new(kinds[i as usize % kinds.len()], 1),
-            );
+            w.spawn_item([me[0] as f64 + x, me[1] as f64 + 0.5, me[2] as f64 + z], ItemStack::new(kinds[i as usize % kinds.len()], 1));
         }
         Ok(format!("{n} drops"))
     }),
@@ -427,7 +427,11 @@ const OPS: &[(&str, &str, Run)] = &[
         let names: Vec<&str> = word(cmd, "blocks")?.split(',').collect();
         let ids: Vec<u32> = names
             .iter()
-            .map(|n| Block::lookup(n).map(block_of).ok_or(format!("no block {n}")))
+            .map(|n| {
+                Block::lookup(n)
+                    .map(block_of)
+                    .ok_or(format!("no block {n}"))
+            })
             .collect::<Result<_, _>>()?;
         let mut counts = vec![0u32; ids.len()];
         for y in me[1] - r..=me[1] + r {
@@ -440,7 +444,12 @@ const OPS: &[(&str, &str, Run)] = &[
                 }
             }
         }
-        Ok(names.iter().zip(&counts).map(|(n, k)| format!("{n}={k}")).collect::<Vec<_>>().join(" "))
+        Ok(names
+            .iter()
+            .zip(&counts)
+            .map(|(n, k)| format!("{n}={k}"))
+            .collect::<Vec<_>>()
+            .join(" "))
     }),
     ("cube_top_plants", "<r:int>", |w, cmd, _, me| {
         // Land columns within `r` of the player, split by whether the ground is the top layer
@@ -448,7 +457,11 @@ const OPS: &[(&str, &str, Run)] = &[
         let r: i32 = int(cmd, "r")?;
         let plants: Vec<u32> = ["base:tall_grass", "base:dandelion", "base:rose"]
             .iter()
-            .map(|n| Block::lookup(n).map(block_of).ok_or(format!("no block {n}")))
+            .map(|n| {
+                Block::lookup(n)
+                    .map(block_of)
+                    .ok_or(format!("no block {n}"))
+            })
             .collect::<Result<_, _>>()?;
         let mut n = [0u32; 4];
         for z in me[2] - r..=me[2] + r {
@@ -494,9 +507,8 @@ const OPS: &[(&str, &str, Run)] = &[
     }),
     ("rings", "", |_, _, _, _| Ok(RINGS.load(Ordering::Relaxed).to_string())),
     ("look", "", |w, _, player, _| {
-        Ok(w.look_at(player, 5.0, false).map_or("none".into(), |l| {
-            format!("{} {} {} {} {}", l.frame, l.pos[0], l.pos[1], l.pos[2], block_name(l.state))
-        }))
+        Ok(w.look_at(player, 5.0, false)
+            .map_or("none".into(), |l| format!("{} {} {} {} {}", l.frame, l.pos[0], l.pos[1], l.pos[2], block_name(l.state))))
     }),
     ("place", "<template:word> <pos:pos>", |w, cmd, _, _| {
         Ok((w.place(&Template::generated(word(cmd, "template")?.to_string()), pos(cmd, "pos")?) as u32).to_string())
@@ -514,19 +526,26 @@ const OPS: &[(&str, &str, Run)] = &[
     }),
     ("drive", "<id:int> <dx:float> <dz:float> <ticks:int>", |_, cmd, _, _| {
         let dir = [cmd.float("dx").unwrap_or(0.0) as f32, cmd.float("dz").unwrap_or(0.0) as f32];
-        DRIVEN.lock().unwrap().push((int(cmd, "id")?, dir, int(cmd, "ticks")?));
+        DRIVEN
+            .lock()
+            .unwrap()
+            .push((int(cmd, "id")?, dir, int(cmd, "ticks")?));
         Ok(String::new())
     }),
     ("health", "[id:int]", |w, cmd, player, _| {
         let id = cmd.int("id").map_or(player, |i| i as u64);
-        Ok(w.entity(id).map_or("none".into(), |e| format!("{}", e.health)))
+        Ok(w.entity(id)
+            .map_or("none".into(), |e| format!("{}", e.health)))
     }),
     ("time", "<ticks:int>", |w, cmd, _, _| {
         w.set_day_time(int(cmd, "ticks")?);
         Ok(String::new())
     }),
     ("mode", "survival | creative | spectator", |w, cmd, player, _| {
-        let m = ["survival", "creative", "spectator"].iter().position(|m| cmd.has(m)).ok_or("no game mode")?;
+        let m = ["survival", "creative", "spectator"]
+            .iter()
+            .position(|m| cmd.has(m))
+            .ok_or("no game mode")?;
         w.set_game_mode(player, m as u32);
         Ok(String::new())
     }),
@@ -560,7 +579,8 @@ const OPS: &[(&str, &str, Run)] = &[
         Ok(String::new())
     }),
     ("mark", "<id:int> <value:int>", |w, cmd, _, _| {
-        *w.component_mut(int(cmd, "id")?, &MARK).ok_or("no mark component")? = int(cmd, "value")?;
+        *w.component_mut(int(cmd, "id")?, &MARK)
+            .ok_or("no mark component")? = int(cmd, "value")?;
         Ok(String::new())
     }),
     ("secret", "@owner <index:int> [value:int]", |w, cmd, _, _| {
@@ -572,7 +592,9 @@ const OPS: &[(&str, &str, Run)] = &[
                 inv.set(slot, s.with(&SECRET, v as u32));
                 Ok(String::new())
             }
-            None => Ok(SECRET.stack_only(&s).map_or("none".into(), |v| v.to_string())),
+            None => Ok(SECRET
+                .stack_only(&s)
+                .map_or("none".into(), |v| v.to_string())),
         }
     }),
     ("events", " | reset", |_, cmd, _, _| {
@@ -626,10 +648,16 @@ const OPS: &[(&str, &str, Run)] = &[
                 *totals.entry(item_name(s.item).to_string()).or_default() += s.count;
             }
         }
-        Ok(totals.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join(" "))
+        Ok(totals
+            .iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect::<Vec<_>>()
+            .join(" "))
     }),
     ("break", "<pos:pos> [tool:item]", |w, cmd, player, _| {
-        let tool = cmd.id("tool").map_or(ItemStack::EMPTY, |t| ItemStack::new(t, 1));
+        let tool = cmd
+            .id("tool")
+            .map_or(ItemStack::EMPTY, |t| ItemStack::new(t, 1));
         Ok((w.break_block(pos(cmd, "pos")?, tool, player, true) as u32).to_string())
     }),
     ("damage", "<amount:float> [cause:int]", |w, cmd, player, _| {
@@ -645,11 +673,13 @@ const OPS: &[(&str, &str, Run)] = &[
     }),
     ("near_bodies", "<pos:pos> <r:float>", |w, cmd, _, _| {
         let p = pos(cmd, "pos")?;
-        let ids =
-            w.near_bodies([p[0] as f64 + 0.5, p[1] as f64, p[2] as f64 + 0.5], cmd.float("r").ok_or("missing r")?);
+        let ids = w.near_bodies([p[0] as f64 + 0.5, p[1] as f64, p[2] as f64 + 0.5], cmd.float("r").ok_or("missing r")?);
         Ok(ids
             .iter()
-            .filter_map(|&id| w.entity(id).map(|e| name_of(ek::ENTITY, e.kind).to_string()))
+            .filter_map(|&id| {
+                w.entity(id)
+                    .map(|e| name_of(ek::ENTITY, e.kind).to_string())
+            })
             .collect::<Vec<_>>()
             .join(" "))
     }),

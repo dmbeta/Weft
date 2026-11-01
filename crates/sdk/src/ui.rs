@@ -65,7 +65,9 @@ impl ClientView {
         if unsafe { (host().player_group)(Str::new(name), &mut out) } == 0 {
             return Vec::new();
         }
-        (out[0]..out[0] + out[1]).map(|i| self.inventory_slot(i)).collect()
+        (out[0]..out[0] + out[1])
+            .map(|i| self.inventory_slot(i))
+            .collect()
     }
     /// The local player is in creative mode.
     pub fn creative(&self) -> bool {
@@ -111,9 +113,7 @@ pub(crate) fn raw_args<'a>(args: &'a [Arg<'a>]) -> Vec<abi::UiArg> {
             Arg::Text(s) => abi::UiArg { kind: abi::ui_arg::TEXT, text: Str::new(s), ..abi::UiArg::DEFAULT },
             Arg::Key(s) => abi::UiArg { kind: abi::ui_arg::KEY, text: Str::new(s), ..abi::UiArg::DEFAULT },
             Arg::Int(v) => abi::UiArg { kind: abi::ui_arg::INT, num: *v as f64, ..abi::UiArg::DEFAULT },
-            Arg::Float(v, digits) => {
-                abi::UiArg { kind: abi::ui_arg::FLOAT, num: *v, digits: *digits, ..abi::UiArg::DEFAULT }
-            }
+            Arg::Float(v, digits) => abi::UiArg { kind: abi::ui_arg::FLOAT, num: *v, digits: *digits, ..abi::UiArg::DEFAULT },
             Arg::Item(v) => abi::UiArg { kind: abi::ui_arg::ITEM, num: *v as f64, ..abi::UiArg::DEFAULT },
             Arg::Name(s) => abi::UiArg { kind: abi::ui_arg::NAME, text: Str::new(s), ..abi::UiArg::DEFAULT },
         })
@@ -547,13 +547,7 @@ impl Ui {
     }
 
     /// Like `progress_bind`, filling in direction `dir` (`abi::ui_dir`).
-    pub fn progress_bind_dir(
-        &mut self,
-        class: &str,
-        s: S,
-        dir: u32,
-        f: impl Fn(&ClientView) -> f32 + Send + Sync + 'static,
-    ) {
+    pub fn progress_bind_dir(&mut self, class: &str, s: S, dir: u32, f: impl Fn(&ClientView) -> f32 + Send + Sync + 'static) {
         let mut n = node(k::PROGRESS, s);
         n.class = Str::new(class);
         n.bind = bind(f);
@@ -581,13 +575,7 @@ impl Ui {
     }
 
     /// Like `icons`, filling from the right (hunger).
-    pub fn icons_dir(
-        &mut self,
-        class: &str,
-        count: u32,
-        dir: u32,
-        f: impl Fn(&ClientView) -> f32 + Send + Sync + 'static,
-    ) {
+    pub fn icons_dir(&mut self, class: &str, count: u32, dir: u32, f: impl Fn(&ClientView) -> f32 + Send + Sync + 'static) {
         let mut n = node(k::ICONS, S::default());
         n.class = Str::new(class);
         n.count = count;
@@ -637,19 +625,11 @@ impl Ui {
 
     /// A one-line text field starting with `value` (at most `max` characters, 0 for any);
     /// `on_change` gets the text after every edit.
-    pub fn input(
-        &mut self,
-        value: &str,
-        max: u32,
-        s: S,
-        on_change: impl Fn(&ClientView, &str) + Send + Sync + 'static,
-    ) {
+    pub fn input(&mut self, value: &str, max: u32, s: S, on_change: impl Fn(&ClientView, &str) + Send + Sync + 'static) {
         let mut n = node(k::INPUT, s);
         n.text = Str::new(value);
         n.count = max;
-        n.on_change = callback(move |a: &mut abi::UiChangeArgs| {
-            on_change(&ClientView { raw: a.client }, unsafe { a.text.as_str() })
-        });
+        n.on_change = callback(move |a: &mut abi::UiChangeArgs| on_change(&ClientView { raw: a.client }, unsafe { a.text.as_str() }));
         self.leaf(n)
     }
 

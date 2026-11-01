@@ -83,9 +83,7 @@ impl Body<'_> {
         }
         match self.blocks {
             None => f(self.aabb),
-            Some((blocks, origin)) => {
-                each_solid(c, &|p| Some(blocks.block(p)), area.shifted(-origin), |b| f(b.shifted(origin)))
-            }
+            Some((blocks, origin)) => each_solid(c, &|p| Some(blocks.block(p)), area.shifted(-origin), |b| f(b.shifted(origin))),
         }
     }
 
@@ -151,7 +149,10 @@ pub fn body_below(c: &Content, pos: DVec3, half_width: f64, bodies: &[Body<'_>],
 
 /// The body whose top a box with feet at `pos` rests on.
 pub fn standing_on(c: &Content, pos: DVec3, half_width: f64, bodies: &[Body<'_>], skip: u64) -> Option<u64> {
-    bodies.iter().find(|b| b.id != skip && b.top_below(c, pos, half_width, 0.0).is_some()).map(|b| b.id)
+    bodies
+        .iter()
+        .find(|b| b.id != skip && b.top_below(c, pos, half_width, 0.0).is_some())
+        .map(|b| b.id)
 }
 
 /// How far bodies that moved this step and overlap a box push it out of them, along each body's
@@ -159,18 +160,13 @@ pub fn standing_on(c: &Content, pos: DVec3, half_width: f64, bodies: &[Body<'_>]
 /// (like vanilla's shulker boxes): a body that showed up around a rider, or a rider put on a
 /// deck the client draws ahead of the server, must not stay stuck in it. The body it rides and
 /// `skip` (itself) do not push.
-pub fn push(
-    c: &Content,
-    pos: DVec3,
-    half_width: f64,
-    height: f64,
-    bodies: &[Body<'_>],
-    skip: u64,
-    support: Option<u64>,
-) -> (DVec3, bool) {
+pub fn push(c: &Content, pos: DVec3, half_width: f64, height: f64, bodies: &[Body<'_>], skip: u64, support: Option<u64>) -> (DVec3, bool) {
     let me = Aabb::around(pos, half_width, height);
     let (mut shift, mut crushes) = (DVec3::ZERO, false);
-    for b in bodies.iter().filter(|b| b.id != skip && Some(b.id) != support && b.delta != DVec3::ZERO) {
+    for b in bodies
+        .iter()
+        .filter(|b| b.id != skip && Some(b.id) != support && b.delta != DVec3::ZERO)
+    {
         let d = b.delta.abs();
         let axis = if d.y >= d.x && d.y >= d.z {
             1
@@ -312,8 +308,9 @@ pub fn move_box_with(
                 continue;
             }
             for s in &solids {
-                let overlap =
-                    (0..3).filter(|&a| a != axis).all(|a| b.min[a] < s.max[a] - 1e-7 && b.max[a] > s.min[a] + 1e-7);
+                let overlap = (0..3)
+                    .filter(|&a| a != axis)
+                    .all(|a| b.min[a] < s.max[a] - 1e-7 && b.max[a] > s.min[a] + 1e-7);
                 if !overlap {
                     continue;
                 }
@@ -413,14 +410,7 @@ pub fn ray_aabb(o: DVec3, d: DVec3, b: &Aabb, max: f64) -> Option<f64> {
 /// Amanatides-Woo traversal. Blocks are hit where the ray crosses their selection boxes; blocks
 /// the ray starts inside are skipped.
 /// First targetable block along the ray; with `liquids` liquids stop it too.
-pub fn raycast(
-    c: &Content,
-    block: &impl Fn(IVec3) -> Option<u32>,
-    origin: DVec3,
-    dir: DVec3,
-    max: f64,
-    liquids: bool,
-) -> Option<Hit> {
+pub fn raycast(c: &Content, block: &impl Fn(IVec3) -> Option<u32>, origin: DVec3, dir: DVec3, max: f64, liquids: bool) -> Option<Hit> {
     let dir = dir.normalize();
     let mut p = origin.floor().as_ivec3();
     let step = dir.signum().as_ivec3();
@@ -436,8 +426,11 @@ pub fn raycast(
             let s = &c.states[state as usize];
             if s.flags & bf::NOT_TARGETABLE == 0 || (liquids && s.liquid.is_some()) {
                 let local = origin - p.as_dvec3();
-                let best =
-                    s.selection.iter().filter_map(|b| ray_box(local, dir, b, max)).min_by(|a, b| a.0.total_cmp(&b.0));
+                let best = s
+                    .selection
+                    .iter()
+                    .filter_map(|b| ray_box(local, dir, b, max))
+                    .min_by(|a, b| a.0.total_cmp(&b.0));
                 if let Some((dist, face)) = best {
                     return Some(Hit { frame: 0, block: p, face, state, dist });
                 }
@@ -561,10 +554,8 @@ pub fn walk(
     let flags = |q: IVec3| block(q).map_or(0, |s| c.states[s as usize].flags);
     let liquid = in_liquid(c, block, *pos, 0.0) || in_liquid(c, block, *pos, (f.height * 0.5).min(1.0));
     let drag = block(feet).map_or(1.0, |s| c.states[s as usize].drag as f64);
-    let slip_at = |y: f64| {
-        block(IVec3::new(feet.x, (y - 0.5).floor() as i32, feet.z))
-            .map_or(0.6, |s| c.states[s as usize].friction as f64)
-    };
+    let slip_at =
+        |y: f64| block(IVec3::new(feet.x, (y - 0.5).floor() as i32, feet.z)).map_or(0.6, |s| c.states[s as usize].friction as f64);
     let accelerate = |vel: &mut DVec3, k: f64| {
         let len2 = ctl.wish.length_squared();
         if len2 > 1e-7 {
@@ -622,8 +613,7 @@ pub fn walk(
         }
     }
     let before = *pos;
-    let r =
-        move_box_with(c, block, bodies, skip, *pos, f.half_width, f.height, *vel, if on_ground { f.step } else { 0.0 });
+    let r = move_box_with(c, block, bodies, skip, *pos, f.half_width, f.height, *vel, if on_ground { f.step } else { 0.0 });
     *pos = r.pos;
     for i in 0..3 {
         if r.hit[i] {

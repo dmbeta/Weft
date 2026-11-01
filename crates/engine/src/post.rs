@@ -33,16 +33,16 @@ const MAX_PASSES: usize = 16;
 
 impl Post {
     pub fn new(gpu: &mut dyn Backend, assets: &Assets) -> Post {
-        let mut p =
-            Post { pipeline: None, slots: Slots::default(), active: Vec::new(), targets: None, params: Vec::new() };
+        let mut p = Post { pipeline: None, slots: Slots::default(), active: Vec::new(), targets: None, params: Vec::new() };
         p.reload(gpu, assets);
         p
     }
 
     pub fn reload(&mut self, gpu: &mut dyn Backend, assets: &Assets) {
         let snippets = crate::shaders::snippets(assets, &HOOK);
-        let made = crate::packs::compose(assets, "post.wgsl", &[(&HOOK, &snippets)]).map_err(|e| e.0).and_then(
-            |(s, mut slots)| {
+        let made = crate::packs::compose(assets, "post.wgsl", &[(&HOOK, &snippets)])
+            .map_err(|e| e.0)
+            .and_then(|(s, mut slots)| {
                 let p = gpu
                     .create_pipeline(&PipelineDesc {
                         label: "post",
@@ -57,8 +57,7 @@ impl Post {
                     })
                     .map_err(|e| e.0)?;
                 Ok((p, slots.pop().unwrap_or_default()))
-            },
-        );
+            });
         match made {
             Ok((p, slots)) => {
                 if let Some(old) = self.pipeline.replace(p) {
@@ -91,13 +90,7 @@ impl Post {
             if let Some((old, ..)) = self.targets.take() {
                 old.into_iter().for_each(|t| gpu.destroy_texture(t));
             }
-            let desc = TextureDesc {
-                width: w.max(1),
-                height: h.max(1),
-                mips: 1,
-                format: Format::Surface,
-                render_target: true,
-            };
+            let desc = TextureDesc { width: w.max(1), height: h.max(1), mips: 1, format: Format::Surface, render_target: true };
             let t = [gpu.create_texture(&desc, "post a"), gpu.create_texture(&desc, "post b")];
             self.targets = Some((t, t.map(|t| gpu.texture_index(t)), (w, h)));
         }
@@ -109,11 +102,8 @@ impl Post {
     pub fn apply(&mut self, gpu: &mut dyn Backend, list: &mut CommandList, frame: &FrameInfo) {
         let (Some(pipe), Some((tex, idx, _))) = (self.pipeline, self.targets) else { return };
         while self.params.len() < gpu.frames_in_flight() {
-            self.params.push(gpu.create_buffer(
-                (size_of::<Pass>() * MAX_PASSES) as u64,
-                usage::STORAGE | usage::HOST,
-                "post passes",
-            ));
+            self.params
+                .push(gpu.create_buffer((size_of::<Pass>() * MAX_PASSES) as u64, usage::STORAGE | usage::HOST, "post passes"));
         }
         let time = crate::shaders::time();
         let n = self.active.len().min(MAX_PASSES);

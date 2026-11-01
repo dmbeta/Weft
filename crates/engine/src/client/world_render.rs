@@ -83,7 +83,12 @@ impl Pool {
     fn free(&mut self, a: Alloc) {
         let free = &mut self.pages[a.page as usize].1;
         let (mut start, mut len) = (a.offset, a.len);
-        if let Some((&s, &l)) = free.by_start.range(..start).next_back().filter(|(s, l)| **s + **l == start) {
+        if let Some((&s, &l)) = free
+            .by_start
+            .range(..start)
+            .next_back()
+            .filter(|(s, l)| **s + **l == start)
+        {
             free.take(s, l);
             (start, len) = (s, l + len);
         }
@@ -242,14 +247,12 @@ const SOLID_PER_FRAME: usize = 192;
 
 impl Solid {
     fn new(gpu: &mut dyn Backend, c: &Content) -> Solid {
-        let casts = c.states.iter().map(|st| st.opacity > 0 && st.liquid.is_none()).collect();
-        let mut s = Solid {
-            buf: gpu.create_buffer(4, usage::STORAGE, "solid"),
-            on: false,
-            held: Vec::new(),
-            tags: Vec::new(),
-            casts,
-        };
+        let casts = c
+            .states
+            .iter()
+            .map(|st| st.opacity > 0 && st.liquid.is_none())
+            .collect();
+        let mut s = Solid { buf: gpu.create_buffer(4, usage::STORAGE, "solid"), on: false, held: Vec::new(), tags: Vec::new(), casts };
         s.set_on(gpu, crate::packs::pack_uses("world.wgsl", "solid_at"));
         s
     }
@@ -344,12 +347,7 @@ pub fn world_shader(assets: &crate::assets::Assets) -> Result<(Shader, crate::sh
 }
 
 /// Block shader slot per texture id: a block's `shader` goes with its textures.
-fn shader_table(
-    gpu: &mut dyn Backend,
-    c: &Content,
-    textures: &GameTextures,
-    slots: &crate::shaders::Slots,
-) -> BufferId {
+fn shader_table(gpu: &mut dyn Backend, c: &Content, textures: &GameTextures, slots: &crate::shaders::Slots) -> BufferId {
     let mut table = vec![0u32; textures.count().max(1)];
     if let Some(comp) = c.components.id(weft_abi::comp::SHADER) {
         for (i, s) in c.states.iter().enumerate() {
@@ -359,7 +357,11 @@ fn shader_table(
                 log::warn!("block {}: no block shader {name}", c.block_of(i as u32).name);
                 continue;
             }
-            for t in s.textures.iter().chain(s.boxes.iter().flat_map(|b| b.textures.iter())) {
+            for t in s
+                .textures
+                .iter()
+                .chain(s.boxes.iter().flat_map(|b| b.textures.iter()))
+            {
                 if let Some(e) = table.get_mut(*t as usize) {
                     *e = slot;
                 }
@@ -388,12 +390,17 @@ impl WorldRenderer {
         let biome_data: Vec<u32> = if c.biomes.is_empty() {
             c.tint_kinds.iter().map(|k| k.1).collect()
         } else {
-            c.biomes.iter().flat_map(|b| b.tints.iter().copied()).collect()
+            c.biomes
+                .iter()
+                .flat_map(|b| b.tints.iter().copied())
+                .collect()
         };
         let biomes = gpu.create_buffer((biome_data.len() * 4) as u64, usage::STORAGE, "biomes");
         gpu.write_buffer(biomes, 0, bytemuck::cast_slice(&biome_data));
 
-        let indices: Vec<u32> = (0..MAX_QUADS_PER_DRAW).flat_map(|q| [0, 1, 2, 0, 2, 3].map(|i| q * 4 + i)).collect();
+        let indices: Vec<u32> = (0..MAX_QUADS_PER_DRAW)
+            .flat_map(|q| [0, 1, 2, 0, 2, 3].map(|i| q * 4 + i))
+            .collect();
         let quad_index = gpu.create_buffer((indices.len() * 4) as u64, usage::INDEX, "quad indices");
         gpu.write_buffer(quad_index, 0, bytemuck::cast_slice(&indices));
 
@@ -464,10 +471,7 @@ impl WorldRenderer {
         self.tex_generation = textures.generation();
     }
 
-    fn pipelines(
-        gpu: &mut dyn Backend,
-        shader: &Shader,
-    ) -> Result<([PipelineId; 3], [PipelineId; 3], PipelineId), String> {
+    fn pipelines(gpu: &mut dyn Backend, shader: &Shader) -> Result<([PipelineId; 3], [PipelineId; 3], PipelineId), String> {
         let depth_write = Some(DepthState { write: true, compare: Compare::GreaterEqual });
         let depth_read = Some(DepthState { write: false, compare: Compare::GreaterEqual });
         let mut make = |label: &str, vs: &str, fs: &str, depth, blend, cull| {
@@ -500,9 +504,17 @@ impl WorldRenderer {
 
     /// Recompiles the world shader; keeps the old pipelines when the new source has errors.
     pub fn reload_shaders(&mut self, gpu: &mut dyn Backend, textures: &GameTextures, assets: &crate::assets::Assets) {
-        match world_shader(assets).map_err(|e| e.0).and_then(|(s, slots)| Ok((Self::pipelines(gpu, &s)?, slots))) {
+        match world_shader(assets)
+            .map_err(|e| e.0)
+            .and_then(|(s, slots)| Ok((Self::pipelines(gpu, &s)?, slots)))
+        {
             Ok(((f, q, l), slots)) => {
-                for p in self.face_pipes.into_iter().chain(self.quad_pipes).chain([self.lod_pipe]) {
+                for p in self
+                    .face_pipes
+                    .into_iter()
+                    .chain(self.quad_pipes)
+                    .chain([self.lod_pipe])
+                {
                     gpu.destroy_pipeline(p);
                 }
                 self.face_pipes = f;
@@ -510,7 +522,8 @@ impl WorldRenderer {
                 self.lod_pipe = l;
                 gpu.destroy_buffer(self.tex_shader);
                 self.tex_shader = shader_table(gpu, crate::content::content(), textures, &slots);
-                self.solid.set_on(gpu, crate::packs::pack_uses("world.wgsl", "solid_at"));
+                self.solid
+                    .set_on(gpu, crate::packs::pack_uses("world.wgsl", "solid_at"));
                 log::info!("world shader reloaded");
             }
             Err(e) => log::error!("world shader: {e}"),
@@ -524,8 +537,7 @@ impl WorldRenderer {
             return false;
         }
         gpu.destroy_buffer(self.biomes);
-        let size =
-            (self.biome_table.len() + (tiles * tiles) as usize * 256 * crate::content::content().tint_kinds.len()) * 4;
+        let size = (self.biome_table.len() + (tiles * tiles) as usize * 256 * crate::content::content().tint_kinds.len()) * 4;
         self.biomes = gpu.create_buffer(size as u64, usage::STORAGE, "biomes");
         gpu.write_buffer(self.biomes, 0, bytemuck::cast_slice(&self.biome_table));
         // Zero marks a block without blended colors yet.
@@ -537,11 +549,7 @@ impl WorldRenderer {
     pub fn upload_tints(&mut self, gpu: &mut dyn Backend, col: glam::IVec2, tints: &super::world::ColumnTints) {
         let t = self.tint_tiles as i32;
         let slot = (col.x.rem_euclid(t) + col.y.rem_euclid(t) * t) as usize;
-        gpu.write_buffer(
-            self.biomes,
-            ((self.biome_table.len() + slot * tints.len()) * 4) as u64,
-            bytemuck::cast_slice(tints),
-        );
+        gpu.write_buffer(self.biomes, ((self.biome_table.len() + slot * tints.len()) * 4) as u64, bytemuck::cast_slice(tints));
     }
 
     pub fn remove(&mut self, key: MeshKey) {
@@ -581,10 +589,20 @@ impl WorldRenderer {
         ]) {
             gpu.destroy_buffer(b);
         }
-        for (b, _) in self.origins.drain(..).chain(self.indirect.drain(..)).chain(self.offsets.drain(..)) {
+        for (b, _) in self
+            .origins
+            .drain(..)
+            .chain(self.indirect.drain(..))
+            .chain(self.offsets.drain(..))
+        {
             gpu.destroy_buffer(b);
         }
-        for p in self.face_pipes.into_iter().chain(self.quad_pipes).chain([self.lod_pipe]) {
+        for p in self
+            .face_pipes
+            .into_iter()
+            .chain(self.quad_pipes)
+            .chain([self.lod_pipe])
+        {
             gpu.destroy_pipeline(p);
         }
     }
@@ -633,11 +651,7 @@ impl WorldRenderer {
                                 }
                             }
                         }
-                        gpu.write_buffer(
-                            s.buf,
-                            ((SOLID_SLOTS * 4 + slot * 128) * 4) as u64,
-                            bytemuck::cast_slice(&bits),
-                        );
+                        gpu.write_buffer(s.buf, ((SOLID_SLOTS * 4 + slot * 128) * 4) as u64, bytemuck::cast_slice(&bits));
                         s.tags[slot] = [p.x as u32, p.y as u32, p.z as u32, 1];
                     }
                 }
@@ -661,7 +675,10 @@ impl WorldRenderer {
         if quads.is_empty() {
             return;
         }
-        let mut used: Vec<u32> = quads.iter().map(|q| q[1] & crate::gpu_layout::face::TEX_MASK).collect();
+        let mut used: Vec<u32> = quads
+            .iter()
+            .map(|q| q[1] & crate::gpu_layout::face::TEX_MASK)
+            .collect();
         used.sort_unstable();
         used.dedup();
         textures.ensure_blocks(gpu, used);
@@ -692,8 +709,12 @@ impl WorldRenderer {
 
     /// Every cube of structure `frame` goes (it left).
     pub fn remove_frame(&mut self, frame: u64) {
-        let keys: Vec<MeshKey> =
-            self.regions.iter().filter(|(r, _)| r.0 == frame).flat_map(|(_, l)| l.iter().map(|e| e.0)).collect();
+        let keys: Vec<MeshKey> = self
+            .regions
+            .iter()
+            .filter(|(r, _)| r.0 == frame)
+            .flat_map(|(_, l)| l.iter().map(|e| e.0))
+            .collect();
         for k in keys {
             self.remove(k);
         }
@@ -710,7 +731,12 @@ impl WorldRenderer {
             .iter()
             .flatten()
             .map(|f| f[1] & crate::gpu_layout::face::TEX_MASK)
-            .chain(mesh.quads.iter().flatten().map(|q| q[4] & crate::gpu_layout::face::TEX_MASK))
+            .chain(
+                mesh.quads
+                    .iter()
+                    .flatten()
+                    .map(|q| q[4] & crate::gpu_layout::face::TEX_MASK),
+            )
             .collect();
         used.sort_unstable();
         used.dedup();
@@ -759,26 +785,19 @@ impl WorldRenderer {
         let cam_frac = (cam.pos - (cam_cube * 16).as_dvec3()).as_vec3();
         let globals = Globals {
             cam_frac: [cam_frac.x, cam_frac.y, cam_frac.z, 0.0],
-            ids: [
-                self.solid.on as u32,
-                0,
-                (self.biome_table.len() / crate::content::content().tint_kinds.len()) as u32,
-                self.tint_tiles,
-            ],
+            ids: [self.solid.on as u32, 0, (self.biome_table.len() / crate::content::content().tint_kinds.len()) as u32, self.tint_tiles],
             cam_cube: cam_cube.extend(0).to_array(),
-            extra: [
-                self.overlays,
-                self.tex_info_sizes,
-                crate::content::content().tint_kinds.len() as u32,
-                self.lod_half,
-            ],
+            extra: [self.overlays, self.tex_info_sizes, crate::content::content().tint_kinds.len() as u32, self.lod_half],
         };
         let gbuf = self.globals[frame.slot];
         gpu.mapped(gbuf)[..size_of::<Globals>()].copy_from_slice(bytemuck::bytes_of(&globals));
 
         let planes = frustum_planes(view_proj);
         // Camera-relative offset of each structure drawn (k + 1 its index; 0 the world).
-        let frame_offsets: Vec<Vec3> = frames.iter().map(|f| (f.1 - (cam_cube * 16).as_dvec3()).as_vec3()).collect();
+        let frame_offsets: Vec<Vec3> = frames
+            .iter()
+            .map(|f| (f.1 - (cam_cube * 16).as_dvec3()).as_vec3())
+            .collect();
         // Regions in view, nearest first: what is drawn first then hides what is behind it.
         let side = (16 << REGION) as f32;
         let mut seen: Vec<(f32, &Vec<(MeshKey, GpuMesh)>)> = self
@@ -878,7 +897,10 @@ impl WorldRenderer {
                 let o = key.origin();
                 let half = Vec3::new(key.size() as f32, (y1 - y0) as f32, key.size() as f32) / 2.0;
                 let center = Vec3::new(o.x as f32, y0 as f32, o.y as f32) + half - (cam_cube * 16).as_vec3() - cam_frac;
-                if !planes.iter().all(|pl| pl.dot(center.extend(1.0)) > -half.length()) {
+                if !planes
+                    .iter()
+                    .all(|pl| pl.dot(center.extend(1.0)) > -half.length())
+                {
                     return None;
                 }
                 let args = DrawIndexedArgs {
@@ -903,8 +925,7 @@ impl WorldRenderer {
             self.buffers = None;
             return;
         }
-        let obuf =
-            crate::gpu_layout::frame_buffer(gpu, &mut self.origins, frame.slot, n, 16, usage::STORAGE, "origins");
+        let obuf = crate::gpu_layout::frame_buffer(gpu, &mut self.origins, frame.slot, n, 16, usage::STORAGE, "origins");
         let fbuf = crate::gpu_layout::frame_buffer(
             gpu,
             &mut self.offsets,
@@ -919,8 +940,7 @@ impl WorldRenderer {
         for (k, o) in frame_offsets.iter().enumerate() {
             offs[(k + 1) * 16..(k + 1) * 16 + 12].copy_from_slice(bytemuck::cast_slice(&o.to_array()));
         }
-        let ibuf =
-            crate::gpu_layout::frame_buffer(gpu, &mut self.indirect, frame.slot, n, 20, usage::INDIRECT, "indirect");
+        let ibuf = crate::gpu_layout::frame_buffer(gpu, &mut self.indirect, frame.slot, n, 20, usage::INDIRECT, "indirect");
         let origins = Mapped(gpu.mapped(obuf)[..n as usize * 16].as_mut_ptr());
         let indirect = Mapped(gpu.mapped(ibuf)[..n as usize * 20].as_mut_ptr());
         let put = |k: u32, d: &DrawRecord| {
@@ -932,13 +952,16 @@ impl WorldRenderer {
                 std::ptr::copy_nonoverlapping(bytemuck::bytes_of(&a).as_ptr(), indirect.at(k as usize * 20), 20);
             }
         };
-        seen_parts.par_iter().zip(starts.par_iter_mut()).for_each(|(p, at)| {
-            for d in p.iter().filter(|d| d.1 < 2) {
-                let b = bucket(d);
-                put(at[b], d);
-                at[b] += 1;
-            }
-        });
+        seen_parts
+            .par_iter()
+            .zip(starts.par_iter_mut())
+            .for_each(|(p, at)| {
+                for d in p.iter().filter(|d| d.1 < 2) {
+                    let b = bucket(d);
+                    put(at[b], d);
+                    at[b] += 1;
+                }
+            });
         for (j, d) in lod.iter().enumerate() {
             put(opaque + j as u32, d);
         }

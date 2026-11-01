@@ -168,13 +168,7 @@ impl Mask {
         let mut stack: Vec<Mask> = Vec::new();
         for s in steps {
             let m = match s.kind {
-                k::NOISE => Mask::Noise {
-                    salt: s.salt,
-                    scale: q4(s.scale),
-                    octaves: s.octaves,
-                    from: q12(s.from),
-                    to: q12(s.to),
-                },
+                k::NOISE => Mask::Noise { salt: s.salt, scale: q4(s.scale), octaves: s.octaves, from: q12(s.from), to: q12(s.to) },
                 k::CONTINENT => Mask::Continent(q12(s.from), q12(s.to)),
                 k::TEMPERATURE => Mask::Temperature(q12(s.from), q12(s.to)),
                 k::HUMIDITY => Mask::Humidity(q12(s.from), q12(s.to)),
@@ -330,24 +324,17 @@ pub fn build(
     names: &Names,
     errors: &mut Vec<String>,
 ) -> Terrain {
-    let mut d = Draft {
-        stone: None,
-        base: 64.0,
-        sea: None,
-        caves: None,
-        features: Vec::new(),
-        rules: Vec::new(),
-        cave_biomes: Vec::new(),
-    };
+    let mut d = Draft { stone: None, base: 64.0, sea: None, caves: None, features: Vec::new(), rules: Vec::new(), cave_biomes: Vec::new() };
     let rule_name = |r: &RawRule| if r.name.is_empty() { r.biome.clone() } else { r.name.clone() };
     for o in ops {
         let who = owner_name(o.owner);
-        let missing =
-            |what: &str| log::warn!("{who}: the terrain of {dimension} has no {what} {}, edit skipped", o.anchor);
+        let missing = |what: &str| log::warn!("{who}: the terrain of {dimension} has no {what} {}, edit skipped", o.anchor);
         let new_rule = |rules: &[RawRule], r: &RawRule, errors: &mut Vec<String>| {
             let n = rule_name(r);
             if rules.iter().any(|x| rule_name(x) == n) {
-                errors.push(format!("{who}: the terrain of {dimension} already has a biome rule named {n} (name the new one, or use replace_biome)"));
+                errors.push(format!(
+                    "{who}: the terrain of {dimension} already has a biome rule named {n} (name the new one, or use replace_biome)"
+                ));
                 return false;
             }
             true
@@ -360,10 +347,7 @@ pub fn build(
             op::CAVES => d.caves = Some((o.block, o.level, o.to)),
             op::FEATURE => {
                 if !o.feature.name.is_empty() && d.features.iter().any(|f| f.name == o.feature.name) {
-                    errors.push(format!(
-                        "{who}: the terrain of {dimension} already has a feature named {}",
-                        o.feature.name
-                    ));
+                    errors.push(format!("{who}: the terrain of {dimension} already has a feature named {}", o.feature.name));
                 } else {
                     d.features.push(o.feature);
                 }
@@ -376,7 +360,8 @@ pub fn build(
                 Some(f) if f.mask.is_empty() => f.mask = o.feature.mask,
                 Some(f) => {
                     f.mask.extend(o.feature.mask);
-                    f.mask.push(abi::MaskStep { kind: abi::terrain_mask::ALL, count: 2, ..abi::MaskStep::DEFAULT });
+                    f.mask
+                        .push(abi::MaskStep { kind: abi::terrain_mask::ALL, count: 2, ..abi::MaskStep::DEFAULT });
                 }
                 None => missing("feature"),
             },
@@ -386,9 +371,9 @@ pub fn build(
                 }
             }
             op::BIOME_BEFORE | op::BIOME_AFTER => match rule_at(&d.rules) {
-                Some(i) if new_rule(&d.rules, &o.rule, errors) => {
-                    d.rules.insert(i + (o.op == op::BIOME_AFTER) as usize, o.rule)
-                }
+                Some(i) if new_rule(&d.rules, &o.rule, errors) => d
+                    .rules
+                    .insert(i + (o.op == op::BIOME_AFTER) as usize, o.rule),
                 Some(_) => {}
                 None => missing("biome rule"),
             },
@@ -438,10 +423,14 @@ pub fn build(
             0
         }
     };
-    let sea = d.sea.as_ref().and_then(|(l, w)| Some((*l, block(w, "sea", errors)?)));
-    let caves = d.caves.as_ref().and_then(|(lava, from, to)| {
-        Some(Caves { lava: block(lava, "lava", errors)?, lava_from: *from, lava_to: *to })
-    });
+    let sea = d
+        .sea
+        .as_ref()
+        .and_then(|(l, w)| Some((*l, block(w, "sea", errors)?)));
+    let caves = d
+        .caves
+        .as_ref()
+        .and_then(|(lava, from, to)| Some(Caves { lava: block(lava, "lava", errors)?, lava_from: *from, lava_to: *to }));
     let features: Vec<Feature> = d
         .features
         .iter()
@@ -524,17 +513,7 @@ impl Terrain {
         caves: Option<Caves>,
         cave_biomes: Vec<CaveBiome>,
     ) -> Terrain {
-        Terrain {
-            stone,
-            base,
-            sea,
-            features,
-            rules,
-            caves,
-            cave_biomes,
-            cache: ColumnCache::new(32768),
-            corners: ColumnCache::new(32768),
-        }
+        Terrain { stone, base, sea, features, rules, caves, cave_biomes, cache: ColumnCache::new(32768), corners: ColumnCache::new(32768) }
     }
 
     pub fn sea_level(&self) -> Option<i32> {
@@ -571,7 +550,8 @@ impl Terrain {
                     && inside(temp, b.temperature)
                     && inside(humid, b.humidity)
                     && inside(cont, b.continent)
-                    && b.feature.is_none_or(|(i, lo, hi)| strength(i).is_some_and(|s| s > lo && s <= hi))
+                    && b.feature
+                        .is_none_or(|(i, lo, hi)| strength(i).is_some_and(|s| s > lo && s <= hi))
             })
             .unwrap_or(self.rules.len().saturating_sub(1));
         (TerrainColumn { height, biome: self.rules.get(rule).map_or(0, |r| r.biome) }, rule as u32)
@@ -614,8 +594,7 @@ impl Terrain {
             (h - gy) as usize,
             (z - gz) as usize,
         );
-        let corners: [i32; 4] =
-            [(0, 0), (1, 0), (0, 1), (1, 1)].map(|(dx, dz)| self.column(seed, gx + dx * 4, gz + dz * 4).height);
+        let corners: [i32; 4] = [(0, 0), (1, 0), (0, 1), (1, 1)].map(|(dx, dz)| self.column(seed, gx + dx * 4, gz + dz * 4).height);
         let smooth = smooth4(corners, (x - gx) as i32, (z - gz) as i32);
         carves(t > 0, c, cavern_roof(seed, x, z), smooth - h * 16)
     }
@@ -660,8 +639,7 @@ impl Terrain {
             let (x, z) = ((ox + (i % 16) as i32) * 16, (oz + (i / 16) as i32) * 16);
             let deep = self.cave_biomes.iter().enumerate().find(|&(k, b)| {
                 oy + 15 < c.height - b.depth
-                    && perlin3(seed32(seed, salt::CAVE_BIOME ^ k as u64), x, (oy + 8) * 16, z, b.size, b.size, b.size)
-                        > b.threshold
+                    && perlin3(seed32(seed, salt::CAVE_BIOME ^ k as u64), x, (oy + 8) * 16, z, b.size, b.size, b.size) > b.threshold
             });
             biomes[i] = deep.map_or(c.biome, |(_, b)| b.biome) as u16;
         }
@@ -677,7 +655,10 @@ impl Terrain {
             _ => None,
         };
         let corners = self.corners.get(seed, cx, cz, || {
-            std::array::from_fn(|i| self.column(seed, ox + (i % 5) as i32 * 4, oz + (i / 5) as i32 * 4).height)
+            std::array::from_fn(|i| {
+                self.column(seed, ox + (i % 5) as i32 * 4, oz + (i / 5) as i32 * 4)
+                    .height
+            })
         });
         let stone = self.stone;
         let water = self.sea.map_or(0, |s| s.1);
@@ -840,10 +821,7 @@ pub struct ColumnCache<T> {
 
 impl<T> ColumnCache<T> {
     pub fn new(capacity: usize) -> ColumnCache<T> {
-        ColumnCache {
-            shards: std::array::from_fn(|_| Mutex::new(FxHashMap::default())),
-            per_shard: capacity.div_ceil(SHARDS).max(1),
-        }
+        ColumnCache { shards: std::array::from_fn(|_| Mutex::new(FxHashMap::default())), per_shard: capacity.div_ceil(SHARDS).max(1) }
     }
 
     fn shard(&self, x: i32, z: i32) -> &Mutex<FxHashMap<(u64, i32, i32), Arc<std::sync::OnceLock<Arc<T>>>>> {
@@ -852,7 +830,10 @@ impl<T> ColumnCache<T> {
     }
 
     fn peek(&self, seed: u64, x: i32, z: i32) -> Option<Arc<T>> {
-        self.shard(x, z).lock().get(&(seed, x, z)).and_then(|c| c.get().cloned())
+        self.shard(x, z)
+            .lock()
+            .get(&(seed, x, z))
+            .and_then(|c| c.get().cloned())
     }
 
     /// The value for cube column (`x`, `z`) under `seed`, computing it with `make` on a miss.
@@ -946,7 +927,10 @@ mod tests {
         for cx in -3..3 {
             for cz in -3..3 {
                 let heights: Vec<i32> = (0..256)
-                    .map(|i| t.column(7, cx * 16 + (i % 16) as i32, cz * 16 + (i / 16) as i32).height)
+                    .map(|i| {
+                        t.column(7, cx * 16 + (i % 16) as i32, cz * 16 + (i / 16) as i32)
+                            .height
+                    })
                     .collect();
                 let top = heights.iter().max().unwrap() >> 4;
                 let bottom = (heights.iter().min().unwrap() >> 4) - 1;
@@ -1020,7 +1004,9 @@ mod tests {
             for cz in -3..3 {
                 let column: FxHashMap<i32, Vec<u32>> = (-32..1).map(|cy| (cy, cube(&t, 9, [cx, cy, cz]))).collect();
                 let at = |i: usize, y: i32| {
-                    column.get(&(y >> 4)).map(|b| b[((y & 15) as usize * 16 + i / 16) * 16 + i % 16])
+                    column
+                        .get(&(y >> 4))
+                        .map(|b| b[((y & 15) as usize * 16 + i / 16) * 16 + i % 16])
                 };
                 for i in 0..256 {
                     for y in -511..16 {
@@ -1041,8 +1027,18 @@ mod tests {
     #[test]
     fn first_matching_rule_wins() {
         let low = |b| Rule { height: (i32::MIN, 60), ..rule(b) };
-        assert_eq!(terrain(Vec::new(), vec![low(1), rule(2)], None, 70.0).column(1, 0, 0).biome, 2);
-        assert_eq!(terrain(Vec::new(), vec![low(1), rule(2)], None, 50.0).column(1, 0, 0).biome, 1);
+        assert_eq!(
+            terrain(Vec::new(), vec![low(1), rule(2)], None, 70.0)
+                .column(1, 0, 0)
+                .biome,
+            2
+        );
+        assert_eq!(
+            terrain(Vec::new(), vec![low(1), rule(2)], None, 50.0)
+                .column(1, 0, 0)
+                .biome,
+            1
+        );
     }
 
     fn raw(owner: u32, op: u32, anchor: &str, rule: Option<(&str, &str)>) -> RawTerrain {
@@ -1101,11 +1097,7 @@ mod tests {
     #[test]
     fn edits_insert_by_name() {
         let base = || {
-            vec![
-                raw(0, op::STONE, "", None),
-                raw(0, op::BIOME, "", Some(("", "a:desert"))),
-                raw(0, op::BIOME, "", Some(("", "a:plains"))),
-            ]
+            vec![raw(0, op::STONE, "", None), raw(0, op::BIOME, "", Some(("", "a:desert"))), raw(0, op::BIOME, "", Some(("", "a:plains")))]
         };
         let mut ops = base();
         ops.push(raw(1, op::BIOME_BEFORE, "a:desert", Some(("", "b:savanna"))));
@@ -1162,18 +1154,14 @@ mod tests {
         let t = build("a:dim", &|_| String::new(), ops, &names, &mut errors);
         assert!(errors.is_empty(), "{errors:?}");
         assert_eq!((t.rules[0].temperature, t.rules[0].height, t.rules[0].top), ((0, ONE), (0, 64), Some(2)));
-        assert_eq!(
-            (t.rules[1].temperature, t.rules[1].height, t.rules[1].top),
-            ((q12(0.35), 1 << 18), (i32::MIN, i32::MAX), Some(2))
-        );
+        assert_eq!((t.rules[1].temperature, t.rules[1].height, t.rules[1].top), ((q12(0.35), 1 << 18), (i32::MIN, i32::MAX), Some(2)));
     }
 
     #[test]
     fn masks_from_steps() {
         use abi::terrain_mask as k;
         let step = |kind, count| abi::MaskStep { kind, count, ..abi::MaskStep::DEFAULT };
-        let m =
-            Mask::from_steps(&[step(k::CONTINENT, 0), step(k::HUMIDITY, 0), step(k::NOT, 0), step(k::ALL, 2)]).unwrap();
+        let m = Mask::from_steps(&[step(k::CONTINENT, 0), step(k::HUMIDITY, 0), step(k::NOT, 0), step(k::ALL, 2)]).unwrap();
         assert!(matches!(&m, Mask::All(v) if v.len() == 2 && matches!(v[1], Mask::Not(_))));
         assert!(Mask::from_steps(&[step(k::ALL, 2)]).is_none());
         assert!(Mask::from_steps(&[]).is_none());

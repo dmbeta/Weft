@@ -56,14 +56,8 @@ static LYING: Channel<u32> = Channel::named("bed_lying");
 /// Client to server: the player got up (left the sleep screen).
 static GET_UP: Channel<()> = Channel::named("bed_get_up");
 
-const MESSAGES: [&str; 6] = [
-    "bed.base.spawn_set",
-    "bed.base.not_night",
-    "bed.base.monsters",
-    "bed.base.occupied",
-    "bed.base.missing",
-    "bed.base.obstructed",
-];
+const MESSAGES: [&str; 6] =
+    ["bed.base.spawn_set", "bed.base.not_night", "bed.base.monsters", "bed.base.occupied", "bed.base.missing", "bed.base.obstructed"];
 const SPAWN_SET: u32 = 0;
 const NOT_NIGHT: u32 = 1;
 const MONSTERS_NEAR: u32 = 2;
@@ -74,7 +68,10 @@ const OBSTRUCTED: u32 = 5;
 /// The other half of the bed half `state` at `pos`: the head lies away from where the bed faces
 /// (the player who placed it), the foot toward it.
 fn other_half(pos: [i32; 3], state: u32) -> [i32; 3] {
-    let d = state_prop(state, "facing").and_then(Dir::from_name).unwrap_or(Dir::North).offset();
+    let d = state_prop(state, "facing")
+        .and_then(Dir::from_name)
+        .unwrap_or(Dir::North)
+        .offset();
     let s = if state_prop(state, "part") == Some("head") { 1 } else { -1 };
     [pos[0] + d[0] * s, pos[1], pos[2] + d[2] * s]
 }
@@ -244,10 +241,7 @@ pub fn register(r: &mut Registry) {
             }
             if c.player != 0 && !w.creative(c.player) {
                 let p = foot_of(c.pos, c.state);
-                w.spawn_item(
-                    [p[0] as f64 + 0.5, p[1] as f64 + 0.5, p[2] as f64 + 0.5],
-                    ItemStack::new(BED_ITEM.id(), 1),
-                );
+                w.spawn_item([p[0] as f64 + 0.5, p[1] as f64 + 0.5, p[2] as f64 + 0.5], ItemStack::new(BED_ITEM.id(), 1));
             }
         })
         .tab(&crate::tabs::FUNCTIONAL);
@@ -258,11 +252,7 @@ pub fn register(r: &mut Registry) {
         }
         let head = other_half(q.pos(), q.state());
         let there = q.world().get(head);
-        if there == 0 || state_flags(there) & abi::block_flags::REPLACEABLE != 0 {
-            Verdict::Abstain
-        } else {
-            Verdict::Deny
-        }
+        if there == 0 || state_flags(there) & abi::block_flags::REPLACEABLE != 0 { Verdict::Abstain } else { Verdict::Deny }
     });
 
     r.entity_component(
@@ -310,15 +300,19 @@ fn use_bed(u: &mut Use) -> bool {
     let player = u.player();
     let foot = foot_of(u.pos(), u.state());
     // Vanilla's order: nothing is set on a bed that can't be used at all.
-    if w.players()
-        .into_iter()
-        .any(|o| o != player && w.component(o, &SLEEP).is_some_and(|s| s.asleep != 0 && s.bed == foot))
-    {
+    if w.players().into_iter().any(|o| {
+        o != player
+            && w.component(o, &SLEEP)
+                .is_some_and(|s| s.asleep != 0 && s.bed == foot)
+    }) {
         w.send(player, &MESSAGE, &OCCUPIED);
         return true;
     }
     // A player stays standing in bed, so as much room as that takes.
-    if [1, 2].iter().any(|dy| w.flags([foot[0], foot[1] + dy, foot[2]]) & abi::block_flags::SOLID != 0) {
+    if [1, 2]
+        .iter()
+        .any(|dy| w.flags([foot[0], foot[1] + dy, foot[2]]) & abi::block_flags::SOLID != 0)
+    {
         w.send(player, &MESSAGE, &OBSTRUCTED);
         return true;
     }
@@ -346,19 +340,20 @@ fn use_bed(u: &mut Use) -> bool {
 fn monsters_near(w: &World, foot: [i32; 3]) -> bool {
     let c = [foot[0] as f64 + 0.5, foot[1] as f64 + 0.5, foot[2] as f64 + 0.5];
     let reach = (2.0 * MONSTERS[0] * MONSTERS[0] + MONSTERS[1] * MONSTERS[1]).sqrt();
-    w.near_bodies(c, reach).into_iter().filter_map(|id| w.entity(id)).any(|e| {
-        (e.pos[0] - c[0]).abs() <= MONSTERS[0]
-            && (e.pos[2] - c[2]).abs() <= MONSTERS[0]
-            && (e.pos[1] - c[1]).abs() <= MONSTERS[1]
-            && HOSTILE.on_entity(e.kind)
-    })
+    w.near_bodies(c, reach)
+        .into_iter()
+        .filter_map(|id| w.entity(id))
+        .any(|e| {
+            (e.pos[0] - c[0]).abs() <= MONSTERS[0]
+                && (e.pos[2] - c[2]).abs() <= MONSTERS[0]
+                && (e.pos[1] - c[1]).abs() <= MONSTERS[1]
+                && HOSTILE.on_entity(e.kind)
+        })
 }
 
 /// A player sent to their bed, once where it should be is loaded: without a bed, back they go.
 fn arrive(w: &World, id: u64) {
-    let (Some(a), Some(spawn)) =
-        (w.component_mut(id, &ARRIVING).filter(|a| a.on_way != 0), w.component_mut(id, &BED_SPAWN))
-    else {
+    let (Some(a), Some(spawn)) = (w.component_mut(id, &ARRIVING).filter(|a| a.on_way != 0), w.component_mut(id, &BED_SPAWN)) else {
         return;
     };
     if w.dimension() != spawn.dim {
@@ -406,7 +401,9 @@ fn watch_sleepers(w: &World) {
                 here_asleep |= ready;
             }
         }
-        if w.entity(id).is_some_and(|e| w.near_bodies(e.pos, 0.1).contains(&id)) {
+        if w.entity(id)
+            .is_some_and(|e| w.near_bodies(e.pos, 0.1).contains(&id))
+        {
             seen.push((id, ready));
         }
     }
@@ -417,10 +414,7 @@ fn watch_sleepers(w: &World) {
     }
     // Not seen by any region for a couple of ticks (either way: another world's ticks): not here.
     nights.players.retain(|_, (at, _)| at.abs_diff(now) <= 2);
-    if !here_asleep
-        || !nights.players.values().all(|&(_, ready)| ready)
-        || nights.skipped_at.abs_diff(now) < FALL_ASLEEP
-    {
+    if !here_asleep || !nights.players.values().all(|&(_, ready)| ready) || nights.skipped_at.abs_diff(now) < FALL_ASLEEP {
         return;
     }
     nights.skipped_at = now;
@@ -471,21 +465,18 @@ fn client(r: &mut Registry) {
                 *shown = None;
             } else {
                 let alpha = ((3.0 - t) / 0.5).clamp(0.0, 1.0);
-                c.screen_text(
-                    0.5,
-                    0.72,
-                    MESSAGES[m as usize % MESSAGES.len()],
-                    &[],
-                    0xffffff00 | (alpha * 255.0) as u32,
-                    1.0,
-                );
+                c.screen_text(0.5, 0.72, MESSAGES[m as usize % MESSAGES.len()], &[], 0xffffff00 | (alpha * 255.0) as u32, 1.0);
             }
         }
     });
     r.screen(&SLEEP_SCREEN, |ui| {
         ui.column(S::col().gap(12.0).center(), |ui| {
             ui.text_styled(
-                S::col().class("title").scale(2.0).no_wrap().self_align(abi::ui_align::CENTER),
+                S::col()
+                    .class("title")
+                    .scale(2.0)
+                    .no_wrap()
+                    .self_align(abi::ui_align::CENTER),
                 "bed.base.sleeping",
                 &[],
             );

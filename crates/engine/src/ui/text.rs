@@ -118,11 +118,16 @@ impl Name {
         let c = crate::content::try_content();
         match self {
             Name::Item(i) => {
-                format!("item:{}", c.and_then(|c| c.items.get(*i as usize)).map_or("", |d| d.name.as_str()))
+                format!(
+                    "item:{}",
+                    c.and_then(|c| c.items.get(*i as usize))
+                        .map_or("", |d| d.name.as_str())
+                )
             }
             Name::Block(s) => format!(
                 "block:{}",
-                c.filter(|c| (*s as usize) < c.states.len()).map_or(String::new(), |c| c.state_name(*s))
+                c.filter(|c| (*s as usize) < c.states.len())
+                    .map_or(String::new(), |c| c.state_name(*s))
             ),
             Name::Liquid(n) => format!("liquid:{n}"),
             Name::Tab(n) => format!("tab:{n}"),
@@ -139,19 +144,24 @@ impl Name {
         let c = crate::content::try_content();
         match self {
             Name::Item(i) => {
-                let n = c.and_then(|c| c.items.get(*i as usize)).map_or(String::new(), |d| d.name.clone());
+                let n = c
+                    .and_then(|c| c.items.get(*i as usize))
+                    .map_or(String::new(), |d| d.name.clone());
                 (vec![lang_key("item", &n), lang_key("block", &n)], n)
             }
             Name::Block(s) => {
-                let n =
-                    c.and_then(|c| c.states.get(*s as usize).map(|_| c.block_of(*s).name.clone())).unwrap_or_default();
+                let n = c
+                    .and_then(|c| {
+                        c.states
+                            .get(*s as usize)
+                            .map(|_| c.block_of(*s).name.clone())
+                    })
+                    .unwrap_or_default();
                 (vec![lang_key("block", &n), lang_key("item", &n)], n)
             }
             Name::Liquid(n) => (vec![lang_key("block", n)], n.clone()),
             // A mod's own tab, made for items in none, is called like the mod.
-            Name::Tab(n) => {
-                (vec![lang_key("tab", n), format!("mod.{}.name", n.split(':').next().unwrap_or(n))], n.clone())
-            }
+            Name::Tab(n) => (vec![lang_key("tab", n), format!("mod.{}.name", n.split(':').next().unwrap_or(n))], n.clone()),
             Name::Mod(id) => (vec![format!("mod.{id}.name")], id.clone()),
             Name::Recipe(n) => (vec![lang_key("recipe", n)], n.clone()),
             Name::Config(n) => (vec![lang_key("config", n)], n.clone()),
@@ -274,7 +284,10 @@ pub fn fx_id(name: &str) -> u16 {
 }
 
 pub fn fx_name(id: u16) -> Option<String> {
-    FX.lock().unwrap().get((id as usize).checked_sub(1)?).cloned()
+    FX.lock()
+        .unwrap()
+        .get((id as usize).checked_sub(1)?)
+        .cloned()
 }
 
 static IMAGES: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
@@ -330,8 +343,10 @@ fn subject_value(name: &str, cx: &Ctx) -> Option<f32> {
         },
     };
     let schema = c.components.schemas.get(comp as usize)?;
-    let bytes = crate::stack::value(subject.stack.data, comp)
-        .or_else(|| c.components.bytes(crate::components::ITEM, subject.stack.item, comp))?;
+    let bytes = crate::stack::value(subject.stack.data, comp).or_else(|| {
+        c.components
+            .bytes(crate::components::ITEM, subject.stack.item, comp)
+    })?;
     crate::components::number_in(schema, bytes, field)
 }
 
@@ -344,7 +359,12 @@ fn amount(spec: &str, cx: &Ctx) -> Option<f32> {
         }
         None => (spec, 1.0),
     };
-    Some(base.parse::<f32>().ok().or_else(|| subject_value(base, cx))? * scale)
+    Some(
+        base.parse::<f32>()
+            .ok()
+            .or_else(|| subject_value(base, cx))?
+            * scale,
+    )
 }
 
 /// Whole numbers without a point, the rest with what they need of two places.
@@ -355,8 +375,9 @@ fn show_number(v: f32) -> String {
 
 /// `{if:value.toughness>0}`: a number against a number.
 fn comparison(spec: &str, cx: &Ctx) -> Option<bool> {
-    let (a, op, b) =
-        ["<=", ">=", "!=", "==", "<", ">"].iter().find_map(|op| spec.split_once(op).map(|(a, b)| (a, *op, b)))?;
+    let (a, op, b) = ["<=", ">=", "!=", "==", "<", ">"]
+        .iter()
+        .find_map(|op| spec.split_once(op).map(|(a, b)| (a, *op, b)))?;
     let (a, b) = (amount(a.trim(), cx).unwrap_or(0.0), amount(b.trim(), cx)?);
     Some(match op {
         "<=" => a <= b,
@@ -372,7 +393,13 @@ fn comparison(spec: &str, cx: &Ctx) -> Option<bool> {
 fn push_icons(spec: &str, cx: &Ctx, out: &mut Vec<Span>, st: &State) {
     let mut parts = spec.split_whitespace();
     let name = gui_texture(parts.next().unwrap_or(""));
-    let Some(n) = parts.next().and_then(|a| amount(a, cx)).filter(|n| *n > 0.0) else { return };
+    let Some(n) = parts
+        .next()
+        .and_then(|a| amount(a, cx))
+        .filter(|n| *n > 0.0)
+    else {
+        return;
+    };
     let (mut dir, mut size) = (weft_abi::ui_dir::RIGHT, None);
     for option in parts {
         match option.split_once(':') {
@@ -380,7 +407,9 @@ fn push_icons(spec: &str, cx: &Ctx, out: &mut Vec<Span>, st: &State) {
             Some(("dir", "up")) => dir = weft_abi::ui_dir::UP,
             Some(("dir", "down")) => dir = weft_abi::ui_dir::DOWN,
             Some(("size", v)) => {
-                size = v.split_once('x').and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)))
+                size = v
+                    .split_once('x')
+                    .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)))
             }
             _ => {}
         }
@@ -388,8 +417,9 @@ fn push_icons(spec: &str, cx: &Ctx, out: &mut Vec<Span>, st: &State) {
     let Some((w, h)) = size.or_else(|| texture_size(&name).map(|(w, h)| (w as f32, h as f32))) else { return };
     // At most a line's worth, whatever a value says.
     let whole = (n.floor() as u32).min(64);
-    let mut pictures: Vec<(String, [f32; 4])> =
-        (0..whole).filter_map(|_| super::meter::part(&name, 1.0, dir)).collect();
+    let mut pictures: Vec<(String, [f32; 4])> = (0..whole)
+        .filter_map(|_| super::meter::part(&name, 1.0, dir))
+        .collect();
     pictures.extend(super::meter::part(&name, n.fract(), dir).filter(|_| n.fract() > 0.0));
     // Leftward the part comes first, cut toward the whole ones.
     if dir == weft_abi::ui_dir::LEFT {
@@ -446,11 +476,7 @@ impl State {
 /// `ns:name` under `gui/`; a name leaving the folder is logged once and shows nothing.
 fn gui_texture(name: &str) -> String {
     let (ns, path) = name.split_once(':').unwrap_or(("core", name));
-    if path.is_empty()
-        || path.starts_with('/')
-        || path.split('/').any(|p| p == ".." || p.is_empty())
-        || path.starts_with("gui/")
-    {
+    if path.is_empty() || path.starts_with('/') || path.split('/').any(|p| p == ".." || p.is_empty()) || path.starts_with("gui/") {
         static SAID: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
         let mut said = SAID.lock().unwrap();
         if !said.iter().any(|s| s == name) {
@@ -471,12 +497,7 @@ fn push_text(out: &mut Vec<Span>, s: &str, st: &State) {
         return;
     }
     if let Some(last) = out.last_mut() {
-        if last.color == st.color
-            && last.fx == st.fx
-            && last.when == st.when
-            && last.align == st.align
-            && last.mono == st.mono
-        {
+        if last.color == st.color && last.fx == st.fx && last.when == st.when && last.align == st.align && last.mono == st.mono {
             if let Piece::Text(t) = &mut last.piece {
                 t.push_str(s);
                 return;
@@ -491,23 +512,11 @@ fn cond(spec: &str, keys: bool) -> Cond {
         Some(r) => (true, r),
         None => (false, spec),
     };
-    let test = if keys {
-        Test::Keys(rest.split('+').map(|k| k.trim().to_string()).collect())
-    } else {
-        Test::If(rest.trim().to_string())
-    };
+    let test = if keys { Test::Keys(rest.split('+').map(|k| k.trim().to_string()).collect()) } else { Test::If(rest.trim().to_string()) };
     Cond { not, test }
 }
 
-fn format_depth(
-    template: &str,
-    args: &[Arg],
-    cx: &Ctx,
-    out: &mut Vec<Span>,
-    st: &mut State,
-    base: Option<u32>,
-    depth: u32,
-) {
+fn format_depth(template: &str, args: &[Arg], cx: &Ctx, out: &mut Vec<Span>, st: &mut State, base: Option<u32>, depth: u32) {
     st.color = base;
     let mut rest = template;
     while let Some(i) = rest.find(['{', '}']) {
@@ -533,7 +542,11 @@ fn format_depth(
             st.color = u32::from_str_radix(hex, 16).ok().or(st.color);
         } else if let Some(name) = tag.strip_prefix("color:") {
             // A named color (`color.<name>` in the language files), so a pack changes it once.
-            st.color = cx.lang.color(&format!("color.{name}")).map(|c| c >> 8).or(st.color);
+            st.color = cx
+                .lang
+                .color(&format!("color.{name}"))
+                .map(|c| c >> 8)
+                .or(st.color);
         } else if tag == "/" {
             st.color = base;
         } else if let Some(action) = tag.strip_prefix("key:") {
@@ -542,7 +555,9 @@ fn format_depth(
                 .and_then(|i| i.key_of(action))
                 .map(|k| display_chord(cx.lang, k))
                 .unwrap_or_else(|| "?".into());
-            let color = st.color.or_else(|| cx.lang.color("color.key").map(|c| c >> 8));
+            let color = st
+                .color
+                .or_else(|| cx.lang.color("color.key").map(|c| c >> 8));
             out.push(st.span(Piece::Text(format!("[{name}]")), color));
         } else if let Some(item) = tag.strip_prefix("item:") {
             if let Some(id) = crate::content::try_content().and_then(|c| c.item_by_ref(item)) {
@@ -567,10 +582,7 @@ fn format_depth(
                 .and_then(|s| s.split_once('x'))
                 .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)));
             if let Some((w, h)) = size.or_else(|| texture_size(name).map(|(w, h)| (w as f32, h as f32))) {
-                out.push(st.span(
-                    Piece::Image(image_id(name), w * FONT_PER_GUI, h * FONT_PER_GUI, [0.0, 0.0, 1.0, 1.0]),
-                    None,
-                ));
+                out.push(st.span(Piece::Image(image_id(name), w * FONT_PER_GUI, h * FONT_PER_GUI, [0.0, 0.0, 1.0, 1.0]), None));
             }
         } else if let Some(spec) = tag.strip_prefix("icons:") {
             push_icons(spec, cx, out, st);
@@ -593,7 +605,9 @@ fn format_depth(
             st.align = align::LEFT;
         } else if let Some(target) = tag.strip_prefix("link:") {
             out.push(st.span(Piece::LinkStart(target.to_string()), None));
-            st.color = st.color.or_else(|| cx.lang.color("color.link").map(|c| c >> 8));
+            st.color = st
+                .color
+                .or_else(|| cx.lang.color("color.link").map(|c| c >> 8));
         } else if let Some(key) = tag.strip_prefix("lang:") {
             if depth < 4 {
                 let color = st.color;
@@ -650,7 +664,9 @@ fn format_depth(
 fn egg_of(n: &Name) -> Option<String> {
     let Name::Item(i) = n else { return None };
     let c = crate::content::try_content()?;
-    c.components.text(crate::components::ITEM, *i, c.ids.spawn_egg?).map(str::to_string)
+    c.components
+        .text(crate::components::ITEM, *i, c.ids.spawn_egg?)
+        .map(str::to_string)
 }
 
 fn push_name(n: &Name, cx: &Ctx, out: &mut Vec<Span>, st: &mut State, depth: u32) {
@@ -676,8 +692,10 @@ fn push_name(n: &Name, cx: &Ctx, out: &mut Vec<Span>, st: &mut State, depth: u32
 pub fn refresh(spans: &mut [Span], test: &dyn Fn(&Test) -> bool) -> bool {
     let mut changed = false;
     for s in spans.iter_mut().filter(|s| !s.when.is_empty()) {
-        let hidden =
-            !s.when.iter().all(|c| if let Test::Fixed(holds) = c.test { holds } else { test(&c.test) != c.not });
+        let hidden = !s
+            .when
+            .iter()
+            .all(|c| if let Test::Fixed(holds) = c.test { holds } else { test(&c.test) != c.not });
         changed |= hidden != s.hidden;
         s.hidden = hidden;
     }
@@ -696,10 +714,7 @@ pub enum Placed {
 impl Placed {
     fn pos(&mut self) -> (&mut f32, &mut f32) {
         match self {
-            Placed::Glyph { x, y, .. }
-            | Placed::Icon { x, y, .. }
-            | Placed::Block { x, y, .. }
-            | Placed::Image { x, y, .. } => (x, y),
+            Placed::Glyph { x, y, .. } | Placed::Icon { x, y, .. } | Placed::Block { x, y, .. } | Placed::Image { x, y, .. } => (x, y),
         }
     }
 }
@@ -735,7 +750,10 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
     // Height of the current line (an image makes it taller) and every line's (start, width, align).
     let mut line_h = lh;
     let mut lines: Vec<(usize, f32, u8)> = Vec::new();
-    let mut line_align = spans.iter().find(|s| !s.hidden).map_or(align::LEFT, |s| s.align);
+    let mut line_align = spans
+        .iter()
+        .find(|s| !s.hidden)
+        .map_or(align::LEFT, |s| s.align);
 
     let newline = |out: &mut TextLayout,
                    x: &mut f32,
@@ -761,16 +779,7 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
             Piece::Text(t) => {
                 for ch in t.chars() {
                     if ch == '\n' {
-                        newline(
-                            &mut out,
-                            &mut x,
-                            &mut y,
-                            &mut max_x,
-                            &mut line_start,
-                            &mut line_h,
-                            &mut lines,
-                            line_align,
-                        );
+                        newline(&mut out, &mut x, &mut y, &mut max_x, &mut line_start, &mut line_h, &mut lines, line_align);
                         line_align = span.align;
                         last_break = None;
                         continue;
@@ -779,16 +788,7 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
                     if x + adv > limit && x > 0.0 {
                         if ch == ' ' {
                             // Wrapping right at a space: the space just disappears.
-                            newline(
-                                &mut out,
-                                &mut x,
-                                &mut y,
-                                &mut max_x,
-                                &mut line_start,
-                                &mut line_h,
-                                &mut lines,
-                                line_align,
-                            );
+                            newline(&mut out, &mut x, &mut y, &mut max_x, &mut line_start, &mut line_h, &mut lines, line_align);
                             last_break = None;
                             continue;
                         }
@@ -812,16 +812,7 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
                                 x -= shift;
                                 line_start = idx;
                             }
-                            _ => newline(
-                                &mut out,
-                                &mut x,
-                                &mut y,
-                                &mut max_x,
-                                &mut line_start,
-                                &mut line_h,
-                                &mut lines,
-                                line_align,
-                            ),
+                            _ => newline(&mut out, &mut x, &mut y, &mut max_x, &mut line_start, &mut line_h, &mut lines, line_align),
                         }
                     }
                     if ch == ' ' {
@@ -841,7 +832,8 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
                         });
                         x += cell;
                     } else {
-                        out.items.push(Placed::Glyph { x, y, ch, color: span.color, fx: span.fx });
+                        out.items
+                            .push(Placed::Glyph { x, y, ch, color: span.color, fx: span.fx });
                         x += adv;
                     }
                 }
@@ -879,7 +871,10 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
     out.height = y + font.line_height.max(line_h - (lh - font.line_height));
     out.lines = lines.len() as u32;
     // Aligned lines move within the wrapping width, or within the widest line.
-    let room = max_width.filter(|w| w.is_finite()).unwrap_or(max_x).max(max_x);
+    let room = max_width
+        .filter(|w| w.is_finite())
+        .unwrap_or(max_x)
+        .max(max_x);
     for (i, &(start, width, a)) in lines.iter().enumerate() {
         if a == align::LEFT {
             continue;
@@ -900,11 +895,7 @@ pub fn layout_with(spans: &[Span], font: &Font, max_width: Option<f32>, line_hei
 /// `Ctrl+T`: the modifiers (`keyname.ctrl` ..., either side's key), then the key.
 pub fn display_chord(lang: &Lang, c: crate::input::Chord) -> String {
     let mut out = String::new();
-    for (bit, name) in [
-        (crate::input::CTRL, "keyname.ctrl"),
-        (crate::input::SHIFT, "keyname.shift"),
-        (crate::input::ALT, "keyname.alt"),
-    ] {
+    for (bit, name) in [(crate::input::CTRL, "keyname.ctrl"), (crate::input::SHIFT, "keyname.shift"), (crate::input::ALT, "keyname.alt")] {
         if c.mods & bit != 0 {
             out += lang.get(name);
             out.push('+');
@@ -925,12 +916,18 @@ pub fn plain(s: &str) -> Vec<Span> {
 
 /// The text of spans, without icons or formatting.
 pub fn plain_text(spans: &[Span]) -> String {
-    spans.iter().filter_map(|s| if let Piece::Text(t) = &s.piece { Some(t.as_str()) } else { None }).collect()
+    spans
+        .iter()
+        .filter_map(|s| if let Piece::Text(t) = &s.piece { Some(t.as_str()) } else { None })
+        .collect()
 }
 
 /// Every inline image a layout draws, for loading their textures before drawing.
 pub fn images(layout: &TextLayout) -> impl Iterator<Item = u16> + '_ {
-    layout.items.iter().filter_map(|p| if let Placed::Image { image, .. } = p { Some(*image) } else { None })
+    layout
+        .items
+        .iter()
+        .filter_map(|p| if let Placed::Image { image, .. } = p { Some(*image) } else { None })
 }
 
 #[cfg(test)]
@@ -997,8 +994,11 @@ ab",
             .unwrap();
         assert_eq!((iw, ih), (16.0 * FONT_PER_GUI, 12.0 * FONT_PER_GUI));
         assert_eq!(ix, ((100.0 - (iw + 1.0)) / 2.0).floor());
-        let text_y =
-            l.items.iter().find_map(|p| if let Placed::Glyph { y, .. } = p { Some(*y) } else { None }).unwrap();
+        let text_y = l
+            .items
+            .iter()
+            .find_map(|p| if let Placed::Glyph { y, .. } = p { Some(*y) } else { None })
+            .unwrap();
         assert_eq!(text_y, ih + 1.0);
         assert_eq!(l.lines, 2);
         // Escaped player text shows its braces instead of formatting.
@@ -1014,7 +1014,11 @@ ab",
         let inked = text.chars().filter(|c| *c != ' ').count();
         for width in [0.0, 8.0, 13.0, 40.0, 100.0, 1000.0] {
             let l = layout(&plain(text), &font, Some(width));
-            let glyphs = l.items.iter().filter(|i| matches!(i, Placed::Glyph { ch, .. } if *ch != ' ')).count();
+            let glyphs = l
+                .items
+                .iter()
+                .filter(|i| matches!(i, Placed::Glyph { ch, .. } if *ch != ' '))
+                .count();
             assert_eq!(glyphs, inked, "width {width}");
         }
     }

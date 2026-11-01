@@ -50,7 +50,10 @@ impl Dir {
             let o = d.offset();
             o[0] as f32 * v[0] + o[1] as f32 * v[1] + o[2] as f32 * v[2]
         };
-        allowed.dirs().max_by(|a, b| score(*a).total_cmp(&score(*b))).unwrap_or(Dir::Up)
+        allowed
+            .dirs()
+            .max_by(|a, b| score(*a).total_cmp(&score(*b)))
+            .unwrap_or(Dir::Up)
     }
 }
 
@@ -102,11 +105,7 @@ impl Toward {
         }
         let back = [-look[0], -look[1], -look[2]];
         // Horizontal-only blocks go by the horizontal part of the look alone.
-        if allowed.0 & Facings::VERTICAL.0 == 0 {
-            Dir::nearest([back[0], 0.0, back[2]], allowed)
-        } else {
-            Dir::nearest(back, allowed)
-        }
+        if allowed.0 & Facings::VERTICAL.0 == 0 { Dir::nearest([back[0], 0.0, back[2]], allowed) } else { Dir::nearest(back, allowed) }
     }
 }
 

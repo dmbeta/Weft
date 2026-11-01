@@ -50,7 +50,12 @@ pub fn load(name: &str, read: &dyn Fn(&str) -> Option<String>) -> Result<Option<
     for _ in 0..16 {
         let root: Value = serde_json::from_str(&src).map_err(|e| format!("model {current}: {e}"))?;
         let ns = current.split_once(':').map_or("", |x| x.0).to_string();
-        for (k, v) in root.get("textures").and_then(Value::as_object).into_iter().flatten() {
+        for (k, v) in root
+            .get("textures")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+        {
             if let Some(v) = v.as_str() {
                 textures.entry(k.clone()).or_insert_with(|| qualify(&ns, v));
             }
@@ -102,7 +107,11 @@ pub fn load(name: &str, read: &dyn Fn(&str) -> Option<String>) -> Result<Option<
                 Ok(std::array::from_fn(|j| a[j].as_f64().unwrap_or(0.0) as f32))
             };
             let (from, to) = (v3("from")?, v3("to")?);
-            if e.get("rotation").and_then(|r| r.get("angle")).and_then(Value::as_f64).is_some_and(|a| a != 0.0) {
+            if e.get("rotation")
+                .and_then(|r| r.get("angle"))
+                .and_then(Value::as_f64)
+                .is_some_and(|a| a != 0.0)
+            {
                 log::warn!("model {name}: element {i} is drawn unrotated; rotated elements are not supported");
             }
             let mut b = FileBox {
@@ -114,8 +123,15 @@ pub fn load(name: &str, read: &dyn Fn(&str) -> Option<String>) -> Result<Option<
             let faces = e.get("faces").and_then(Value::as_object);
             for (d, face) in FACES.iter().enumerate() {
                 let Some(f) = faces.and_then(|f| f.get(*face)) else { continue };
-                b.textures[d] = f.get("texture").and_then(Value::as_str).map_or(String::new(), |t| resolve(t));
-                b.uv[d] = match f.get("uv").and_then(Value::as_array).filter(|a| a.len() == 4) {
+                b.textures[d] = f
+                    .get("texture")
+                    .and_then(Value::as_str)
+                    .map_or(String::new(), |t| resolve(t));
+                b.uv[d] = match f
+                    .get("uv")
+                    .and_then(Value::as_array)
+                    .filter(|a| a.len() == 4)
+                {
                     Some(a) => std::array::from_fn(|j| a[j].as_f64().unwrap_or(0.0) as f32),
                     None => [-1.0; 4],
                 };
@@ -129,9 +145,7 @@ pub fn load(name: &str, read: &dyn Fn(&str) -> Option<String>) -> Result<Option<
         Some("block/cube_all") => out.cube = Some(std::array::from_fn(|_| t("all"))),
         Some("block/cube") => out.cube = Some(FACES.map(t)),
         Some("block/cube_column") => out.cube = Some([t("side"), t("side"), t("end"), t("end"), t("side"), t("side")]),
-        Some("block/cube_bottom_top") => {
-            out.cube = Some([t("side"), t("side"), t("bottom"), t("top"), t("side"), t("side")])
-        }
+        Some("block/cube_bottom_top") => out.cube = Some([t("side"), t("side"), t("bottom"), t("top"), t("side"), t("side")]),
         Some("item/generated" | "item/handheld") => out.sprite = Some(t("layer0")),
         _ => return Err(format!("model {name}: no elements and no parent the engine knows")),
     }
@@ -169,7 +183,14 @@ mod tests {
         assert_eq!((b.textures[5].as_str(), b.uv[0][0]), ("", NO_FACE));
         let log = load("m:block/log", &read).unwrap().unwrap();
         assert_eq!(log.cube.unwrap()[3], "m:block/log_top");
-        assert_eq!(load("m:item/gem", &read).unwrap().unwrap().sprite.as_deref(), Some("m:item/gem"));
+        assert_eq!(
+            load("m:item/gem", &read)
+                .unwrap()
+                .unwrap()
+                .sprite
+                .as_deref(),
+            Some("m:item/gem")
+        );
         assert!(load("m:block/none", &read).unwrap().is_none());
     }
 }

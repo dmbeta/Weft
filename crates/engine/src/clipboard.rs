@@ -19,5 +19,8 @@ pub fn get() -> Option<String> {
 }
 
 pub fn set(text: &str) -> bool {
-    clipboard().and_then(|c| c.lock().ok()).map(|mut c| c.set_text(text).is_ok()).unwrap_or(false)
+    clipboard()
+        .and_then(|c| c.lock().ok())
+        .map(|mut c| c.set_text(text).is_ok())
+        .unwrap_or(false)
 }

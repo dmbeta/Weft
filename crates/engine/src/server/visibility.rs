@@ -84,7 +84,12 @@ impl Visibility {
         let center = range.center;
         if self.range != Some(range) {
             self.range = Some(range);
-            left = self.seen.iter().copied().filter(|&p| !in_range(p)).collect();
+            left = self
+                .seen
+                .iter()
+                .copied()
+                .filter(|&p| !in_range(p))
+                .collect();
             for p in &left {
                 self.seen.remove(p);
                 self.waiting.remove(p);
@@ -92,15 +97,23 @@ impl Visibility {
                 // Exits into it from cubes still in range lead out of range now.
                 for (f, d) in DIRS.iter().enumerate() {
                     let n = *p - *d;
-                    if let Some(e) = self.explored.get_mut(&n).filter(|e| e.exits & (1 << f) != 0) {
+                    if let Some(e) = self
+                        .explored
+                        .get_mut(&n)
+                        .filter(|e| e.exits & (1 << f) != 0)
+                    {
                         e.exits &= !(1 << f);
                         self.frontier.insert((n, f as u8));
                     }
                 }
             }
             self.frontier.retain(|&(p, _)| in_range(p));
-            let open: Vec<(IVec3, u8)> =
-                self.frontier.iter().copied().filter(|&(p, f)| in_range(p + DIRS[f as usize])).collect();
+            let open: Vec<(IVec3, u8)> = self
+                .frontier
+                .iter()
+                .copied()
+                .filter(|&(p, f)| in_range(p + DIRS[f as usize]))
+                .collect();
             for (p, f) in open {
                 self.frontier.remove(&(p, f));
                 if let Some(e) = self.explored.get_mut(&p) {
@@ -135,8 +148,12 @@ impl Visibility {
                 }
             }
         }
-        let arrived: Vec<(IVec3, u8)> =
-            self.waiting.iter().filter(|(p, _)| dim.has(**p)).map(|(p, m)| (*p, *m)).collect();
+        let arrived: Vec<(IVec3, u8)> = self
+            .waiting
+            .iter()
+            .filter(|(p, _)| dim.has(**p))
+            .map(|(p, m)| (*p, *m))
+            .collect();
         for &(p, mask) in &arrived {
             self.waiting.remove(&p);
             for from in 0..7 {
@@ -162,13 +179,7 @@ impl Visibility {
     }
 
     /// Returns the cubes entered for the first time.
-    fn fill(
-        &mut self,
-        dim: &mut impl Cubes,
-        c: &Content,
-        in_range: &impl Fn(IVec3) -> bool,
-        mut queue: Vec<(IVec3, u8)>,
-    ) -> Vec<IVec3> {
+    fn fill(&mut self, dim: &mut impl Cubes, c: &Content, in_range: &impl Fn(IVec3) -> bool, mut queue: Vec<(IVec3, u8)>) -> Vec<IVec3> {
         let mut fresh = Vec::new();
         while let Some((pos, from)) = queue.pop() {
             let Some(conn) = dim.connectivity(c, pos) else { continue };

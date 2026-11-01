@@ -64,7 +64,11 @@ impl Lang {
     /// `0xRRGGBBAA`, `None` when missing or not a color.
     pub fn color(&self, key: &str) -> Option<u32> {
         let v = self.entries.get(key).or_else(|| self.fallback.get(key))?;
-        let h = v.trim().trim_start_matches('{').trim_end_matches('}').strip_prefix('#')?;
+        let h = v
+            .trim()
+            .trim_start_matches('{')
+            .trim_end_matches('}')
+            .strip_prefix('#')?;
         let c = u32::from_str_radix(h, 16).ok()?;
         match h.len() {
             6 => Some(c << 8 | 0xFF),

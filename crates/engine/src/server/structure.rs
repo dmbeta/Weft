@@ -47,13 +47,7 @@ impl crate::physics::Blocks for Dim {
 
 impl Dim {
     /// A structure's own space in dimension `dim`, holding `blocks`.
-    pub fn new_structure(
-        c: &Content,
-        dim: u32,
-        seed: u64,
-        next_id: Arc<std::sync::atomic::AtomicU64>,
-        blocks: &[(IVec3, u32)],
-    ) -> Dim {
+    pub fn new_structure(c: &Content, dim: u32, seed: u64, next_id: Arc<std::sync::atomic::AtomicU64>, blocks: &[(IVec3, u32)]) -> Dim {
         let mut d = Dim::new(dim, seed, next_id);
         d.framed = true;
         for &(p, state) in blocks {
@@ -88,11 +82,17 @@ impl Dim {
     pub fn grow_bounds(&mut self, p: IVec3, state: u32) {
         if state == AIR {
             // Shrinking needs a look over everything (only when the edge itself went).
-            if self.bounds.is_some_and(|(lo, hi)| p.cmpeq(lo).any() || p.cmpeq(hi).any()) {
+            if self
+                .bounds
+                .is_some_and(|(lo, hi)| p.cmpeq(lo).any() || p.cmpeq(hi).any())
+            {
                 self.bounds = self.scan_bounds();
             }
         } else {
-            self.bounds = Some(self.bounds.map_or((p, p), |(lo, hi)| (lo.min(p), hi.max(p))));
+            self.bounds = Some(
+                self.bounds
+                    .map_or((p, p), |(lo, hi)| (lo.min(p), hi.max(p))),
+            );
         }
     }
 
@@ -127,8 +127,13 @@ impl Dim {
         let Some(pos) = self.entities.get(id).map(|e| e.pos) else { return };
         let o = origin(pos);
         let Some(s) = self.structures.get_mut(&id) else { return };
-        let free: Vec<u64> =
-            s.entities.list.iter().filter(|e| !e.removed && e.anchor.is_none()).map(|e| e.id).collect();
+        let free: Vec<u64> = s
+            .entities
+            .list
+            .iter()
+            .filter(|e| !e.removed && e.anchor.is_none())
+            .map(|e| e.id)
+            .collect();
         let mut moved = Vec::new();
         for eid in free {
             if let Some((mut e, inv, comps)) = s.entities.take(eid) {
@@ -155,12 +160,7 @@ impl Dim {
     /// the structure comes over after.
     /// A structure's space settles before what it lets go of is handed over; the world's with
     /// the rest of the action (`Server::settle`).
-    pub fn with_space<R>(
-        &mut self,
-        c: &'static Content,
-        frame: u64,
-        f: impl FnOnce(&mut Dim, DVec3) -> R,
-    ) -> Option<R> {
+    pub fn with_space<R>(&mut self, c: &'static Content, frame: u64, f: impl FnOnce(&mut Dim, DVec3) -> R) -> Option<R> {
         if frame == 0 {
             return Some(f(self, DVec3::ZERO));
         }

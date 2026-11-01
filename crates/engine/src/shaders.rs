@@ -58,7 +58,10 @@ pub struct Slots {
 impl Slots {
     /// Slot of a snippet (`ns:name`), 0 if it is not there.
     pub fn slot(&self, name: &str) -> u32 {
-        self.names.iter().position(|n| n == name).map_or(0, |i| i as u32 + 1)
+        self.names
+            .iter()
+            .position(|n| n == name)
+            .map_or(0, |i| i as u32 + 1)
     }
 }
 
@@ -98,11 +101,7 @@ fn source(base: &str, hooks: &[&Hook], chosen: &[Snippet]) -> String {
 
 /// Compiles `base` with the snippets of each hook. A snippet that does not compile (or clashes
 /// with another) is left out with an error naming it; the rest keep working.
-pub fn compose(
-    label: &str,
-    base: &str,
-    parts: &[(&Hook, &[(String, String)])],
-) -> Result<(Shader, Vec<Slots>), ShaderError> {
+pub fn compose(label: &str, base: &str, parts: &[(&Hook, &[(String, String)])]) -> Result<(Shader, Vec<Slots>), ShaderError> {
     let hooks: Vec<&Hook> = parts.iter().map(|p| p.0).collect();
     let mut all: Vec<Snippet> = Vec::new();
     for (h, (hook, list)) in parts.iter().enumerate() {
@@ -116,7 +115,13 @@ pub fn compose(
     }
     let slots = |chosen: &[Snippet]| -> Vec<Slots> {
         (0..hooks.len())
-            .map(|h| Slots { names: chosen.iter().filter(|s| s.0 == h).map(|s| s.1.0.clone()).collect() })
+            .map(|h| Slots {
+                names: chosen
+                    .iter()
+                    .filter(|s| s.0 == h)
+                    .map(|s| s.1.0.clone())
+                    .collect(),
+            })
             .collect()
     };
     if let Ok(shader) = Shader::from_wgsl(label, &source(base, &hooks, &all)) {

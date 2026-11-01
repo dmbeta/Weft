@@ -32,7 +32,9 @@ fn armor_of(w: &World, entity: u64) -> (u32, f32) {
 }
 
 pub fn register(r: &mut Registry) {
-    r.player_inventory().group("hotbar", Slots::row(9).hotbar()).group("main", Slots::grid(9, 3));
+    r.player_inventory()
+        .group("hotbar", Slots::row(9).hotbar())
+        .group("main", Slots::grid(9, 3));
     for (slot, parts, piece) in [
         (&HEAD, worn_parts::HEAD, "helmet"),
         (&base_api::CHEST, worn_parts::BODY | worn_parts::ARMS, "chestplate"),
@@ -51,7 +53,9 @@ pub fn register(r: &mut Registry) {
     // Not hungry, it doesn't start eating; the other way round it would only find out at the end.
     r.intercept(&question::USE_ITEM, |q| {
         let full = FOOD.on_item(q.item()).is_some()
-            && q.world().component(q.entity(), &HUNGER).is_some_and(|h| h.food >= 20.0);
+            && q.world()
+                .component(q.entity(), &HUNGER)
+                .is_some_and(|h| h.food >= 20.0);
         if full { Verdict::Deny } else { Verdict::Abstain }
     });
     // Modern's exhaustion, by what the player does.
@@ -93,10 +97,7 @@ pub fn register(r: &mut Registry) {
                 if ARMOR.on_item(s.item).is_some() {
                     let durability = DURABILITY.on_item(s.item).unwrap_or(0);
                     let damage = s.damage() + wear;
-                    worn.set(
-                        slot,
-                        if durability > 0 && damage >= durability { ItemStack::EMPTY } else { s.with_damage(damage) },
-                    );
+                    worn.set(slot, if durability > 0 && damage >= durability { ItemStack::EMPTY } else { s.with_damage(damage) });
                 }
             }
         }
@@ -129,22 +130,20 @@ pub fn register(r: &mut Registry) {
     r.hud_element(&HUD_ARMOR, hud_anchor::HOTBAR_LEFT, 1, |ui| {
         ui.icons("armor", 10, |c| {
             // From what the client knows of its own inventory, like the server's damage chain.
-            let points: u32 =
-                c.inventory_group(EQUIPMENT_GROUP).iter().filter_map(|s| ARMOR.on_item(s.item)).map(|a| a.points).sum();
+            let points: u32 = c
+                .inventory_group(EQUIPMENT_GROUP)
+                .iter()
+                .filter_map(|s| ARMOR.on_item(s.item))
+                .map(|a| a.points)
+                .sum();
             if points > 0 && !c.creative() { points as f32 } else { -1.0 }
         })
     });
     r.hud_element(&HUD_FOOD, hud_anchor::HOTBAR_RIGHT, 0, |ui| {
-        ui.icons_rtl(
-            "food",
-            10,
-            |c| if c.creative() { -1.0 } else { c.component(&HUNGER).map_or(20.0, |h| h.food.ceil()) },
-        )
+        ui.icons_rtl("food", 10, |c| if c.creative() { -1.0 } else { c.component(&HUNGER).map_or(20.0, |h| h.food.ceil()) })
     });
     r.hud_element(&HUD_AIR, hud_anchor::HOTBAR_RIGHT, 1, |ui| {
-        ui.icons_rtl("air", 10, |c| {
-            if c.creative() { -1.0 } else { c.component(&HUNGER).map_or(-1.0, |h| air_bubbles(h.air)) }
-        })
+        ui.icons_rtl("air", 10, |c| if c.creative() { -1.0 } else { c.component(&HUNGER).map_or(-1.0, |h| air_bubbles(h.air)) })
     });
 
     // While a swing charges.
@@ -214,7 +213,8 @@ fn armor_applies(cause: u32) -> bool {
 fn craft_result(m: &MenuCtx) {
     let grid = m.group("grid");
     let cells: Vec<ItemStack> = (0..grid.len()).map(|i| grid.get(i)).collect();
-    m.group("result").set(0, recipe_match(&crate::recipes::CRAFTING, &cells, grid.cols(), grid.rows()));
+    m.group("result")
+        .set(0, recipe_match(&crate::recipes::CRAFTING, &cells, grid.cols(), grid.rows()));
 }
 
 /// Takes one of each ingredient; the last of a stack leaves its `remainder` (a bucket).
@@ -229,7 +229,10 @@ fn consume_grid(m: &MenuCtx) {
 }
 
 fn tire(w: &World, player: u64, amount: f32) {
-    if let Some(h) = w.component_mut(player, &HUNGER).filter(|_| !w.creative(player)) {
+    if let Some(h) = w
+        .component_mut(player, &HUNGER)
+        .filter(|_| !w.creative(player))
+    {
         h.exhaustion += amount;
     }
 }
@@ -311,8 +314,7 @@ fn tick_players(w: &World) {
         }
         let eye = [st.pos[0].floor() as i32, (st.pos[1] + st.size[2] as f64).floor() as i32, st.pos[2].floor() as i32];
         // Only water takes the breath, whatever else burns or drags.
-        let underwater =
-            WATER_LIKE.on_block(w.get(eye)) && w.in_liquid([st.pos[0], st.pos[1] + st.size[2] as f64, st.pos[2]]);
+        let underwater = WATER_LIKE.on_block(w.get(eye)) && w.in_liquid([st.pos[0], st.pos[1] + st.size[2] as f64, st.pos[2]]);
         let Some(h) = w.component_mut(id, &HUNGER) else { continue };
         if underwater {
             h.air -= 1.0;

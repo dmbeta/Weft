@@ -21,7 +21,11 @@ fn game_root() -> PathBuf {
         return cwd;
     }
     let exe = std::env::current_exe().unwrap_or_default();
-    exe.ancestors().skip(1).find(|d| has(d)).map(PathBuf::from).unwrap_or(cwd)
+    exe.ancestors()
+        .skip(1)
+        .find(|d| has(d))
+        .map(PathBuf::from)
+        .unwrap_or(cwd)
 }
 
 fn main() {
@@ -78,11 +82,7 @@ fn main() {
             }
             other => match other.strip_prefix("--") {
                 Some(name) => {
-                    let v = if args.peek().is_some_and(|n| !n.starts_with("--")) {
-                        args.next().unwrap_or_default()
-                    } else {
-                        "1".into()
-                    };
+                    let v = if args.peek().is_some_and(|n| !n.starts_with("--")) { args.next().unwrap_or_default() } else { "1".into() };
                     extra.push((name.to_string(), v));
                 }
                 None => eprintln!("unknown argument {other}"),
@@ -154,19 +154,28 @@ fn main() {
 /// one after the other, also what naming tests does unless asked). Each takes every Nth test
 /// (`testkit`, `--test-shard`); what they leave is put together as a single run would have it.
 fn test_jobs(extra: &[(String, String)], run_dir: &std::path::Path) -> Option<i32> {
-    let option = |name: &str| extra.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str());
+    let option = |name: &str| {
+        extra
+            .iter()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.as_str())
+    };
     if option("test-shard").is_some() {
         return None;
     }
     let test = option("test")?;
     let auto = (std::thread::available_parallelism().map_or(1, |n| n.get()) / 4).clamp(1, 6);
-    let jobs = option("jobs").and_then(|j| j.parse().ok()).unwrap_or(if test == "all" { auto } else { 1 });
+    let jobs = option("jobs")
+        .and_then(|j| j.parse().ok())
+        .unwrap_or(if test == "all" { auto } else { 1 });
     if jobs < 2 || test == "list" {
         return None;
     }
     let started = std::time::Instant::now();
     let exe = std::env::current_exe().ok()?;
-    let mut dirs: Vec<PathBuf> = (0..jobs).map(|i| run_dir.join("test-jobs").join(i.to_string())).collect();
+    let mut dirs: Vec<PathBuf> = (0..jobs)
+        .map(|i| run_dir.join("test-jobs").join(i.to_string()))
+        .collect();
     let spawn = |shard: &str, dir: &PathBuf| {
         let _ = std::fs::create_dir_all(dir);
         // Or a process that dies at once passes by the last run's.
@@ -185,8 +194,16 @@ fn test_jobs(extra: &[(String, String)], run_dir: &std::path::Path) -> Option<i3
         }
         c.spawn().ok()
     };
-    let children: Vec<_> = dirs.iter().enumerate().map(|(i, dir)| spawn(&format!("{i}/{jobs}"), dir)).collect();
-    let code = |c: Option<std::process::Child>| c.and_then(|mut c| c.wait().ok()).and_then(|s| s.code()).unwrap_or(1);
+    let children: Vec<_> = dirs
+        .iter()
+        .enumerate()
+        .map(|(i, dir)| spawn(&format!("{i}/{jobs}"), dir))
+        .collect();
+    let code = |c: Option<std::process::Child>| {
+        c.and_then(|mut c| c.wait().ok())
+            .and_then(|s| s.code())
+            .unwrap_or(1)
+    };
     let mut codes: Vec<i32> = children.into_iter().map(code).collect();
     // What measures how quick the game is can't share the machine: last, on its own.
     dirs.push(run_dir.join("test-jobs").join("alone"));
@@ -197,27 +214,30 @@ fn test_jobs(extra: &[(String, String)], run_dir: &std::path::Path) -> Option<i3
     let _ = std::fs::create_dir_all(&shots);
     let (mut passed, mut failed, mut details, mut crashed) = (0, 0, String::new(), 0);
     for (i, dir) in dirs.iter().enumerate() {
-        for e in std::fs::read_dir(dir.join("test-shots")).into_iter().flatten().flatten() {
+        for e in std::fs::read_dir(dir.join("test-shots"))
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
             let _ = std::fs::rename(e.path(), shots.join(e.file_name()));
         }
         let report = std::fs::read_to_string(dir.join("test-reports/report.txt")).unwrap_or_default();
-        let counts: Vec<i32> =
-            report.lines().next().unwrap_or("").split_whitespace().filter_map(|w| w.parse().ok()).collect();
+        let counts: Vec<i32> = report
+            .lines()
+            .next()
+            .unwrap_or("")
+            .split_whitespace()
+            .filter_map(|w| w.parse().ok())
+            .collect();
         if let ([p, f], true) = (counts.as_slice(), codes[i] >= 0 && !report.is_empty()) {
             (passed, failed) = (passed + p, failed + f);
             details.push_str(report.split_once('\n').map_or("", |r| r.1));
         } else {
             crashed += 1;
-            details.push_str(&format!(
-                "\nFAIL process {i} ended without a report, see {}\n",
-                dir.join("output.log").display()
-            ));
+            details.push_str(&format!("\nFAIL process {i} ended without a report, see {}\n", dir.join("output.log").display()));
         }
     }
-    let head = format!(
-        "testkit report: {passed} passed, {failed} failed, {:.1} s, {jobs} at once\n",
-        started.elapsed().as_secs_f32()
-    );
+    let head = format!("testkit report: {passed} passed, {failed} failed, {:.1} s, {jobs} at once\n", started.elapsed().as_secs_f32());
     let reports = run_dir.join("test-reports");
     let _ = std::fs::create_dir_all(&reports);
     let _ = std::fs::write(reports.join("report.txt"), format!("{head}{details}"));
@@ -243,7 +263,12 @@ fn test_jobs(extra: &[(String, String)], run_dir: &std::path::Path) -> Option<i3
 
 fn subdirs(dir: &std::path::Path) -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map(|r| r.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect())
+        .map(|r| {
+            r.flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_dir())
+                .collect()
+        })
         .unwrap_or_default();
     v.sort();
     v
@@ -268,7 +293,10 @@ fn make_dist(root: &std::path::Path, out: &std::path::Path) -> Result<(), String
 
 fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> Result<(), String> {
     std::fs::create_dir_all(to).map_err(|e| e.to_string())?;
-    for e in std::fs::read_dir(from).map_err(|e| format!("{}: {e}", from.display()))?.flatten() {
+    for e in std::fs::read_dir(from)
+        .map_err(|e| format!("{}: {e}", from.display()))?
+        .flatten()
+    {
         let p = e.path();
         if p.is_dir() {
             copy_dir(&p, &to.join(e.file_name()))?;

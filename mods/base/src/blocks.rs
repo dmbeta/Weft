@@ -70,7 +70,9 @@ fn axis_placement(p: &Place, props: &mut Props) {
 fn log(r: &mut Registry, handle: &'static Block, wood: &str, leaves: &str, cone: bool) {
     let side = format!("log_{wood}");
     let top = format!("log_{wood}_top");
-    let b = r.block(handle).set_text(&crate::worldgen::TREE_LEAVES, leaves);
+    let b = r
+        .block(handle)
+        .set_text(&crate::worldgen::TREE_LEAVES, leaves);
     let b = if cone { b.tag("cone_tree") } else { b };
     b.sound_group("wood")
         .hardness(2.0)
@@ -101,14 +103,21 @@ fn leaves(r: &mut Registry, handle: &'static Block, tex: &str) {
         .mineable("shears")
         .tab(&crate::tabs::NATURAL);
     // Vanilla: a sapling one time in 20, oak leaves an apple one time in 200.
-    let table = r.loot(handle).pool(Pool::new().when(Cond::Chance(0.05)).item("sapling"));
+    let table = r
+        .loot(handle)
+        .pool(Pool::new().when(Cond::Chance(0.05)).item("sapling"));
     if std::ptr::eq(handle, &OAK_LEAVES) {
         table.pool(Pool::new().when(Cond::Chance(0.005)).item("apple"));
     }
 }
 
 fn plant(r: &mut Registry, handle: &'static Block, tex: &str) {
-    r.block(handle).sound_group("grass").texture(tex).plant().needs_below("#plant_soil").tab(&crate::tabs::NATURAL);
+    r.block(handle)
+        .sound_group("grass")
+        .texture(tex)
+        .plant()
+        .needs_below("#plant_soil")
+        .tab(&crate::tabs::NATURAL);
 }
 
 /// Sand and gravel: with nothing under them they fall as an entity and land as a block.
@@ -138,7 +147,12 @@ pub fn register(r: &mut Registry) {
         .mineable("pickaxe")
         .needs_tool(0)
         .tab(&crate::tabs::BUILDING);
-    r.block(&DIRT).sound_group("gravel").hardness(0.5).mineable("shovel").tag("dirt").tab(&crate::tabs::NATURAL);
+    r.block(&DIRT)
+        .sound_group("gravel")
+        .hardness(0.5)
+        .mineable("shovel")
+        .tag("dirt")
+        .tab(&crate::tabs::NATURAL);
     r.block(&GRASS)
         .sound_group("grass")
         .textures("grass_top", "grass_side", "dirt")
@@ -166,8 +180,18 @@ pub fn register(r: &mut Registry) {
         .tag("sand")
         .falling()
         .tab(&crate::tabs::NATURAL);
-    r.block(&GRAVEL).sound_group("gravel").hardness(0.6).mineable("shovel").falling().tab(&crate::tabs::NATURAL);
-    r.block(&CLAY).sound_group("gravel").hardness(0.6).mineable("shovel").tag("clay").tab(&crate::tabs::NATURAL);
+    r.block(&GRAVEL)
+        .sound_group("gravel")
+        .hardness(0.6)
+        .mineable("shovel")
+        .falling()
+        .tab(&crate::tabs::NATURAL);
+    r.block(&CLAY)
+        .sound_group("gravel")
+        .hardness(0.6)
+        .mineable("shovel")
+        .tag("clay")
+        .tab(&crate::tabs::NATURAL);
     r.block(&SANDSTONE)
         .sound_group("stone")
         .textures("sandstone_top", "sandstone_side", "sandstone_bottom")
@@ -175,7 +199,11 @@ pub fn register(r: &mut Registry) {
         .mineable("pickaxe")
         .needs_tool(0)
         .tab(&crate::tabs::BUILDING);
-    r.block(&SNOW).sound_group("sand").hardness(0.2).mineable("shovel").tab(&crate::tabs::NATURAL);
+    r.block(&SNOW)
+        .sound_group("sand")
+        .hardness(0.2)
+        .mineable("shovel")
+        .tab(&crate::tabs::NATURAL);
     // Blue lamps and glass are made with it.
     r.block(&ICE)
         .sound_group("glass")
@@ -252,11 +280,13 @@ pub fn register(r: &mut Registry) {
     leaves(r, &SPRUCE_LEAVES, "leaves_spruce");
 
     // Vanilla numbers: water steps every 5 ticks and reaches 7 blocks, lava every 30 and 3.
-    r.liquid(&WATER).tint(&tints::WATER).translucent().renewable(2).fog(0x050533, 96.0).tag("water").bucket(
-        Item::generated("water_bucket".into()),
-        &crate::items::BUCKET,
-        &crate::tabs::TOOLS,
-    );
+    r.liquid(&WATER)
+        .tint(&tints::WATER)
+        .translucent()
+        .renewable(2)
+        .fog(0x050533, 96.0)
+        .tag("water")
+        .bucket(Item::generated("water_bucket".into()), &crate::items::BUCKET, &crate::tabs::TOOLS);
     r.liquid(&LAVA)
         .light(15)
         .drag(0.4)
@@ -270,7 +300,10 @@ pub fn register(r: &mut Registry) {
         .tag("lava")
         .tag("hot")
         .bucket(Item::generated("lava_bucket".into()), &crate::items::BUCKET, &crate::tabs::TOOLS);
-    r.liquid_reaction("#hot", "#water").source_block("obsidian").flowing_block("cobblestone").turns_below_into("stone");
+    r.liquid_reaction("#hot", "#water")
+        .source_block("obsidian")
+        .flowing_block("cobblestone")
+        .turns_below_into("stone");
 
     r.block(&TALL_GRASS)
         .sound_group("grass")
@@ -279,7 +312,8 @@ pub fn register(r: &mut Registry) {
         .needs_below("#plant_soil")
         .tint(&tints::GRASS)
         .no_item();
-    r.loot(&TALL_GRASS).pool(Pool::new().when(Cond::Chance(0.125)).item("wheat_seeds"));
+    r.loot(&TALL_GRASS)
+        .pool(Pool::new().when(Cond::Chance(0.125)).item("wheat_seeds"));
     plant(r, &DANDELION, "flower_dandelion");
     plant(r, &ROSE, "flower_rose");
     r.block(&SAPLING)
@@ -320,7 +354,11 @@ pub fn register(r: &mut Registry) {
     r.loot(&WHEAT)
         .pool(Pool::new().when(Cond::BlockState("age=7")).item("wheat"))
         .pool(Pool::new().entry(Entry::item("wheat_seeds")))
-        .pool(Pool::new().when(Cond::BlockState("age=7")).entry(Entry::item("wheat_seeds").count(0, 3)));
+        .pool(
+            Pool::new()
+                .when(Cond::BlockState("age=7"))
+                .entry(Entry::item("wheat_seeds").count(0, 3)),
+        );
     r.block(&FARMLAND)
         .sound_group("gravel")
         .textures("farmland", "dirt", "dirt")
@@ -401,8 +439,18 @@ pub fn register(r: &mut Registry) {
         .not_solid()
         .hardness(0.4)
         .tab(&crate::tabs::FUNCTIONAL);
-    r.block(&GLOWSTONE).sound_group("glass").tag("glowstone").light(15).hardness(0.3).tab(&crate::tabs::NATURAL);
-    r.block(&BRICKS).sound_group("stone").hardness(2.0).mineable("pickaxe").needs_tool(0).tab(&crate::tabs::BUILDING);
+    r.block(&GLOWSTONE)
+        .sound_group("glass")
+        .tag("glowstone")
+        .light(15)
+        .hardness(0.3)
+        .tab(&crate::tabs::NATURAL);
+    r.block(&BRICKS)
+        .sound_group("stone")
+        .hardness(2.0)
+        .mineable("pickaxe")
+        .needs_tool(0)
+        .tab(&crate::tabs::BUILDING);
     r.block(&STONE_BRICKS)
         .sound_group("stone")
         .texture("stonebrick")
@@ -479,7 +527,9 @@ pub fn torch_state<'a>(d: Dir, s: State<'a>, texture: &str) -> State<'a> {
         Dir::East => ([0.0, 3.0, 7.0], [2.0, 13.0, 9.0]),
         _ => ([7.0, 0.0, 7.0], [9.0, 10.0, 9.0]),
     };
-    s.texture(texture).model_box(min, max).needs(d.opposite().face(), "")
+    s.texture(texture)
+        .model_box(min, max)
+        .needs(d.opposite().face(), "")
 }
 
 /// Sugar cane and cacti grow a block on top, up to three high.

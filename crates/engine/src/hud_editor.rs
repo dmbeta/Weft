@@ -108,7 +108,10 @@ impl Screen for HudEditor {
             }
             return true;
         }
-        if ui.find("hud_tools").is_some_and(|t| ui.nodes[t].rect.contains(cursor)) {
+        if ui
+            .find("hud_tools")
+            .is_some_and(|t| ui.nodes[t].rect.contains(cursor))
+        {
             // Its empty parts move it; its buttons work as usual.
             if left && ui.hit(cursor).is_none() {
                 let at = self.tools.unwrap_or(Vec2::new(ui.size.x / 2.0, 8.0));
@@ -179,7 +182,8 @@ impl Screen for HudEditor {
             }
             ui.container(row(), |ui| {
                 button(ui, cx, "hud.edit.lines", &[], 104.0, |c| {
-                    c.requests.push(Request::Screen("core:debug_options".into()))
+                    c.requests
+                        .push(Request::Screen("core:debug_options".into()))
                 });
                 button(ui, cx, "hud.edit.reset_all", &[], 104.0, |c| {
                     if let Some(s) = c.screen::<HudEditor>() {
@@ -214,7 +218,15 @@ impl Screen for DebugOptions {
         frame(ui, cx, "hud.options.title", |ui| {
             let list = ui.panel(
                 "panel",
-                Style::default().pad(8.0).gap(3.0).stretch().w(420.0).h(0.0).grow().min_h(60.0).scroll(),
+                Style::default()
+                    .pad(8.0)
+                    .gap(3.0)
+                    .stretch()
+                    .w(420.0)
+                    .h(0.0)
+                    .grow()
+                    .min_h(60.0)
+                    .scroll(),
                 |ui| {
                     let row = |ui: &mut Ui, id: String, name: Vec<crate::ui::text::Span>| {
                         let state = lines.get(&id).copied().unwrap_or_default();
@@ -237,18 +249,11 @@ impl Screen for DebugOptions {
                         ui.container(Style::row().gap(6.0).self_align(crate::ui::Align::Stretch), |ui| {
                             let n = ui.text(cx.t(title, &[]), "default");
                             ui.nodes[n].style.grow = 1.0;
-                            let b = button(
-                                ui,
-                                cx,
-                                "hud.options.group",
-                                &[Arg::Int(i as i64 + 1), Arg::Key(key.into())],
-                                90.0,
-                                move |c| {
-                                    let groups = c.settings.debug_groups();
-                                    c.settings.set("debug_groups", (groups ^ (1 << i)) as f64);
-                                    c.requests.push(Request::Rebuild);
-                                },
-                            );
+                            let b = button(ui, cx, "hud.options.group", &[Arg::Int(i as i64 + 1), Arg::Key(key.into())], 90.0, move |c| {
+                                let groups = c.settings.debug_groups();
+                                c.settings.set("debug_groups", (groups ^ (1 << i)) as f64);
+                                c.requests.push(Request::Rebuild);
+                            });
                             ui.set_id(b, &format!("group:{i}"));
                         });
                     };

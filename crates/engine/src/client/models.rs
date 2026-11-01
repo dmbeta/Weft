@@ -93,9 +93,16 @@ pub struct Models {
 fn load_kind(assets: &Assets, k: u32) -> (Vec<Part>, Option<[u32; 2]>, Vec<model::Animation>) {
     let c = content();
     let kind = &c.game.entities[k as usize];
-    let named = |key: &str| c.components.id(key).and_then(|id| c.components.text(ENTITY, k, id)).map(str::to_string);
+    let named = |key: &str| {
+        c.components
+            .id(key)
+            .and_then(|id| c.components.text(ENTITY, k, id))
+            .map(str::to_string)
+    };
     let file = |name: &str, kind: &str, ext: &str| {
-        assets.read(name, kind, ext).map(|b| String::from_utf8_lossy(&b).into_owned())
+        assets
+            .read(name, kind, ext)
+            .map(|b| String::from_utf8_lossy(&b).into_owned())
     };
     let (mut parts, mut texture) = (kind.parts.clone(), None);
     let model_name = named(comp::MODEL).unwrap_or_else(|| kind.name.clone());
@@ -157,13 +164,11 @@ impl Models {
                         pad2: 0,
                     });
                 }
-                corners.extend(p.mesh.iter().map(|v| GpuCorner {
-                    pos: v.pos,
-                    bone: b as u32,
-                    uv: v.uv,
-                    role: p.role,
-                    pad: 0,
-                }));
+                corners.extend(
+                    p.mesh
+                        .iter()
+                        .map(|v| GpuCorner { pos: v.pos, bone: b as u32, uv: v.uv, role: p.role, pad: 0 }),
+                );
             }
             let anims: Vec<Bound> = anims.into_iter().map(|a| Bound::new(a, &parts)).collect();
             let find = |n: &str| anims.iter().position(|a| a.anim.name == n);
@@ -183,19 +188,20 @@ impl Models {
         corners.push(GpuCorner::default());
         gpu.destroy_buffer(self.cuboids);
         gpu.destroy_buffer(self.corners);
-        self.cuboids =
-            gpu.create_buffer((cuboids.len() * size_of::<GpuCuboid>()) as u64, usage::STORAGE, "model cuboids");
+        self.cuboids = gpu.create_buffer((cuboids.len() * size_of::<GpuCuboid>()) as u64, usage::STORAGE, "model cuboids");
         gpu.write_buffer(self.cuboids, 0, bytemuck::cast_slice(&cuboids));
-        self.corners =
-            gpu.create_buffer((corners.len() * size_of::<GpuCorner>()) as u64, usage::STORAGE, "model corners");
+        self.corners = gpu.create_buffer((corners.len() * size_of::<GpuCorner>()) as u64, usage::STORAGE, "model corners");
         gpu.write_buffer(self.corners, 0, bytemuck::cast_slice(&corners));
     }
 
     pub fn destroy(&mut self, gpu: &mut dyn Backend) {
-        for b in [self.cuboids, self.corners]
-            .into_iter()
-            .chain(self.instances.iter_mut().chain(&mut self.bones).flat_map(|v| v.drain(..)).map(|b| b.0))
-        {
+        for b in [self.cuboids, self.corners].into_iter().chain(
+            self.instances
+                .iter_mut()
+                .chain(&mut self.bones)
+                .flat_map(|v| v.drain(..))
+                .map(|b| b.0),
+        ) {
             gpu.destroy_buffer(b);
         }
     }
@@ -210,10 +216,13 @@ impl Models {
         let Some(m) = self.kinds.get(kind as usize) else { return };
         model::pose(&m.parts, root, motion, &mut self.scratch);
         let first = self.rows.len() as u32;
-        self.rows.extend(self.scratch.iter().map(|b| [b.row(0).to_array(), b.row(1).to_array(), b.row(2).to_array()]));
+        self.rows.extend(
+            self.scratch
+                .iter()
+                .map(|b| [b.row(0).to_array(), b.row(1).to_array(), b.row(2).to_array()]),
+        );
         for mut inst in layers {
-            (inst.bones, inst.cuboids, inst.cuboid_count, inst.vertices) =
-                (first, m.cuboids.0, m.cuboids.1, m.corners.0);
+            (inst.bones, inst.cuboids, inst.cuboid_count, inst.vertices) = (first, m.cuboids.0, m.cuboids.1, m.corners.0);
             self.queued.push((kind, inst));
         }
     }
@@ -237,8 +246,13 @@ impl Models {
         let base = self.rows.len();
         let mut counts = std::mem::take(&mut self.counts);
         counts.clear();
-        counts.extend(entities.iter().map(|e| kinds.get(e.kind as usize).map_or(0, |m| m.parts.len())));
-        self.rows.resize(base + counts.iter().sum::<usize>(), [[0.0; 4]; 3]);
+        counts.extend(
+            entities
+                .iter()
+                .map(|e| kinds.get(e.kind as usize).map_or(0, |m| m.parts.len())),
+        );
+        self.rows
+            .resize(base + counts.iter().sum::<usize>(), [[0.0; 4]; 3]);
         let mut slices: Vec<&mut [[[f32; 4]; 3]]> = Vec::with_capacity(entities.len());
         let mut rest = &mut self.rows[base..];
         for &n in &counts {
@@ -246,46 +260,53 @@ impl Models {
             slices.push(a);
             rest = b;
         }
-        entities.par_iter().zip(slices).with_min_len(64).for_each_init(Vec::new, |scratch, (e, out)| {
-            let Some(m) = kinds.get(e.kind as usize) else { return };
-            let a = |i: usize| e.anims[..e.anim_count].get(i).and_then(|&(a, t, w)| m.anims.get(a).map(|b| (b, t, w)));
-            let (single, both);
-            let anims: &[(&Bound, f32, f32)] = match (a(0), a(1)) {
-                (Some(x), Some(y)) => {
-                    both = [x, y];
-                    &both
+        entities
+            .par_iter()
+            .zip(slices)
+            .with_min_len(64)
+            .for_each_init(Vec::new, |scratch, (e, out)| {
+                let Some(m) = kinds.get(e.kind as usize) else { return };
+                let a = |i: usize| {
+                    e.anims[..e.anim_count]
+                        .get(i)
+                        .and_then(|&(a, t, w)| m.anims.get(a).map(|b| (b, t, w)))
+                };
+                let (single, both);
+                let anims: &[(&Bound, f32, f32)] = match (a(0), a(1)) {
+                    (Some(x), Some(y)) => {
+                        both = [x, y];
+                        &both
+                    }
+                    (Some(x), None) | (None, Some(x)) => {
+                        single = [x];
+                        &single
+                    }
+                    (None, None) => &[],
+                };
+                model::pose(
+                    &m.parts,
+                    e.root,
+                    &Motion {
+                        pitch: e.pitch,
+                        head_yaw: e.head_yaw,
+                        swing: e.swing,
+                        swim: e.swim,
+                        attack: e.attack,
+                        holding: e.holding,
+                        anims,
+                        crouch: e.crouch,
+                    },
+                    scratch,
+                );
+                for (o, b) in out.iter_mut().zip(scratch.iter()) {
+                    *o = [b.row(0).to_array(), b.row(1).to_array(), b.row(2).to_array()];
                 }
-                (Some(x), None) | (None, Some(x)) => {
-                    single = [x];
-                    &single
-                }
-                (None, None) => &[],
-            };
-            model::pose(
-                &m.parts,
-                e.root,
-                &Motion {
-                    pitch: e.pitch,
-                    head_yaw: e.head_yaw,
-                    swing: e.swing,
-                    swim: e.swim,
-                    attack: e.attack,
-                    holding: e.holding,
-                    anims,
-                    crouch: e.crouch,
-                },
-                scratch,
-            );
-            for (o, b) in out.iter_mut().zip(scratch.iter()) {
-                *o = [b.row(0).to_array(), b.row(1).to_array(), b.row(2).to_array()];
-            }
-        });
+            });
         let mut first = base as u32;
         for (e, &n) in entities.iter().zip(&counts) {
             if let Some(m) = self.kinds.get(e.kind as usize) {
                 for mut inst in e.layers[..e.layer_count].iter().copied() {
-                    (inst.bones, inst.cuboids, inst.cuboid_count, inst.vertices) =
-                        (first, m.cuboids.0, m.cuboids.1, m.corners.0);
+                    (inst.bones, inst.cuboids, inst.cuboid_count, inst.vertices) = (first, m.cuboids.0, m.cuboids.1, m.corners.0);
                     self.queued.push((e.kind, inst));
                 }
             }
@@ -319,15 +340,7 @@ impl Models {
             usage::STORAGE,
             "model instances",
         );
-        let bb = grow(
-            gpu,
-            &mut self.bones[batch as usize],
-            frame.slot,
-            self.rows.len().max(1) as u32,
-            48,
-            usage::STORAGE,
-            "model bones",
-        );
+        let bb = grow(gpu, &mut self.bones[batch as usize], frame.slot, self.rows.len().max(1) as u32, 48, usage::STORAGE, "model bones");
         let insts: Vec<Instance> = self.queued.iter().map(|q| q.1).collect();
         gpu.mapped(ib)[..insts.len() * size_of::<Instance>()].copy_from_slice(bytemuck::cast_slice(&insts));
         gpu.mapped(bb)[..self.rows.len() * 48].copy_from_slice(bytemuck::cast_slice(&self.rows));

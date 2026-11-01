@@ -134,7 +134,8 @@ impl<'a, M: CubeMap> Lighter<'a, M> {
             return unsafe { ptr.as_ref() };
         }
         let r = self.map.cube(cp);
-        self.cache.set((cp, r.map_or(std::ptr::null(), |c| c as *const Cube)));
+        self.cache
+            .set((cp, r.map_or(std::ptr::null(), |c| c as *const Cube)));
         r
     }
 
@@ -240,9 +241,18 @@ impl<'a, M: CubeMap> Lighter<'a, M> {
         let base = cp * 16;
         let Some(cube) = self.map.cube(cp) else { return };
         let states = &self.c.tight;
-        let all_clear = cube.palette().iter().all(|&s| states[s as usize].opacity == 0);
-        let all_opaque = cube.palette().iter().all(|&s| states[s as usize].opacity >= 15);
-        let emits = cube.palette().iter().any(|&s| states[s as usize].light != [0; 3]);
+        let all_clear = cube
+            .palette()
+            .iter()
+            .all(|&s| states[s as usize].opacity == 0);
+        let all_opaque = cube
+            .palette()
+            .iter()
+            .all(|&s| states[s as usize].opacity >= 15);
+        let emits = cube
+            .palette()
+            .iter()
+            .any(|&s| states[s as usize].light != [0; 3]);
         self.map.cube_mut(cp).unwrap().fill_light(0);
         self.cache.set((IVec3::MAX, std::ptr::null()));
         self.changed.insert(cp);
@@ -341,7 +351,10 @@ impl<'a, M: CubeMap> Lighter<'a, M> {
         self.changed.insert(cp);
         let base = cp * 16;
         let Some(cube) = self.map.cube(cp) else { return };
-        let all_opaque = cube.palette().iter().all(|&s| self.c.tight[s as usize].opacity >= 15);
+        let all_opaque = cube
+            .palette()
+            .iter()
+            .all(|&s| self.c.tight[s as usize].opacity >= 15);
         if all_opaque {
             return;
         }
@@ -399,7 +412,10 @@ impl<'a, M: CubeMap> Lighter<'a, M> {
         if cube.uniform_light().is_some_and(|l| ch(l, c) >= level) {
             return false;
         }
-        !cube.palette().iter().all(|&s| self.c.tight[s as usize].opacity >= 15)
+        !cube
+            .palette()
+            .iter()
+            .all(|&s| self.c.tight[s as usize].opacity >= 15)
     }
 
     fn seed_from_neighbors(&mut self, cp: IVec3, c: usize, dirs: &[usize]) {
@@ -473,7 +489,11 @@ impl<'a, M: CubeMap> Lighter<'a, M> {
 /// value), for `Lighter::spread`. Only reads, so cubes lit apart can be looked at side by side.
 pub fn outward<M: CubeMap>(map: &M, c: &Content, sky: bool, cp: IVec3, out: &mut Vec<(IVec3, u8, u8)>) {
     let Some(cube) = map.cube(cp) else { return };
-    let opaque = |cube: &Cube| cube.palette().iter().all(|&s| c.tight[s as usize].opacity >= 15);
+    let opaque = |cube: &Cube| {
+        cube.palette()
+            .iter()
+            .all(|&s| c.tight[s as usize].opacity >= 15)
+    };
     if opaque(cube) {
         return;
     }
