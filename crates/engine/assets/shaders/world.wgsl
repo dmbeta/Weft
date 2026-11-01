@@ -25,16 +25,17 @@ struct VOut {
 }
 
 fn shader_of(tex: u32) -> u32 {
-    if tex >= arrayLength(&tex_shader) {
+    // `tex_shader` has an entry per block texture. The size table starts at `g.extra.y` after two
+    // words of info per texture, so `g.extra.y / 2` is their count (`arrayLength` reads 0 for
+    // push-descriptor buffers on MoltenVK).
+    if tex >= g.extra.y / 2u {
         return 0u;
     }
     return tex_shader[tex];
 }
 
 fn glow_of(tex: u32) -> u32 {
-    if tex >= arrayLength(&glow_map) {
-        return 0xffffffffu;
-    }
+    // The table has an entry for every texture index there can be (`MAX_TEXTURES`).
     return glow_map[tex];
 }
 

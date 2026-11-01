@@ -459,7 +459,7 @@ gpu_struct! {
     pub struct Globals as "Globals" {
         /// Camera position inside its cube (0..16) in xyz.
         pub cam_frac: [f32; 4],
-        /// z biome count, w blended color tiles.
+        /// x 1 when `solid` holds the shadow table, y unused, z biome count, w blended color tiles.
         pub ids: [u32; 4],
         /// Origins are relative to this cube.
         pub cam_cube: [i32; 4],
@@ -764,7 +764,7 @@ bindings! {
 /// pack asks (`client::world_render::Solid`).
 const SOLID_AT: &str = "
 fn solid_at(p: vec3<i32>) -> bool {
-    if arrayLength(&solid) < 4096u * 132u {
+    if g.ids.x == 0u {
         return false;
     }
     let c = p >> vec3(4u);
@@ -885,6 +885,45 @@ mod tests {
         assert_eq!(d::SEEDS as usize + SEEDS.len(), d::FEAT_OFF as usize);
         assert!(d::SCATTER_OFF < d::LEN);
         naga::front::wgsl::parse_str(&prelude()).expect("terrain prelude parses");
+    }
+
+    /// Every engine shader compiles in front of its prelude (`common.wgsl`) and its dispatch's
+    /// fallback, as the game builds it, so a WGSL mistake shows in `cargo test` rather than on
+    /// startup.
+    #[test]
+    fn engine_shaders_compile() {
+        use crate::shaders::{Hook, compose};
+        let common = include_str!("../assets/shaders/common.wgsl");
+        let check = |name: &str, src: &str, hooks: &[(&Hook, &[(String, String)])]| {
+            let base = format!("{}{src}", prelude(name, common));
+            compose(name, &base, hooks).map(|_| ()).unwrap_or_else(|e| panic!("{e}"));
+        };
+        check("world.wgsl", include_str!("../assets/shaders/world.wgsl"), &[(&crate::client::world_render::HOOK, &[])]);
+        check(
+            "entity.wgsl",
+            include_str!("../assets/shaders/entity.wgsl"),
+            &[(&crate::client::entity_render::HOOK, &[])],
+        );
+        check(
+            "model.wgsl",
+            include_str!("../assets/shaders/model.wgsl"),
+            &[(&crate::client::entity_render::HOOK, &[])],
+        );
+        check(
+            "particle.wgsl",
+            include_str!("../assets/shaders/particle.wgsl"),
+            &[(&crate::client::particles::HOOK, &[])],
+        );
+        check("weather.wgsl", include_str!("../assets/shaders/weather.wgsl"), &[]);
+        check("sky.wgsl", include_str!("../assets/shaders/sky.wgsl"), &[(&crate::client::sky::HOOK, &[])]);
+        check(
+            "ui.wgsl",
+            include_str!("../assets/shaders/ui.wgsl"),
+            &[(&crate::ui::render::FX, &[]), (&crate::ui::render::GUI, &[])],
+        );
+        check("post.wgsl", include_str!("../assets/shaders/post.wgsl"), &[(&crate::post::HOOK, &[])]);
+        let sim = format!("{}{}", particle_sim_prelude(8), include_str!("../assets/shaders/particle_sim.wgsl"));
+        weft_render::Shader::from_wgsl("particle_sim.wgsl", &sim).unwrap_or_else(|e| panic!("{e}"));
     }
 
     /// naga's layout of every generated struct matches the Rust one, so a field the WGSL rules

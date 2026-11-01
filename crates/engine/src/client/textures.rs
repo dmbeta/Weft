@@ -38,10 +38,10 @@ struct Inner {
     /// Entry per texture id: the content's, then connected texture tiles and composites.
     ids: Vec<u32>,
     requests: Vec<u32>,
-    /// Glow mask index per bindless color index (`u32::MAX` none), on the GPU too.
+    /// Glow mask index per bindless color index (`u32::MAX` none), on the GPU too: one entry per
+    /// texture index there can be, so shaders need no bounds check.
     glow_map: Vec<u32>,
     glow_buffer: BufferId,
-    glow_capacity: usize,
     glow_dirty: bool,
     generation: u64,
     assets: Assets,
@@ -116,7 +116,7 @@ impl GameTextures {
         );
         gpu.write_texture(blank, 0, &[0, 0, 0, 0]);
         let blank = (blank, gpu.texture_index(blank));
-        let glow_buffer = gpu.create_buffer(4096 * 4, usage::STORAGE, "glow map");
+        let glow_buffer = gpu.create_buffer(MAX_TEXTURES as u64 * 4, usage::STORAGE, "glow map");
         log::info!("textures: {} known ({} of the content), loaded when first used", entries.len(), c.textures.len());
         let t = GameTextures {
             inner: RefCell::new(Inner {
@@ -125,7 +125,6 @@ impl GameTextures {
                 requests: Vec::new(),
                 glow_map: Vec::new(),
                 glow_buffer,
-                glow_capacity: 4096,
                 glow_dirty: true,
                 generation: next_generation(),
                 assets: assets.clone(),
@@ -222,14 +221,8 @@ impl GameTextures {
         if !std::mem::take(&mut i.glow_dirty) {
             return;
         }
-        let need = i.glow_map.len().max(1);
-        if need > i.glow_capacity {
-            gpu.destroy_buffer(i.glow_buffer);
-            i.glow_capacity = need.next_power_of_two();
-            i.glow_buffer = gpu.create_buffer(i.glow_capacity as u64 * 4, usage::STORAGE, "glow map");
-        }
         let mut words = i.glow_map.clone();
-        words.resize(i.glow_capacity, u32::MAX);
+        words.resize(MAX_TEXTURES as usize, u32::MAX);
         gpu.write_buffer(i.glow_buffer, 0, bytemuck::cast_slice(&words));
     }
 
