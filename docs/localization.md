@@ -5,14 +5,17 @@ cursor over items, creative tabs and settings). There is no code for the usual c
 resource pack can add or change text, even for things in other mods.
 
 ## Note
+
 The text is a normal translation, so everything from the rich text list below works in it.\
 Examples to copy from: `mods/base/assets/lang/en_us.lang` (`block.base.furnace.tooltip`)\
 and `mods/testmod/assets/lang/en_us.lang` (`item.testmod.rune.tooltip`, with effects and conditions).
 
 ## Quick links
+
 [rich text](#rich-text) | [effects](#effects) | [conditions](#conditions) | [icons and meters](#icons-and-meters) | [item tooltips](#item-tooltips) | [lines by tag](#lines-by-tag) | [other tooltips](#other-tooltips) | [adding from outside](#adding-from-outside) | [look](#look) | [limits](#limits)
 
 ## Rich text
+
 Tags in the translation color the text, show keys and icons, hide parts or animate them.\
 They work in any translation, not only in tooltips:
 
@@ -37,11 +40,13 @@ They work in any translation, not only in tooltips:
 Hidden parts (`on_key`, `if`) are basically instant, the text is just laid out again when they change.
 
 ### Effects
+
 `{fx:...}` animates the letters of the text. The engine has `core:rainbow`, `core:wave`, `core:pulse`
 and `core:shake`.
 
 A new one is a file `shaders/fx/<name>.wgsl` in any mod or pack, used as `{fx:mymod:<name>}`.\
 The file has one function that gets a letter and returns it moved and/or tinted. What a letter carries (its offset, color, position in the text and so on) is listed in the [shaders guide](shaders.md#text-effects), so here is just a small example, letters that jump sideways now and then (the real one is `mods/testmod/assets/shaders/fx/glitch.wgsl`):
+
 ```wgsl
 fn effect(g: Glyph) -> Glyph {
     var o = g;
@@ -55,24 +60,31 @@ fn effect(g: Glyph) -> Glyph {
 ```
 
 ### Conditions
+
 `{if:name}` shows text while a condition holds.\
 The engine's are `creative`, `survival`, `spectator`, `debug` and `dev`. Your own are registered in the mod
 and read the client, so they see the local player only:
+
 ```rust
 r.text_condition("charged", |v| v.player_component(&CHARGE).is_some_and(|c| *c > 0));
 ```
+
 then `{if:mymod:charged}Charged!{/if}` in any translation.
 
 ## Icons and meters
+
 `{icons:<picture> <amount>}` draws a row of a picture from `gui/`. The amount is a number or a value, and it doesn't have to be whole, `2.8` is two pictures and most of a third. Options go after it:
-```
+
+```text
 {icons:base:food_full value.hunger/2}
 {icons:mymod:star 2.8 dir:left size:16x16}
 ```
+
 - `dir:` is where the part of a picture fills toward: `right` (default), `left`, `up`, `down`. With `left` the part comes first in the row
 - `size:` is the size of each in GUI pixels, by default the picture's own
 
 What the part of a picture looks like is up to the files next to it:
+
 - **Nothing else:** it's cut off, like a progress bar.
 - **`<picture>_<share>`:** the nearest one is drawn whole. `hunger_0.5.png` and `hunger_0.25.png` next to `hunger.png` give quarter steps, a share nearer to nothing than to the smallest one draws nothing.
 - **`<picture>_<frame>`:** when a number is over 1 they are frames of one turn, the share picks the nearest. `clock_0.png` to `clock_23.png` is a clock: 0.5 is `clock_12`.
@@ -81,18 +93,20 @@ What the part of a picture looks like is up to the files next to it:
 The same goes for the HUD's bars (`ui.icons`, `ui.icons_rtl`, `ui.icons_dir(class, count, ui_dir::UP, ..)`) and for the fill of a progress bar. They have a direction of their own instead of a mirrored picture.
 
 ## Item tooltips
+
 Hovering an item or block shows its name, and `<name key>.tooltip` under it if the language has one.\
 The name line is white, the tooltip lines are gray by default (a color you set wins).\
 The same tooltip shows in the inventory, the creative list and the recipe viewer. A block's is
 `block.<modname>.<name>.tooltip`.
 
-```
+```text
 item.examplemod.ruby = Ruby
 item.examplemod.ruby.tooltip = A red gem that smelts {#ffe070}8{/} items.
 ```
 
 A new line is `\n`, or an indented line which continues the previous value on a new line:
-```
+
+```text
 block.examplemod.lamp.tooltip = Glows warmly.
     Does not burn.
 ```
@@ -102,19 +116,23 @@ Items that wear get a `Durability: 12 / 250` line by themselves (its translation
 
 Long details usually hide behind the sneak key, so the tooltip stays short until the player wants to read that.\
 `{lang:tooltip.more}` is the ready phrase "Hold <key> for details":
-```
+
+```text
 block.base.furnace.tooltip = Smelts ores and cooks food.
     {on_key:!core:sneak}{lang:tooltip.more}{/on_key}{on_key:core:sneak}Burns {item:base:coal} coal, {item:base:oak_planks} planks or other {#ffe070}fuel{/} in the bottom slot.{/on_key}
 ```
 
 ## Lines by tag
+
 A line for every item with a tag or component, in one place, is `tagged.<name>`. It goes under the item's own tooltip, and a new item gets it just by having the tag:
-```
+
+```text
 tagged.food = {icons:base:food_full value.hunger/2}
 tagged.armor = {#5555ff}+{value.points} Armor{/}{if:value.toughness>0}\n{#5555ff}+{value.toughness} Armor Toughness{/}{/if}
 tagged.attack_damage = {#00aa00}{value} Attack Damage{/}
 tagged.mymod.magic = {#ff60ff}Magical{/}
 ```
+
 `<name>` is the tag's or component's, with `.` for `:`.\
 `{value}` in it is that component's own number, `{value.field}` a field of it, and `/n` or `*n` scale it (`{value/200}`).\
 Anywhere in an item's tooltip `{value:food.hunger}` reads any component of the item by name. The stack's own value goes before its item's.\
@@ -124,6 +142,7 @@ A line all behind a condition (`{on_key:core:sneak}...{/on_key}`, `{if:..}`) lea
 Another mod adds its line to the same tag without replacing it, as with tooltips: `tagged.food.mymod = ...`.
 
 ## Other tooltips
+
 - **Settings:** `config.<mod>.<key>.tooltip` is shown over the setting's row in Mod Settings. Settings that the
   server overrides or that need a restart get a note added by the engine.
 - **Creative tabs:** show their name from `tab.<mod>.<name>`, or the mod's display name when there is no key.
@@ -131,27 +150,34 @@ Another mod adds its line to the same tag without replacing it, as with tooltips
 - **Slots:** a slot group's `tooltip(key)` shows over its empty slots ([machines guide](machines.md#creating-a-machine)).
 
 ## Adding from outside
+
 Translations are one shared table: every `lang/<code>.lang` of every mod and pack is read into it, so the
 key of an item is the same whoever wrote the file.\
 A mod can add a tooltip to an item of another mod just by having the key in its own lang file.
 
 ### Adding a line
+
 The nice way, keeps the original: put your mod's id at the end of the tooltip key.\
 After the item's own tooltip the game adds every `<tooltip key>.<mod id>` it finds, one line group per mod,
 in the mods' load order:
-```
+
+```text
 # mods/mymod/assets/lang/en_us.lang
 item.base.coal.tooltip.mymod = Also burns in my {#ffe070}boiler{/}.
 ```
+
 That way coal shows its own text and your line under it.\
 It works for any item or block and doesn't need the item to have a tooltip of its own.
 Several mods can do it to the same item, they don't interfere with each other.
 
 ### Replacing
+
 Without the id the key is the original's, and your text takes its place:
-```
+
+```text
 item.base.coal.tooltip = Burns, but only in my {#ffe070}boiler{/}.
 ```
+
 - if the same key is in several mods, the one whose mod id sorts last alphabetically wins; for your own items there is no
   conflict, for someone else's it's a replacement: the old text is gone, so `{lang:}` can't pull it
   back in (a key that points to itself shows nothing), the new text has to be written in full
@@ -161,11 +187,13 @@ item.base.coal.tooltip = Burns, but only in my {#ffe070}boiler{/}.
 - other languages work with their own file (`ru_ru.lang`), a missing key falls back to English
 
 ## Look
+
 The box is the class `tooltip`: `gui/tooltip.png` with its `.gui` (base's is a 9-slice), and
 `color.tooltip` in the language files is the default text color, `color.tooltip_dim` the gray of
 the lines under the name. A resource pack replaces the picture or the colors like anything else.
 
 ## Limits
+
 - own text is the same for every stack of an item; conditions (`{if:}`, `{on_key:}`) and numbers (`{value..}`, the stack's value first) vary it
 - no tooltips changed by code
 - text and inline pictures only, the box does not scroll: keep it to a few lines and put the rest behind sneak

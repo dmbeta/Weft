@@ -41,7 +41,23 @@ pub struct DimSet {
 
 impl DimSet {
     pub fn new(id: u32, seed: u64, next_id: Arc<AtomicU64>) -> DimSet {
-        DimSet { id, regions: Vec::new(), generating: FxHashSet::default(), time: 1000, day_offset: 0, day_moved: false, raining: false, thunder: false, weather_until: 0, weather_moved: false, seed, next_id, owner: FxHashMap::default(), dirty: false, edits: Arc::default() }
+        DimSet {
+            id,
+            regions: Vec::new(),
+            generating: FxHashSet::default(),
+            time: 1000,
+            day_offset: 0,
+            day_moved: false,
+            raining: false,
+            thunder: false,
+            weather_until: 0,
+            weather_moved: false,
+            seed,
+            next_id,
+            owner: FxHashMap::default(),
+            dirty: false,
+            edits: Arc::default(),
+        }
     }
 
     fn new_region(&mut self, section: IVec3) -> usize {
@@ -85,7 +101,10 @@ impl DimSet {
 
     /// Folds regions into the largest of them; returns its index afterwards.
     fn merge(&mut self, c: &Content, list: &[usize]) -> usize {
-        let target = *list.iter().max_by_key(|&&i| self.regions[i].cubes.len()).unwrap();
+        let target = *list
+            .iter()
+            .max_by_key(|&&i| self.regions[i].cubes.len())
+            .unwrap();
         for &i in list.iter().rev() {
             if i != target {
                 let parcel = self.regions[i].take_sections(|_| true);
@@ -114,7 +133,9 @@ impl DimSet {
     }
 
     pub fn entity_region(&mut self, id: u64) -> Option<&mut Dim> {
-        self.regions.iter_mut().find(|r| r.entities.get(id).is_some())
+        self.regions
+            .iter_mut()
+            .find(|r| r.entities.get(id).is_some())
     }
 
     pub fn entity_region_ref(&self, id: u64) -> Option<&Dim> {
@@ -126,17 +147,26 @@ impl DimSet {
     }
 
     pub fn has(&self, pos: IVec3) -> bool {
-        self.owner.get(&section_of_cube(pos)).is_some_and(|&r| self.regions[r].has(pos))
+        self.owner
+            .get(&section_of_cube(pos))
+            .is_some_and(|&r| self.regions[r].has(pos))
     }
 
     /// Cubes settled since the last call.
     pub fn take_settled(&mut self) -> Vec<IVec3> {
-        self.regions.iter_mut().flat_map(|r| r.newly_settled.drain(..)).collect()
+        self.regions
+            .iter_mut()
+            .flat_map(|r| r.newly_settled.drain(..))
+            .collect()
     }
 
     /// Cubes with block changes since the last call.
     pub fn take_edited(&mut self) -> Vec<IVec3> {
-        let mut out: Vec<IVec3> = self.regions.iter_mut().flat_map(|r| r.edited.drain()).collect();
+        let mut out: Vec<IVec3> = self
+            .regions
+            .iter_mut()
+            .flat_map(|r| r.edited.drain())
+            .collect();
         out.sort_unstable_by_key(|p| (p.x, p.y, p.z));
         out
     }
@@ -149,7 +179,9 @@ impl DimSet {
     }
 
     pub fn settled(&self, pos: IVec3) -> bool {
-        self.owner.get(&section_of_cube(pos)).is_some_and(|&r| self.regions[r].settled.contains(&pos))
+        self.owner
+            .get(&section_of_cube(pos))
+            .is_some_and(|&r| self.regions[r].settled.contains(&pos))
     }
 
     pub fn snapshot(&self, pos: IVec3) -> Option<Arc<Cube>> {
@@ -159,7 +191,12 @@ impl DimSet {
 
     /// Loaded cubes of nothing but air right under `pos`, at most `max`.
     pub fn air_below(&self, pos: IVec3, max: i32) -> i32 {
-        (1..=max).take_while(|&d| self.snapshot(pos - IVec3::Y * d).is_some_and(|c| c.palette() == [crate::content::AIR])).count() as i32
+        (1..=max)
+            .take_while(|&d| {
+                self.snapshot(pos - IVec3::Y * d)
+                    .is_some_and(|c| c.palette() == [crate::content::AIR])
+            })
+            .count() as i32
     }
 
     pub fn get(&self, p: IVec3) -> Option<u32> {
@@ -205,7 +242,8 @@ impl DimSet {
                 continue;
             }
             if let Some(blocks) = blocks {
-                d.structures.insert(id, Box::new(super::dim::Dim::new_structure(c, d.id, d.seed, self.next_id.clone(), &blocks)));
+                d.structures
+                    .insert(id, Box::new(super::dim::Dim::new_structure(c, d.id, d.seed, self.next_id.clone(), &blocks)));
             }
             d.entities.insert_with(c, e, inv, comps);
         }
@@ -333,9 +371,16 @@ impl DimSet {
     /// parts. Data moves in parcels; each region keeps the part it holds most of.
     pub fn regionize(&mut self, c: &Content) {
         self.dirty = false;
-        self.regions.retain(|r| !r.cubes.is_empty() || !r.entities.list.is_empty());
+        self.regions
+            .retain(|r| !r.cubes.is_empty() || !r.entities.list.is_empty());
         let per_region: Vec<FxHashSet<IVec3>> = self.regions.iter().map(|r| r.sections()).collect();
-        let all: Vec<IVec3> = per_region.iter().flatten().copied().collect::<FxHashSet<_>>().into_iter().collect();
+        let all: Vec<IVec3> = per_region
+            .iter()
+            .flatten()
+            .copied()
+            .collect::<FxHashSet<_>>()
+            .into_iter()
+            .collect();
         let index: FxHashMap<IVec3, usize> = all.iter().enumerate().map(|(i, &s)| (s, i)).collect();
         let mut parent: Vec<usize> = (0..all.len()).collect();
         fn find(p: &mut [usize], mut x: usize) -> usize {
@@ -378,16 +423,31 @@ impl DimSet {
             for &s in secs {
                 *counts.entry(comp_of(s, &mut parent)).or_default() += 1;
             }
-            primary.push(counts.into_iter().max_by(|a, b| a.1.cmp(&b.1).then((b.0.x, b.0.y, b.0.z).cmp(&(a.0.x, a.0.y, a.0.z)))).map(|x| x.0));
+            primary.push(
+                counts
+                    .into_iter()
+                    .max_by(|a, b| {
+                        a.1.cmp(&b.1)
+                            .then((b.0.x, b.0.y, b.0.z).cmp(&(a.0.x, a.0.y, a.0.z)))
+                    })
+                    .map(|x| x.0),
+            );
         }
         let sec_comp: FxHashMap<IVec3, IVec3> = all.iter().map(|&s| (s, comp_of(s, &mut parent))).collect();
-        let changed = per_region.iter().enumerate().any(|(i, secs)| secs.iter().any(|s| Some(sec_comp[s]) != primary[i]))
+        let changed = per_region
+            .iter()
+            .enumerate()
+            .any(|(i, secs)| secs.iter().any(|s| Some(sec_comp[s]) != primary[i]))
             || {
                 let mut seen = FxHashSet::default();
                 primary.iter().flatten().any(|p| !seen.insert(*p))
             };
         if !changed {
-            self.owner = per_region.iter().enumerate().flat_map(|(i, secs)| secs.iter().map(move |&s| (s, i))).collect();
+            self.owner = per_region
+                .iter()
+                .enumerate()
+                .flat_map(|(i, secs)| secs.iter().map(move |&s| (s, i)))
+                .collect();
             return;
         }
 
@@ -395,7 +455,11 @@ impl DimSet {
         let mut parcels: Vec<(IVec3, super::dim::Parcel)> = Vec::new();
         for (i, r) in self.regions.iter_mut().enumerate() {
             let mine = primary[i];
-            let foreign: FxHashSet<IVec3> = per_region[i].iter().filter(|s| Some(sec_comp[*s]) != mine).map(|s| sec_comp[s]).collect();
+            let foreign: FxHashSet<IVec3> = per_region[i]
+                .iter()
+                .filter(|s| Some(sec_comp[*s]) != mine)
+                .map(|s| sec_comp[s])
+                .collect();
             for comp in foreign {
                 let sc = &sec_comp;
                 parcels.push((comp, r.take_sections(|s| sc.get(&s) == Some(&comp))));
@@ -464,7 +528,12 @@ fn search_spawn(c: &Content, def: &crate::content::DimensionDef, seed: u64) -> O
     let good = |x: i32, z: i32, prefer: bool| {
         let col = def.column(seed, x, z)?;
         let biome_ok = !prefer || preferred.is_some_and(|t| c.components.has(crate::components::BIOME, col.biome, t));
-        (col.height != i32::MIN && col.height > sea + 1 && biome_ok && !def.carved(seed, x, z) && !super::dim::scattered_near(def, c, seed, x, z)).then_some([x, col.height, z])
+        (col.height != i32::MIN
+            && col.height > sea + 1
+            && biome_ok
+            && !def.carved(seed, x, z)
+            && !super::dim::scattered_near(def, c, seed, x, z))
+        .then_some([x, col.height, z])
     };
     for prefer in [true, false] {
         for r in 0..200 {

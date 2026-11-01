@@ -73,9 +73,8 @@ fn box_vertex(b: Box, v: u32) -> VOut {
             out.clip = vec4(0.0, 0.0, 0.0, 1.0);
         }
         out.layer = b.ids.z;
-        if out.layer < arrayLength(&glow_map) {
-            out.glow = glow_map[out.layer];
-        }
+        // The glow table has an entry for every texture index there can be (`MAX_TEXTURES`).
+        out.glow = glow_map[out.layer];
         out.uv = b.uvo.xy;
     } else if b.ids.y == BOX_MODE_FILLED {
         // Filled gizmo box: its alpha rides along as bits.
@@ -89,9 +88,7 @@ fn box_vertex(b: Box, v: u32) -> VOut {
             packed = b.ids2.x;
         }
         out.layer = (packed >> ((face & 1u) * 16u)) & 65535u;
-        if out.layer < arrayLength(&glow_map) {
-            out.glow = glow_map[out.layer];
-        }
+        out.glow = glow_map[out.layer];
         out.uv = uv;
         if b.dims.w > 0.5 {
             // A box inside a block (dims = min, uvo = max): the part of the texture the world

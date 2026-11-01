@@ -1,0 +1,47 @@
+# Sounds to take from the player's Minecraft: ours = vanilla event.
+# A `*` in ours numbers the event's sounds from one.
+# Names differ between versions: the first event this version has is used.
+
+dig/stone* = block.stone.break
+step/stone* = block.stone.step
+dig/wood* = block.wood.break
+step/wood* = block.wood.step
+dig/gravel* = block.gravel.break
+step/gravel* = block.gravel.step
+dig/grass* = block.grass.break
+step/grass* = block.grass.step
+dig/sand* = block.sand.break
+step/sand* = block.sand.step
+dig/cloth* = block.wool.break|block.cloth.break
+step/cloth* = block.wool.step|block.cloth.step
+# Glass is broken with its own sound and knocked on like stone.
+dig/glass* = block.glass.place
+step/glass* = block.glass.step
+random/glass* = block.glass.break
+
+entity/zombie/ambient* = entity.zombie.ambient
+entity/zombie/hurt* = entity.zombie.hurt
+entity/zombie/death* = entity.zombie.death
+entity/spider/ambient* = entity.spider.ambient
+entity/spider/hurt* = entity.spider.hurt
+entity/spider/death* = entity.spider.death
+entity/pig/ambient* = entity.pig.ambient
+entity/pig/hurt* = entity.pig.hurt
+entity/pig/death* = entity.pig.death
+entity/cow/ambient* = entity.cow.ambient
+entity/cow/hurt* = entity.cow.hurt
+entity/cow/death* = entity.cow.death
+entity/sheep/ambient* = entity.sheep.ambient
+entity/sheep/hurt* = entity.sheep.hurt
+entity/sheep/death* = entity.sheep.death
+entity/chicken/ambient* = entity.chicken.ambient
+entity/chicken/hurt* = entity.chicken.hurt
+entity/chicken/death* = entity.chicken.death
+entity/skeleton/ambient* = entity.skeleton.ambient
+entity/skeleton/hurt* = entity.skeleton.hurt
+entity/skeleton/death* = entity.skeleton.death
+# Vanilla has no creeper ambient: it only speaks when hurt or killed, and hisses when lit.
+entity/creeper/hurt* = entity.creeper.hurt
+entity/creeper/death* = entity.creeper.death
+entity/creeper/primed = entity.creeper.primed
+random/explode* = entity.generic.explode

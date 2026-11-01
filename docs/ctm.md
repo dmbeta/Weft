@@ -6,6 +6,7 @@ Everything is almost identical to OptiFine/MCPatcher CTM, so packs made for
 those port with little more than renaming files.
 
 ## Note
+
 CTM is created without code and works from both mods and resource packs, a pack's file overrides the mod's one.\
 It works on blocks only, so no CTM on items or entities.\
 Plants and block models (`model_box` or a model file) take `random` and `fixed`: every other method needs neighbors on a cube's face, and a rule like that on a texture they show logs an error and stops the game. Keep it off them with `blocks =`. A plant counts as a side for [faces](#faces).\
@@ -14,14 +15,17 @@ Examples to copy from are in `mods/base/assets/textures/block/`: `glass.ctm`, `l
 Check [textures guide](textures.md) for more texturing options like overlays, glow and animation.
 
 ## Quick links
+
 [method](#method) | [tiles](#tiles) | [connect](#connect) | [faces](#faces) | [inner_seams](#inner_seams) | [blocks](#blocks) | [heights](#heights) | [biomes](#biomes) | [weights](#weights) | [symmetry](#symmetry) | [width and height](#width-and-height)
 
 ## Where the files go
+
 `<texture>.ctm` goes next to the texture it changes, the file's name is the texture's name.\
 For example for `textures/block/glass.png` it's `textures/block/glass.ctm`:
 
-### Base mod example:
-```
+### Base mod example
+
+```text
 assets/textures/block/
     glass.png          <- the plain texture, the one blocks use
     glass.ctm          <- the rules
@@ -46,6 +50,7 @@ The first rule whose conditions pass for the face wins, so put specific ones fir
 ## Structure of .ctm files
 
 ### method
+
 What the tiles mean and how many are needed. Default is `ctm`.
 
 values: `ctm`, `compact`, `horizontal`, `vertical`, `h+v`, `v+h`, `top`, `random`, `repeat`, `fixed`\
@@ -56,6 +61,7 @@ example: `method = compact`
 ---
 
 ### tiles
+
 Which textures the method uses, in order.
 
 A name is relative to the folder of the `.ctm` file (a full `namespace:path` also works).\
@@ -73,6 +79,7 @@ If there are fewer tiles than the method needs, the rule is skipped and the log 
 ---
 
 ### connect
+
 What counts as "a neighbor" for the connecting methods.
 
 values:\
@@ -85,6 +92,7 @@ example: `connect = block`
 ---
 
 ### faces
+
 Which faces of a block the rule works on.
 
 values: `all` (default), `top`, `bottom`, `sides`, `north`, `south`, `east`, `west`, any of them separated by spaces
@@ -94,6 +102,7 @@ example: `faces = sides`
 ---
 
 ### inner_seams
+
 If the neighbor's face is covered by another opaque block, that neighbor doesn't connect.\
 Default `false`, glass uses `true`.
 
@@ -102,6 +111,7 @@ values: `true`, `false`
 ---
 
 ### blocks
+
 Only for these blocks, separated by spaces. Written like blocks are named anywhere else: a full name, a state (`base:furnace[lit=true]`) or a tag (`#logs`, `#ores/*`).
 A name nothing has is reported in the log with the file.
 
@@ -110,6 +120,7 @@ example: `blocks = base:stone base:cobblestone #ores/*`
 ---
 
 ### heights
+
 Only inside these world heights (Y of the block).
 
 example: `heights = 0-40 100-`\
@@ -118,6 +129,7 @@ example: `heights = 0-40 100-`\
 ---
 
 ### biomes
+
 Only in these biomes, by name or by tag. A `!` in front turns the list around.
 
 examples:\
@@ -128,6 +140,7 @@ examples:\
 ---
 
 ### weights
+
 For `random`: how often each tile appears, in the order of `tiles`. Missing ones get the average.
 
 example: `weights = 4 2 2 2`
@@ -135,6 +148,7 @@ example: `weights = 4 2 2 2`
 ---
 
 ### symmetry
+
 For `random`: do faces of one block get the same tile?
 
 values: `none` (default), `opposite` (opposite faces share it), `all` (all six faces share it)
@@ -142,6 +156,7 @@ values: `none` (default), `opposite` (opposite faces share it), `all` (all six f
 ---
 
 ### width and height
+
 For `repeat`: the size of the pattern in blocks, tiles go left to right, top to bottom.
 
 example: `width = 2` and `height = 2` with four tiles
@@ -149,6 +164,7 @@ example: `width = 2` and `height = 2` with four tiles
 ## Method
 
 ### ctm
+
 Every neighbor of the 8 around the face decides which of 47 tiles is shown.
 Requires exactly 47 tiles, the most versatile and the most size-heavy method.
 
@@ -162,6 +178,7 @@ border on the sides that have no neighbor, a dark dot in a corner where both sid
 the diagonal one doesn't.
 
 ### compact
+
 Same result as `ctm` from only 5 tiles, the other 42 are built when the game loads.
 Each face is split into 4 quadrants, and every quadrant takes one of the 5 tiles
 depending on its two edges and the diagonal:
@@ -183,6 +200,7 @@ One limit: a quadrant is half the tile, so an edge or a corner can't be wider th
 Check `mods/base/assets/textures/block/glass/` for a real example.
 
 ### horizontal, vertical
+
 4 tiles. Connects only left-right (or up-down), like bookshelves or logs.
 
 `horizontal`, seen from the front:\
@@ -202,49 +220,62 @@ Check `mods/base/assets/textures/block/glass/` for a real example.
 ![v+h tiles](img/ctm_v_h.png)
 
 ### top
+
 1 tile. Side faces use it when the same block is above them (sandstone-like), top and bottom faces never do.
 
 ### random
+
 Picks a tile from the position, so the same block always looks the same.\
 Any number of tiles, see `weights` and `symmetry` for more values.
 
 ### repeat
+
 A pattern of `width` x `height` tiles that continues across blocks, tiles go row by row.\
 Needs `width * height` tiles.
 
 ### fixed
+
 always 1 tile. Handy together with `blocks`, `heights` or `biomes` to swap the texture there.
 
 ## Examples
 
 ### Glass
+
 `glass.ctm`:
-```
+
+```text
 method = compact
 tiles = glass/0-4
 inner_seams = true
 ```
+
 with `glass/0.png` ... `glass/4.png` next to it.
 
 ### Logs that look like one trunk
+
 `log_oak.ctm`:
-```
+
+```text
 method = vertical
 tiles = log_oak/0-3
 faces = sides
 ```
 
 ### Stone that doesn't repeat
+
 `stone.ctm`:
-```
+
+```text
 method = random
 tiles = <default> stone/1-3
 weights = 4 2 2 2
 ```
 
 ### Several rules in one file
+
 Only in deserts, a different one elsewhere:
-```
+
+```text
 method = fixed
 tiles = sand_smooth
 biomes = base:desert
@@ -255,6 +286,7 @@ tiles = <default> sand_1 sand_2
 ```
 
 ## Debugging
+
 The log says `connected textures: N rules, M tiles, K generated` when any rule is loaded.\
 `unknown method` or `needs N tiles` lines name the file and the rule that was skipped, and a skipped
 rule just shows the plain texture.\

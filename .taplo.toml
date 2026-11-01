@@ -1,0 +1,11 @@
+# taplo formats every TOML file it finds; target/ is build output and mise.lock is generated
+# by `mise lock`.
+exclude = ["target/**", "mise.lock"]
+
+[formatting]
+# The manifests are written and commented by hand: keep keys and arrays as they are, and let a
+# long dependency line stay on one line instead of exploding its features into a vertical list.
+reorder_keys = false
+reorder_arrays = false
+align_entries = false
+column_width = 120

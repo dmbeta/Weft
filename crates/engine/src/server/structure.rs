@@ -23,7 +23,11 @@ pub fn extent(blocks: &[(IVec3, u32)]) -> Option<(f32, f32)> {
     let mut hw: f32 = 0.0;
     let mut top = i32::MIN;
     for (p, _) in blocks {
-        hw = hw.max((p.x as f32 - 0.5).abs()).max((p.x as f32 + 0.5).abs()).max((p.z as f32 - 0.5).abs()).max((p.z as f32 + 0.5).abs());
+        hw = hw
+            .max((p.x as f32 - 0.5).abs())
+            .max((p.x as f32 + 0.5).abs())
+            .max((p.z as f32 - 0.5).abs())
+            .max((p.z as f32 + 0.5).abs());
         top = top.max(p.y + 1);
     }
     (top > i32::MIN).then_some((hw * 2.0, top as f32))
@@ -78,11 +82,17 @@ impl Dim {
     pub fn grow_bounds(&mut self, p: IVec3, state: u32) {
         if state == AIR {
             // Shrinking needs a look over everything (only when the edge itself went).
-            if self.bounds.is_some_and(|(lo, hi)| p.cmpeq(lo).any() || p.cmpeq(hi).any()) {
+            if self
+                .bounds
+                .is_some_and(|(lo, hi)| p.cmpeq(lo).any() || p.cmpeq(hi).any())
+            {
                 self.bounds = self.scan_bounds();
             }
         } else {
-            self.bounds = Some(self.bounds.map_or((p, p), |(lo, hi)| (lo.min(p), hi.max(p))));
+            self.bounds = Some(
+                self.bounds
+                    .map_or((p, p), |(lo, hi)| (lo.min(p), hi.max(p))),
+            );
         }
     }
 
@@ -117,7 +127,13 @@ impl Dim {
         let Some(pos) = self.entities.get(id).map(|e| e.pos) else { return };
         let o = origin(pos);
         let Some(s) = self.structures.get_mut(&id) else { return };
-        let free: Vec<u64> = s.entities.list.iter().filter(|e| !e.removed && e.anchor.is_none()).map(|e| e.id).collect();
+        let free: Vec<u64> = s
+            .entities
+            .list
+            .iter()
+            .filter(|e| !e.removed && e.anchor.is_none())
+            .map(|e| e.id)
+            .collect();
         let mut moved = Vec::new();
         for eid in free {
             if let Some((mut e, inv, comps)) = s.entities.take(eid) {

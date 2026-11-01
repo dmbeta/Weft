@@ -1,10 +1,11 @@
 # Weft modding cheat sheet
 
 ## Contents
+
 1. [Introduction](#introduction)
 2. [Creating a mod in two minutes](#creating-a-mod-in-two-minutes)
 3. [Names and paths](#names-and-paths)
-   - [Names](#names), [References](#references), [Handles](#handles), [Textures](#textures), [Translations](#translations)
+   - [Names](#names), [References](#references), [Handles](#handles), [Textures](#textures-and-other-assets), [Translations](#translations)
 4. [Components and tags as inter-mod communication](#components-and-tags-as-inter-mod-communication)
 5. [Content builders](#content-builders)
    - [Blocks](#blocks), [Items](#items), [Entities](#entities), [Machines](#machines), [Liquids](#liquids), [World](#world), [Recipes](#recipes), [Loot](#loot), [Replacing something of another mod](#replacing-something-of-another-mod)
@@ -18,6 +19,7 @@
 12. [Guides for bigger systems](#guides-for-other-systems)
 
 ## Introduction
+
 This is a guide describing how the base game itself is written.\
 The game is a mod called `base`, which has no private hooks or priorities from the engine, so if base can do something,
 your mod can too.\
@@ -69,7 +71,7 @@ fn init(r: &mut Registry) {
 
 Build with `cargo build --release`, then make a folder in the mods folder and copy the library from `target/release/` into it. That's `run/mods/` when you run the game from the repo; a released game keeps it in your user folders (see the README), and the Mods screen has a button that opens it.
 
-```
+```text
 run/mods/mymod/
     mymod.dll          (libmymod.so / libmymod.dylib elsewhere)
     assets/
@@ -91,14 +93,18 @@ A word on versioning: the mod interface is checked by a hash of its source. If y
 using another engine version, it just refuses to load and tells you to rebuild.
 
 ## Names and paths
+
 ### Names
+
 Everything a mod adds has a name `namespace:path`: blocks, items, entities, menus, biomes, dimensions,
 settings, sounds, particles, events, keys, screens, HUD elements, rules, recipe kinds and so on.\
 In your own mod you write just `ruby` and it becomes `mymod:ruby`, the same when you register it and when you read it.\
 Other mods' things go by their full name: `base:furnace`. The engine's own are `core:..`.
 
 ### References
+
 Wherever a block, item or biome is named as text (recipes, loot, ore and structure filters, `r.set`, support rules, spawn rules, `.ctm` files, `{block:..}` and `{item:..}`, commands), it is written the same way:
+
 - `base:stone` is that thing, `base:furnace[lit=true]` the furnace's states with that value
 - `#logs` is anything with the tag, `#ingots/*` anything with a tag starting with `ingots/`
 - calls that only make sense with a tag (`needs_below`, `.biome(..)`, tool conditions) still take it with `#`, so it never looks like a name
@@ -108,6 +114,7 @@ Where one item has to come out of a tag (a recipe output, a loot entry), it's th
 Recipes have one more form, a variable: `#ores/{m}` in and `#ingots/{m}` out makes one recipe per material that has both.
 
 ### Handles
+
 The name lives in a handle, and you register by the handle:
 
 ```rust
@@ -125,6 +132,7 @@ Once the game is loaded a handle gives you the numeric id (`RUBY.id()`), and hot
 Families made in a loop take `Item::generated(format!("{metal}_ingot"))`, a handle made from a name at runtime.
 
 ### Textures and other assets
+
 Every call that takes a file knows its folder: blocks look in `block/`, items in `item/`, mobs and worn armor in `entity/`, particles in `particle/`, slot backgrounds and `{img:..}` in `gui/`, sounds in `sounds/`.\
 So `.texture("ruby")` for a block means `mymod:block/ruby`, for an item `mymod:item/ruby`, and `"base:ruby"` is the same folder of the base game.\
 Subfolders are fine (`.wearable(.., "armor/ruby_1")` is `entity/armor/ruby_1`), but a name can't leave its folder: `"block/ruby"` for an item, `..` or an absolute path stop the game at load. An item that wants to look like a block gets a model, not the block's texture path.\
@@ -132,12 +140,14 @@ Resource packs replace any of them by putting a file at the same place.\
 Textures can also be [animated, glow and have overlays](textures.md), or [be connected](ctm.md)).
 
 ### Translations
+
 Format: `type.modname.name = value`, e.g. `item.examplemod.example_item = Example Item`\
 Any item can have a tooltip using `type.modname.name.tooltip = Some tooltip`, more in the [localization guide](localization.md).\
 If the player's language doesn't have a key (or a whole file), English is shown, so `en_us.lang` is the one you always need.\
 The Mods screen reads your mod's page from there too: `mod.mymod.name`, `mod.mymod.description` (as long as you like, with pictures), `mod.mymod.authors` and `mod.mymod.url`, and its icon is `assets/textures/gui/icon.png`.
 
 Text can carry colors and effects:
+
 - `{#ff8080}This text is red{/}`
 - `{fx:core:wave}wavy{/fx}` (new fx can be added from your mod too)
 - `{on_key:!core:sneak}This text will appear when the bound key is NOT pressed{/on_key}`
@@ -197,16 +207,20 @@ You can change them through `w.component_mut(id, &COMP)` and the engine will fig
 What the engine itself shows of an entity travels the same way, so a client can read it with `view.component_of(id, &C)`: `core:health` (`[f32; 2]`, health and, for players, max health) `core:burning` (`u8`) and `core:held` (`u32`, a player's item in hand, 0 for none). They are the engine's copies: writing them changes nothing.
 
 ### Sharing types with other mods
+
 Events and components carry values, and two mods have to agree on their layout. Copying a struct into every mod works, but the mistake shows up only when the game loads.
 So a mod can publish a small crate with just its types and handles, the way the base game does with `base_api` (`mods/base/api`): the `value!` structs of its events and components, and `Event`, `Component`, `Chain`, `RecipeKind`, `EquipmentSlot`, `Dimension` and tab handles with full names (`base:smelted`, since the statics compile into whoever uses them).
+
 ```toml
 [dependencies]
 weft_sdk = { path = "../../crates/sdk" }
 base_api = { path = "../../mods/base/api" }
 ```
+
 ```rust
 r.on(&base_api::SMELTED, |b| for s in b.iter() { /* s.furnace, s.input, s.output */ });
 ```
+
 The mod itself uses the same crate, so there's one declaration of everything, and other mods depend on types only, never on the mod's code. The engine still compares the layouts at load.
 
 ## Content builders
@@ -215,7 +229,9 @@ All of them are `r.<thing>(&HANDLE)` followed by settings. The registration happ
 is dropped.
 
 ### Blocks
+
 `r.block(&BLOCK)` and then:
+
 - `hardness`
 - `mineable("pickaxe")`
 - `needs_tool(tier)`: the `harvest_level` component; loot pools with `Cond::Harvested` pass only for a fitting tool of that tier
@@ -236,7 +252,9 @@ In code a state is read and changed by name, `w.prop(pos, "lit")` and `w.set_pro
 Anywhere a block is named as text, `base:furnace[lit=true]` picks a state: in structures, `r.set(..)`, `{block:..}` and commands (`/setblock ~ ~ ~ base:furnace[facing=east]`).
 
 ### Items
+
 `r.item(&ITEM)` and then:
+
 - `texture`
 - `max_stack(N)`
 - `durability`
@@ -251,7 +269,9 @@ Anywhere a block is named as text, `base:furnace[lit=true]` picks a state: in st
 - `on_use`: what using it does. Before it runs anyone can say no to `question::USE_ITEM`, and after it the `ITEM_USED` event tells every mod (testmod heals with base's food through it). `base_api::eat` is the base game's eating: `.set(&FOOD, ..).use_ticks(32).on_use(base_api::eat)`
 
 ### Entities
+
 `r.entity(&ENTITY)` and then:
+
 - every entity gets a spawn egg by itself, `<name>_spawn_egg`, called after it and in the creative tab of eggs. Draw `item/<name>_spawn_egg.png` or it looks generic; `no_egg()` for what isn't a creature
 - `size(w, h)`, `health`, `speed`
 - `hostile()` or `passive()` or `category(..)`
@@ -268,11 +288,14 @@ Moving platforms: `solid()`, `kinematic()`, `carry_height(..)`, and
 `blocks(&DECK)` with a template (`r.template(&DECK).fill("base:oak_planks", from, to)`) makes a flying structure players can build on; its box is what the blocks fill, no `size` needed. `EntityState.size` is an entity's box and eye height as they are now (crouching and `w.set_size` included), so `st.pos[1] + st.size[2]` is where its eyes are.
 
 ### Machines
+
 `r.machine(&BLOCK, &MENU)` is block + block entity + inventory + menu + screen in one go.\
 Look at testmod's generator for an example.
 
 ### Liquids
+
 `r.liquid(&LIQUID)` and then:
+
 - `translucent()` to see through it (water); without it it's drawn solid (lava)
 - `flow_delay`, `drop_off`, `slope_find`, `flows_up()`
 - `renewable(n)`: a new source where n sources meet (water 2)
@@ -287,6 +310,7 @@ Another mod's liquid: `r.change_liquid(&WATER).fog(0x204020, 12.0)`, also `overl
 Reactions: `r.liquid_reaction("#hot", "#water").source_block("obsidian")`.
 
 ### World
+
 - `r.biome(..)` with its climate, surface and tints (`.temperature(0.35..).surface(..).tint(&tints::GRASS, ..)`); terrain rules inherit them
 - `r.dimension(..)` (`spawn`, `height`, `gravity`, `fixed_time`, `sky`, `bare`, or `generator` + `column` to fill it in code)
 - `r.sky_body(&DIM, &OBJECT)`, `r.sky_stars`, `r.sky_dome`, `r.remove_sky` for what is in its sky, the sun and the moon included
@@ -301,21 +325,25 @@ Mars in testmod is built from presets only.\
 It works on other mods' dimensions too, so adding a biome to base's overworld is a `biome_before("base:desert", ..)` away.
 
 ### Recipes
+
 - `r.shaped(&KIND, out, count, &["iii", " s ", " s "], &[('i', "#ingots/iron"), ('s', "#stick")])`
 - `r.shapeless(..)`
 
 Recipe kinds are registered too (`r.recipe_kind`), a furnace is just a kind with stations.
 
 ### Loot
+
 `r.loot(&RUBY_ORE).pool(Pool::new().when(Cond::Harvested).rolls(1, 2).item("ruby"))` (a block's or entity's table is what it drops, `LootTable::named(..)` is a table of its own)\
 A block's table is all it drops, there is no tool check in front of it: put `Cond::Harvested` on the pools that need the right tool (broken by the world, like a torch losing its wall, always counts as harvested).\
 and other mods' tables without replacing them: `r.loot_modify(&ZOMBIE).add_pool(..)` with `ZOMBIE = Entity::named("base:zombie")`.
 
 ### Replacing something of another mod
+
 Register their handle (`Block::named("base:torch")`) with `.replacing()`.\
 Their handle, item and recipes now point at yours. testmod does it with the torch.Only for a different shape: to change a property (hardness, light ...) `r.set` it.
 
 ## Hooking into the game
+
 There are four mechanisms, try them in this order:
 
 ```rust
@@ -339,10 +367,12 @@ r.attribute(&MANA, 100.0, 0.0, 1000.0);
 Two helpers go with them. `w.after(entity, ticks, &EVENT, value)` fires an event later, saved with the entity (base's animals calm down 3 seconds after being hurt, players' hunger pulses every 4); one per entity and event, so setting it again moves it, instead of counters in components. `r.world_tick(|w| ..)` runs once per tick in every region for logic that is nobody's own, `w.players()` being the players there.
 
 ### Built-in events
+
 `BLOCK_BROKEN`, `BLOCK_PLACED`, `ITEM_PICKED_UP`, `ITEM_USED`, `ENTITY_HURT`, `ENTITY_DIED`, `PLAYER_JOINED`, `PLAYER_RESPAWNED`, and the questions `BREAK_BLOCK`, `PLACE_BLOCK`, `USE_BLOCK`, `USE_ITEM`, `INTERACT_ENTITY`, `ATTACK`, `HURT`, `PICKUP_ITEM`, `ENTER_DIMENSION`\
 base adds `base:smelted`.
 
 ### Systems and energy
+
 Systems run over every entity with a component all at once, and that is how machines tick:
 `r.system(&BURNER, |batch| for (id, m, ticks) in batch.iter_mut() { .. })`. `ticks` is 1 unless the machine is catching up on time it missed (unloaded, the time jumped): then it should do that many ticks of work at once, see [machines](machines.md#catching-up).
 
@@ -351,6 +381,7 @@ cables with `conductor`, and every mod's generators and machines will work toget
 Networks balance once per tick.
 
 ## Commands
+
 `r.command("heal", "[amount:int] [who:targets]", |cmd| ..)`\
 The usage string is the whole spec: the engine parses it, checks types, completes it with Tab and shows it in `/help`.\
 Reading values by name: `cmd.int("amount")`, `cmd.targets("who")`.\
@@ -363,6 +394,7 @@ The callback gets a `ServerCommand`: `cmd.world()` is where it runs, and what it
 ## World API
 
 Inside any callback you get a `World` (`w`):
+
 - blocks (`get`, `set`, `schedule`); for anything big, `w.fill_sphere(center, radius, block, keep_unbreakable)` fills a whole ball in one call (a crater with air): the engine does it at the end of the tick on every core, a cube at a time, lights each cube once, loads what it opens up in players' views right away and gives the rest the change when it loads. Players see it appear whole. Hundreds of blocks of radius take well under a second, where `set` per block costs about 1.6 µs each. Testmod's dynamite uses it
 - entities (`spawn`, `entity`, `set_entity`, `damage`, `near`, `near_bodies` for what can be hit, `navigate`, `walk`, `push` for a trampoline or a blast, players too). Speed and jump are attributes (`attribute::MOVEMENT_SPEED`, `JUMP_STRENGTH`) for mobs and players alike: `w.add_modifier(player, &MOVEMENT_SPEED, ..)` is a speed effect Reach and mining speed are attributes too (`attribute::BLOCK_REACH`, `ENTITY_REACH`, `MINING_SPEED`), and the client reads them: a modifier is all a long tool or a haste effect takes. `w.in_liquid(pos)` knows a liquid's surface, which the block alone doesn't tell.
 - inventories (`inventory(id).get/set/insert`, `inventory(id).group("fuel")`); a player's by the groups its inventory was declared with (`r.player_inventory().group("hotbar", Slots::row(9).hotbar())..`), `core:equipment` for all equipment slots
@@ -381,6 +413,7 @@ Inside any callback you get a `World` (`w`):
 - Bind values instead of copying them: `ui.progress_bind("energy", style, |c| ..)`, `ui.text_bind(..)`
 
 Also:
+
 - key bindings, one declaration each: `r.key(&DASH, "R").on_press(|c| ..)` on the client (a chord works too: `"ctrl+R"`, `"shift+alt+F6"`; the player rebinds them the same way in Controls), or `.on_press_server(|p| ..)` and the engine carries the press to the server for you. They only act while the world has the input, typing in the chat doesn't trigger them. `c.pressed(&DASH)` / `c.held(&DASH)` read them in a frame hook; the engine's keys are `keys::*`
 - messages both ways on a typed channel: `static BOOST: Channel<Boost> = Channel::named("boost")` with a `value!` struct (or `String`, `Vec<u8>`, `()`), `r.packet(&BOOST, |p, b| ..)` on the server (`p.reply(&OTHER, &v)` answers), `r.client_packet` on the client, `w.send` / `client.send`. Both ends must declare the same type, the engine checks it like event values
 - `client.run_command("/tp ~ ~5 ~")` runs a command as the player and `client.command_reply(id)` gives its answer to your code instead of the chat (testkit drives its server half like this)
@@ -403,6 +436,7 @@ Native crashes write a report into `crash-reports/` of the game folder (`run/` f
 F3+T reloads textures, lang, shaders and UI without restarting.
 
 ## Things that make your and other modders' life easier
+
 Don't hardcode other mods' blocks, use a tag or a component.\
 Tag `#sand` allows other mods to work with your mod, whereas `base:sand` does not.
 
@@ -414,6 +448,7 @@ Tell me about this instead of building a hack, so I can adjust the engine for th
 You can contact me on Discord: `@vortex_so`
 
 ## Guides for other systems
+
 - [Textures](textures.md): animation, glow, tinted overlays
 - [CTM](ctm.md): connected and varied block textures (glass, logs, random stone)
 - [Localization](localization.md): all text, item tooltips, rich text and effects, icons and meters, lines by tag, adding them from other mods and packs

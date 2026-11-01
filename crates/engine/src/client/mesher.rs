@@ -113,7 +113,15 @@ pub fn build(c: &Content, n: &Neighborhood, ctm: &super::ctm::Ctm) -> Mesh {
                             let (ao, light) = corner_data(n, &opaque, x, y, z, dir);
                             let tex = ctm.resolve(c, n, x, y, z, dir, textures[dir] & face::TEX_MASK);
                             let tint = if info.tint_faces & (1 << dir) != 0 || ctm.has_overlay(tex) { info.tint as u32 } else { 0 };
-                            mesh.faces[info.layer as usize].push(crate::gpu_layout::face_record([x, y, z], dir as u32, ao, tint, tex, biome, light));
+                            mesh.faces[info.layer as usize].push(crate::gpu_layout::face_record(
+                                [x, y, z],
+                                dir as u32,
+                                ao,
+                                tint,
+                                tex,
+                                biome,
+                                light,
+                            ));
                         }
                     }
                     Model::Cross => {
@@ -124,12 +132,7 @@ pub fn build(c: &Content, n: &Neighborhood, ctm: &super::ctm::Ctm) -> Mesh {
                         let (a0, a1) = ([b[0] + e, b[1], b[2] + e], [b[0] + 1.0 - e, b[1] + 1.0, b[2] + 1.0 - e]);
                         let (c0, c1) = ([b[0] + e, b[1], b[2] + 1.0 - e], [b[0] + 1.0 - e, b[1] + 1.0, b[2] + e]);
                         for (p0, p1) in [(a0, a1), (c0, c1)] {
-                            let corners = [
-                                [p0[0], p0[1], p0[2]],
-                                [p1[0], p0[1], p1[2]],
-                                [p1[0], p1[1], p1[2]],
-                                [p0[0], p1[1], p0[2]],
-                            ];
+                            let corners = [[p0[0], p0[1], p0[2]], [p1[0], p0[1], p1[2]], [p1[0], p1[1], p1[2]], [p0[0], p1[1], p0[2]]];
                             let back = [corners[1], corners[0], corners[3], corners[2]];
                             for q in [corners, back] {
                                 mesh.quads[Layer::Cutout as usize].push(quad(q, [0, 0, 16, 16], t, biome, info.tint | FLAT, [l; 4]));

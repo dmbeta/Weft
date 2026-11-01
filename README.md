@@ -47,15 +47,25 @@ Weft ships with its own textures. If Minecraft is installed through the official
 
 ## Build from source
 
-Requires Rust 1.90 or newer.
+Requires Rust 1.90 or newer. [mise](https://mise.jdx.dev/) pins the toolchain and provides the build and run tasks.
 
 ```sh
 git clone https://github.com/VortexSo4/Weft.git
 cd Weft
-cargo run --release
+brew install molten-vk vulkan-loader  # macOS only; skip on Linux and Windows
+mise install          # installs the toolchain and writes the git pre-commit hook
+mise run run:release  # builds the game and all mods, then runs
 ```
 
-Run it from the repository root. Release builds pack each mod in `mods/` into `run/mods/` on start; settings, saves and logs go to `run/`. `cargo run --release -- --dist <dir>` makes a standalone build to share.
+Run it from the repository root. Release builds pack each mod in `mods/` into `run/mods/` on start; settings, saves and logs go to `run/`. `mise run run:release -- --dist <dir>` makes a standalone build to share.
+
+Available tasks: `build` (debug), `build:release`, `run` (debug) and `run:release`. Pass game options after `--`, for example `mise run run:release -- --gpu-debug`.
+
+`mise run fmt` formats Rust, Markdown and TOML in place, and `mise run check` reports the same without touching files. The pre-commit hook that `mise install` writes runs `fmt` on every commit and stages what it changed.
+
+Release builds on macOS carry MoltenVK themselves; a source build takes it from the Homebrew install above, which the game looks for in `/opt/homebrew/lib` and `/usr/local/lib`. Linux also needs ALSA and pkg-config (`sudo apt-get install -y libasound2-dev pkg-config`). On Windows the Vulkan loader and driver come with your GPU driver, so nothing extra is needed there.
+
+Without mise: `cargo build --release --workspace`, then `cargo run --release`.
 
 A game from a release writes nothing next to itself, so it can live in a read-only folder and be replaced by an update:
 
@@ -66,7 +76,6 @@ A game from a release writes nothing next to itself, so it can live in a read-on
 | macOS | `~/Library/Application Support/Weft` | `.../Weft/config` | `~/Library/Caches/Weft` |
 
 A game that already has a `run/config` folder next to it keeps everything in `run/`, as older versions did; make that folder to keep a copy portable. `--run-dir <dir>` puts everything in one folder of your choice.
-
 
 ## Modding
 
@@ -84,7 +93,7 @@ Type `stop` to save and leave, `list`, `say <text>`, `op <player> [level]` or `d
 
 ## Contributing
 
-Issues and pull requests are welcome, for the engine, mods, textures or docs. Read the [AI policy](AI_POLICY.md) before opening a pull request, it applies to everyone and the template asks for it.
+Issues and pull requests are welcome, for the engine, mods, textures or docs. Read the [AI policy](AI_POLICY.md) before opening a pull request, it applies to everyone and the template asks for it. Formatting is handled by `mise run fmt` (see [Build from source](#build-from-source)); the pre-commit hook runs it for you.
 
 ## License - [MPL-2.0](LICENSE)
 
