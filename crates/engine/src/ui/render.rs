@@ -5,6 +5,7 @@ use crate::gpu_layout::ui_mode;
 use rustc_hash::FxHashMap;
 use weft_render::*;
 
+use std::f32::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
 use super::font::Font;
@@ -780,7 +781,11 @@ impl UiRenderer {
         // As block.json shows it in a slot: rotation 30 225 0, scale 0.625, the block's middle in
         // the middle. Along x or z a block goes cos 45 across and sin 30 sin 45 down, up it goes
         // cos 30, all times 0.625.
-        let (h, q, up) = (size * 0.625 * 0.707_106_8, size * 0.625 * 0.353_553_4, size * 0.625 * 0.866_025_4);
+        let (h, q, up) = (
+            size * 0.625 * FRAC_1_SQRT_2,
+            size * 0.625 * 0.5 * FRAC_1_SQRT_2,
+            size * 0.625 * 0.866_025_4, // cos 30: no stable f32 constant for it.
+        );
         let o = [x + size / 2.0, y + size / 2.0];
         let at = |p: [f32; 3]| [o[0] + (p[0] - p[2]) * h, o[1] + (p[0] + p[2] - 1.0) * q - (p[1] - 0.5) * up];
         let grass = crate::content::item_tint(s.tint) << 8 | 0xFF;

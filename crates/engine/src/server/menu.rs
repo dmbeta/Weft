@@ -51,12 +51,12 @@ pub struct MenuCall {
 }
 
 impl MenuCall {
-    fn m(&self) -> &mut OpenMenu {
-        unsafe { &mut *self.menu }
+    fn m(&self) -> &OpenMenu {
+        unsafe { &*self.menu }
     }
 
-    fn d(&self) -> &mut Dim {
-        unsafe { &mut *self.dim }
+    fn d(&self) -> &Dim {
+        unsafe { &*self.dim }
     }
 
     /// First menu slot and slot count of group `name`.
@@ -71,7 +71,8 @@ impl MenuCall {
     }
 
     pub fn set(&mut self, slot: u32, stack: ItemStack) {
-        set(self.m(), self.d(), self.player, slot, stack)
+        let (m, d) = unsafe { (&mut *self.menu, &mut *self.dim) };
+        set(m, d, self.player, slot, stack)
     }
 }
 
